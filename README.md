@@ -110,7 +110,7 @@ The app uses a PostgreSQL database managed by Supabase with the following main t
 ### Relationships
 Tables are linked via foreign keys, such as `user_id` to `auth.users`, `bucket_id` in `Checklist_Headers` to `Buckets`, etc., establishing one-to-many or many-to-many relationships as appropriate.
 
-A detailed schema definition, including all columns, types, and constraints, should be maintained in a `schema.sql` file (once created and added to the repository) which serves as the definitive source for the database structure.
+A detailed schema definition, including tables, columns, types, and relationships, can be found in [`database-setup.md`](./database-setup.md). For the raw SQL commands to create the schema, refer to the `schema.sql` file (once created and added to the repository).
 
 ## Contributing
 1. Fork the repository.
