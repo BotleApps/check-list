@@ -1,64 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
   TouchableOpacity,
+  ScrollView,
   SafeAreaView,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
 import { createChecklist } from '../../store/slices/checklistsSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { fetchTags } from '../../store/slices/tagsSlice';
-import { LoadingSpinner } from '../../components/LoadingSpinner';
-import { 
-  ArrowLeft, 
-  Plus, 
-  Minus, 
-  Calendar, 
-  Tag, 
-  Folder,
-  Save,
-  X
-} from 'lucide-react-native';
+import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck } from 'lucide-react-native';
 
-interface ChecklistItemInput {
-  id: string;
-  text: string;
-  due_days?: number;
-  notes?: string;
-}
-
-export default function CreateChecklistScreen() {
-  const dispatch = useDispatch<AppDispatch>();
+export default function NewChecklistScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const dispatch = useDispatch<AppDispatch>();
   
   const { user } = useSelector((state: RootState) => state.auth);
   const { buckets } = useSelector((state: RootState) => state.buckets);
   const { tags } = useSelector((state: RootState) => state.tags);
   const { loading } = useSelector((state: RootState) => state.checklists);
 
-  // Form state
-  const [checklistName, setChecklistName] = useState('');
+  const [title, setTitle] = useState('');
+  const [items, setItems] = useState<string[]>(['']);
+  const [itemStates, setItemStates] = useState<boolean[]>([false]);
   const [targetDate, setTargetDate] = useState('');
-  const [selectedBucket, setSelectedBucket] = useState<string | null>(
-    params.bucket as string || null
-  );
+  const [selectedBucketId, setSelectedBucketId] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [items, setItems] = useState<ChecklistItemInput[]>([
-    { id: '1', text: '', due_days: undefined, notes: '' }
-  ]);
-  
-  const [showBucketPicker, setShowBucketPicker] = useState(false);
-  const [showTagPicker, setShowTagPicker] = useState(false);
+
+  // Refs for managing focus
+  const titleInputRef = useRef<TextInput>(null);
+  const itemInputRefs = useRef<(TextInput | null)[]>([]);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (user) {
@@ -67,48 +47,119 @@ export default function CreateChecklistScreen() {
     }
   }, [user, dispatch]);
 
-  const addItem = () => {
-    const newItem: ChecklistItemInput = {
-      id: Date.now().toString(),
-      text: '',
-      due_days: undefined,
-      notes: ''
-    };
-    setItems([...items, newItem]);
+  // Ensure itemStates array always matches items array length
+  useEffect(() => {
+    if (itemStates.length !== items.length) {
+      const newStates = [...itemStates];
+      while (newStates.length < items.length) {
+        newStates.push(false);
+      }
+      while (newStates.length > items.length) {
+        newStates.pop();
+      }
+      setItemStates(newStates);
+    }
+  }, [items.length, itemStates.length]);
+
+  const updateItem = (index: number, value: string) => {
+    const updatedItems = [...items];
+    updatedItems[index] = value;
+    setItems(updatedItems);
   };
 
-  const removeItem = (id: string) => {
-    if (items.length > 1) {
-      setItems(items.filter(item => item.id !== id));
+  const toggleItemState = (index: number) => {
+    const updatedStates = [...itemStates];
+    updatedStates[index] = !updatedStates[index];
+    setItemStates(updatedStates);
+  };
+
+  const addNewItem = (afterIndex: number) => {
+    const updatedItems = [...items];
+    const updatedStates = [...itemStates];
+    
+    updatedItems.splice(afterIndex + 1, 0, '');
+    updatedStates.splice(afterIndex + 1, 0, false);
+    
+    setItems(updatedItems);
+    setItemStates(updatedStates);
+    
+    // Update refs array to match new items length
+    const newRefs = [...itemInputRefs.current];
+    newRefs.splice(afterIndex + 1, 0, null);
+    itemInputRefs.current = newRefs;
+    
+    // Focus the new item after a short delay
+    setTimeout(() => {
+      const newIndex = afterIndex + 1;
+      itemInputRefs.current[newIndex]?.focus();
+      
+      // Scroll to show the new item
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length <= 1) return; // Always keep at least one item
+    
+    const updatedItems = items.filter((_, i) => i !== index);
+    const updatedStates = itemStates.filter((_, i) => i !== index);
+    
+    setItems(updatedItems);
+    setItemStates(updatedStates);
+    
+    // Update refs array
+    const newRefs = itemInputRefs.current.filter((_, i) => i !== index);
+    itemInputRefs.current = newRefs;
+    
+    // Focus previous item or next item
+    setTimeout(() => {
+      const targetIndex = Math.max(0, Math.min(index - 1, updatedItems.length - 1));
+      itemInputRefs.current[targetIndex]?.focus();
+    }, 100);
+  };
+
+  const handleItemSubmit = (index: number) => {
+    // Always create a new item when Enter is pressed
+    addNewItem(index);
+  };
+
+  const handleItemKeyPress = (index: number, key: string) => {
+    if (key === 'Backspace' && items[index] === '' && items.length > 1) {
+      // Remove current empty item and focus previous
+      removeItem(index);
     }
   };
 
-  const updateItem = (id: string, field: keyof ChecklistItemInput, value: string | number) => {
-    setItems(items.map(item => 
-      item.id === id ? { ...item, [field]: value } : item
-    ));
+  const handleItemBlur = (index: number) => {
+    // Remove empty items when they lose focus, but keep at least one item
+    if (items[index].trim() === '' && items.length > 1) {
+      // Check if there are other non-empty items
+      const hasOtherItems = items.some((item, i) => i !== index && item.trim() !== '');
+      if (hasOtherItems) {
+        removeItem(index);
+      }
+    }
   };
 
-  const toggleTag = (tagName: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tagName) 
-        ? prev.filter(t => t !== tagName)
-        : [...prev, tagName]
-    );
+  const handleTitleSubmit = () => {
+    // Focus first item when title is submitted
+    if (itemInputRefs.current[0]) {
+      itemInputRefs.current[0]?.focus();
+    }
   };
 
   const handleSave = async () => {
-    if (!checklistName.trim()) {
-      Alert.alert('Error', 'Please enter a checklist name');
+    if (!user) return;
+
+    if (!title.trim()) {
+      Alert.alert('Error', 'Please enter a title for your checklist');
       return;
     }
 
-    if (!user) {
-      Alert.alert('Error', 'User not authenticated');
-      return;
-    }
-
-    const validItems = items.filter(item => item.text.trim() !== '');
+    // Clean up empty items before saving
+    const validItems = items.filter(item => item.trim() !== '');
+    const validStates = itemStates.filter((_, index) => items[index].trim() !== '');
+    
     if (validItems.length === 0) {
       Alert.alert('Error', 'Please add at least one item to your checklist');
       return;
@@ -116,15 +167,19 @@ export default function CreateChecklistScreen() {
 
     try {
       const checklistData = {
+        name: title.trim(),
+        description: '',
         user_id: user.user_id,
-        name: checklistName.trim(),
+        bucket_id: selectedBucketId || undefined,
         target_date: targetDate || undefined,
-        bucket_id: selectedBucket || undefined,
         tags: selectedTags,
+        items: validItems.map((item, index) => ({
+          text: item.trim(),
+          completed: validStates[index] || false,
+        })),
       };
 
-      await dispatch(createChecklist(checklistData));
-      
+      await dispatch(createChecklist(checklistData)).unwrap();
       Alert.alert('Success', 'Checklist created successfully!', [
         { text: 'OK', onPress: () => router.back() }
       ]);
@@ -132,14 +187,6 @@ export default function CreateChecklistScreen() {
       Alert.alert('Error', 'Failed to create checklist. Please try again.');
     }
   };
-
-  const selectedBucketName = selectedBucket 
-    ? buckets.find(b => b.bucket_id === selectedBucket)?.bucket_name 
-    : null;
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -149,181 +196,127 @@ export default function CreateChecklistScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#374151" />
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={24} color="#007AFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Checklist</Text>
-          <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-            <Save size={24} color="#0891B2" />
+          <TouchableOpacity 
+            style={styles.doneButton} 
+            onPress={handleSave}
+            disabled={loading || !title.trim()}
+          >
+            <Text style={[
+              styles.doneButtonText,
+              (!title.trim() || loading) && styles.doneButtonTextDisabled
+            ]}>
+              Done
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Checklist Name */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Checklist Name</Text>
-            <TextInput
-              style={styles.nameInput}
-              placeholder="Enter checklist name..."
-              value={checklistName}
-              onChangeText={setChecklistName}
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
+        <ScrollView 
+          ref={scrollViewRef}
+          style={styles.content} 
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Title Input */}
+          <TextInput
+            ref={titleInputRef}
+            style={styles.titleInput}
+            placeholder="Title"
+            value={title}
+            onChangeText={setTitle}
+            placeholderTextColor="#C7C7CC"
+            returnKeyType="next"
+            onSubmitEditing={handleTitleSubmit}
+            blurOnSubmit={false}
+          />
 
-          {/* Target Date */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Target Date (Optional)</Text>
-            <TouchableOpacity style={styles.dateInput}>
-              <Calendar size={20} color="#6B7280" />
-              <TextInput
-                style={styles.dateText}
-                placeholder="YYYY-MM-DD"
-                value={targetDate}
-                onChangeText={setTargetDate}
-                placeholderTextColor="#9CA3AF"
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Bucket Selection */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Bucket (Optional)</Text>
-            <TouchableOpacity 
-              style={styles.pickerButton}
-              onPress={() => setShowBucketPicker(!showBucketPicker)}
-            >
-              <Folder size={20} color="#6B7280" />
-              <Text style={[styles.pickerText, selectedBucketName && styles.selectedPickerText]}>
-                {selectedBucketName || 'Select a bucket'}
-              </Text>
-            </TouchableOpacity>
-            
-            {showBucketPicker && (
-              <View style={styles.pickerOptions}>
-                <TouchableOpacity 
-                  style={styles.pickerOption}
-                  onPress={() => {
-                    setSelectedBucket(null);
-                    setShowBucketPicker(false);
-                  }}
-                >
-                  <Text style={styles.pickerOptionText}>No bucket</Text>
-                </TouchableOpacity>
-                {buckets.map(bucket => (
-                  <TouchableOpacity
-                    key={bucket.bucket_id}
-                    style={styles.pickerOption}
-                    onPress={() => {
-                      setSelectedBucket(bucket.bucket_id);
-                      setShowBucketPicker(false);
-                    }}
-                  >
-                    <Text style={styles.pickerOptionText}>{bucket.bucket_name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Tags Selection */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tags (Optional)</Text>
-            <TouchableOpacity 
-              style={styles.pickerButton}
-              onPress={() => setShowTagPicker(!showTagPicker)}
-            >
-              <Tag size={20} color="#6B7280" />
-              <Text style={[styles.pickerText, selectedTags.length > 0 && styles.selectedPickerText]}>
-                {selectedTags.length > 0 
-                  ? `${selectedTags.length} tag${selectedTags.length > 1 ? 's' : ''} selected`
-                  : 'Select tags'
-                }
-              </Text>
-            </TouchableOpacity>
-            
-            {selectedTags.length > 0 && (
-              <View style={styles.selectedTags}>
-                {selectedTags.map(tag => (
-                  <TouchableOpacity
-                    key={tag}
-                    style={styles.selectedTag}
-                    onPress={() => toggleTag(tag)}
-                  >
-                    <Text style={styles.selectedTagText}>{tag}</Text>
-                    <X size={14} color="#374151" />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {showTagPicker && (
-              <View style={styles.pickerOptions}>
-                {tags.map(tag => (
-                  <TouchableOpacity
-                    key={tag.tag_id}
-                    style={[
-                      styles.pickerOption,
-                      selectedTags.includes(tag.name) && styles.selectedPickerOption
-                    ]}
-                    onPress={() => toggleTag(tag.name)}
-                  >
-                    <Text style={[
-                      styles.pickerOptionText,
-                      selectedTags.includes(tag.name) && styles.selectedPickerOptionText
-                    ]}>
-                      {tag.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Checklist Items */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Checklist Items</Text>
-              <TouchableOpacity onPress={addItem} style={styles.addItemButton}>
-                <Plus size={20} color="#0891B2" />
-              </TouchableOpacity>
-            </View>
-
+          {/* Items List */}
+          <View style={styles.itemsList}>
             {items.map((item, index) => (
-              <View key={item.id} style={styles.itemCard}>
-                <View style={styles.itemHeader}>
-                  <Text style={styles.itemNumber}>{index + 1}</Text>
-                  {items.length > 1 && (
-                    <TouchableOpacity
-                      onPress={() => removeItem(item.id)}
-                      style={styles.removeItemButton}
-                    >
-                      <Minus size={16} color="#EF4444" />
-                    </TouchableOpacity>
+              <View key={`item-${index}`} style={styles.itemRow}>
+                <TouchableOpacity 
+                  style={styles.checkboxContainer}
+                  onPress={() => toggleItemState(index)}
+                  activeOpacity={0.7}
+                >
+                  {itemStates[index] ? (
+                    <SquareCheck size={20} color="#007AFF" />
+                  ) : (
+                    <Circle size={20} color="#C7C7CC" />
                   )}
-                </View>
-                
+                </TouchableOpacity>
                 <TextInput
-                  style={styles.itemInput}
-                  placeholder="Enter item description..."
-                  value={item.text}
-                  onChangeText={(text) => updateItem(item.id, 'text', text)}
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                />
-                
-                <TextInput
-                  style={styles.notesInput}
-                  placeholder="Add notes (optional)..."
-                  value={item.notes}
-                  onChangeText={(text) => updateItem(item.id, 'notes', text)}
-                  placeholderTextColor="#9CA3AF"
-                  multiline
+                  ref={(ref) => {
+                    if (itemInputRefs.current) {
+                      itemInputRefs.current[index] = ref;
+                    }
+                  }}
+                  style={[
+                    styles.itemInput,
+                    itemStates[index] && styles.itemInputCompleted
+                  ]}
+                  placeholder={index === 0 ? "Add your first item..." : "Add item..."}
+                  value={item}
+                  onChangeText={(value) => updateItem(index, value)}
+                  placeholderTextColor="#C7C7CC"
+                  returnKeyType="next"
+                  onSubmitEditing={() => handleItemSubmit(index)}
+                  onKeyPress={({ nativeEvent: { key } }) => handleItemKeyPress(index, key)}
+                  onBlur={() => handleItemBlur(index)}
+                  blurOnSubmit={false}
+                  multiline={false}
                 />
               </View>
             ))}
           </View>
+
+          {/* Add some bottom padding for better scrolling */}
+          <View style={styles.bottomPadding} />
         </ScrollView>
+
+        {/* Bottom Bar */}
+        <View style={styles.bottomBar}>
+          <TouchableOpacity 
+            style={[
+              styles.bottomBarItem,
+              targetDate && styles.bottomBarItemActive
+            ]}
+            onPress={() => {
+              Alert.alert('Coming Soon', 'Date picker will be available in the next update!');
+            }}
+          >
+            <Calendar size={24} color={targetDate ? "#007AFF" : "#8E8E93"} />
+            {targetDate && <View style={styles.activeIndicator} />}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.bottomBarItem,
+              selectedBucketId && styles.bottomBarItemActive
+            ]}
+            onPress={() => {
+              Alert.alert('Coming Soon', 'Bucket selector will be available in the next update!');
+            }}
+          >
+            <Folder size={24} color={selectedBucketId ? "#007AFF" : "#8E8E93"} />
+            {selectedBucketId && <View style={styles.activeIndicator} />}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.bottomBarItem,
+              selectedTags.length > 0 && styles.bottomBarItemActive
+            ]}
+            onPress={() => {
+              Alert.alert('Coming Soon', 'Tag selector will be available in the next update!');
+            }}
+          >
+            <Tag size={24} color={selectedTags.length > 0 ? "#007AFF" : "#8E8E93"} />
+            {selectedTags.length > 0 && <View style={styles.activeIndicator} />}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -332,178 +325,108 @@ export default function CreateChecklistScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F2F2F7',
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#F2F2F7',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#C7C7CC',
   },
   backButton: {
     padding: 8,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  saveButton: {
+  doneButton: {
     padding: 8,
+  },
+  doneButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  doneButtonTextDisabled: {
+    color: '#C7C7CC',
   },
   content: {
     flex: 1,
-    padding: 16,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  nameInput: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
   },
-  dateInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  titleInput: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#000000',
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E5EA',
   },
-  dateText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#111827',
+  itemsList: {
+    paddingTop: 8,
   },
-  pickerButton: {
+  itemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    minHeight: 44,
   },
-  pickerText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#9CA3AF',
+  bulletPoint: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C7C7CC',
+    marginTop: 10,
+    marginRight: 12,
   },
-  selectedPickerText: {
-    color: '#111827',
-  },
-  pickerOptions: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-  pickerOption: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  selectedPickerOption: {
-    backgroundColor: '#F0FDFA',
-  },
-  pickerOptionText: {
-    fontSize: 16,
-    color: '#374151',
-  },
-  selectedPickerOptionText: {
-    color: '#0891B2',
-    fontWeight: '500',
-  },
-  selectedTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-  },
-  selectedTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
-  },
-  selectedTagText: {
-    fontSize: 14,
-    color: '#0891B2',
-    fontWeight: '500',
-  },
-  addItemButton: {
-    padding: 8,
-    backgroundColor: '#F0FDFA',
-    borderRadius: 8,
-  },
-  itemCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  itemNumber: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0891B2',
-    backgroundColor: '#F0FDFA',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 24,
-    textAlign: 'center',
-  },
-  removeItemButton: {
+  checkboxContainer: {
+    marginTop: 2,
+    marginRight: 12,
     padding: 4,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 6,
+    borderRadius: 4,
   },
   itemInput: {
-    fontSize: 16,
-    color: '#111827',
-    marginBottom: 12,
-    minHeight: 40,
+    flex: 1,
+    fontSize: 17,
+    color: '#000000',
+    lineHeight: 22,
+    paddingVertical: 0,
   },
-  notesInput: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontStyle: 'italic',
-    minHeight: 30,
+  itemInputCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#8E8E93',
+  },
+  bottomBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#F2F2F7',
+    borderTopWidth: 0.5,
+    borderTopColor: '#C7C7CC',
+  },
+  bottomBarItem: {
+    padding: 12,
+    borderRadius: 8,
+    position: 'relative',
+  },
+  bottomBarItemActive: {
+    backgroundColor: '#E3F2FD',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#007AFF',
+  },
+  bottomPadding: {
+    height: 100,
   },
 });
