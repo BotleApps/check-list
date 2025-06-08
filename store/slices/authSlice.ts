@@ -11,7 +11,7 @@ interface AuthState {
 
 const initialState: AuthState = {
   user: null,
-  loading: false,
+  loading: true, // Start with loading true to check initial session
   error: null,
   isAuthenticated: false,
 };

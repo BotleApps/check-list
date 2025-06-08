@@ -63,17 +63,24 @@ class AuthService {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      return null;
-    }
-
     try {
-      const userProfile = await this.getUserProfile(user.id, user.email || '');
+      // First try to get the session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Error getting session:', sessionError);
+        return null;
+      }
+
+      if (!session?.user) {
+        return null;
+      }
+
+      // Then get the user profile
+      const userProfile = await this.getUserProfile(session.user.id, session.user.email || '');
       return userProfile;
     } catch (error) {
-      console.error('Error getting user profile:', error);
+      console.error('Error getting current user:', error);
       return null;
     }
   }
@@ -130,12 +137,18 @@ class AuthService {
   // Listen to auth state changes
   onAuthStateChange(callback: (user: User | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        try {
-          const user = await this.getUserProfile(session.user.id, session.user.email || '');
-          callback(user);
-        } catch (error) {
-          console.error('Error getting user profile on auth change:', error);
+      console.log('Auth state change:', event, session?.user?.id);
+      
+      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+        if (session?.user) {
+          try {
+            const user = await this.getUserProfile(session.user.id, session.user.email || '');
+            callback(user);
+          } catch (error) {
+            console.error('Error getting user profile on auth change:', error);
+            callback(null);
+          }
+        } else {
           callback(null);
         }
       } else if (event === 'SIGNED_OUT') {
