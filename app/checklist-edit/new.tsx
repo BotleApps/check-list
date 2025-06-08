@@ -123,7 +123,15 @@ export default function NewChecklistScreen() {
     addNewItem(index);
   };
 
-  const handleItemKeyPress = (index: number, key: string) => {
+  const handleItemKeyPress = (index: number, nativeEvent: any) => {
+    const { key } = nativeEvent;
+    
+    if (key === 'Enter') {
+      // Create new item when Enter is pressed
+      handleItemSubmit(index);
+      return;
+    }
+    
     if (key === 'Backspace' && items[index] === '' && items.length > 1) {
       // Remove current empty item and focus previous
       removeItem(index);
@@ -263,10 +271,12 @@ export default function NewChecklistScreen() {
                   placeholderTextColor="#C7C7CC"
                   returnKeyType="next"
                   onSubmitEditing={() => handleItemSubmit(index)}
-                  onKeyPress={({ nativeEvent: { key } }) => handleItemKeyPress(index, key)}
+                  onKeyPress={({ nativeEvent }) => handleItemKeyPress(index, nativeEvent)}
                   onBlur={() => handleItemBlur(index)}
                   blurOnSubmit={false}
-                  multiline={false}
+                  multiline={true}
+                  textAlignVertical="top"
+                  scrollEnabled={false}
                 />
               </View>
             ))}
@@ -357,9 +367,10 @@ const styles = StyleSheet.create({
   },
   titleInput: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 20,
     fontSize: 28,
     fontWeight: '700',
+    lineHeight: 34,
     color: '#000000',
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 0.5,
@@ -372,8 +383,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingHorizontal: 20,
-    paddingVertical: 8,
-    minHeight: 44,
+    paddingVertical: 4,
+    minHeight: 36,
   },
   bulletPoint: {
     width: 8,
@@ -384,7 +395,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   checkboxContainer: {
-    marginTop: 2,
+    marginTop: 4,
     marginRight: 12,
     padding: 4,
     borderRadius: 4,
@@ -394,7 +405,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: '#000000',
     lineHeight: 22,
-    paddingVertical: 0,
+    paddingVertical: 4,
+    minHeight: 22,
+    maxHeight: 110,
   },
   itemInputCompleted: {
     textDecorationLine: 'line-through',
