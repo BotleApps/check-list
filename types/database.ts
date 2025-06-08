@@ -22,6 +22,7 @@ export interface ChecklistHeader {
   checklist_id: string;
   user_id: string;
   name: string;
+  description?: string;
   target_date?: string;
   bucket_id?: string;
   tags: string[];

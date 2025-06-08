@@ -28,9 +28,6 @@ export default function ProfileScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { checklists } = useSelector((state: RootState) => state.checklists);
-  const { buckets } = useSelector((state: RootState) => state.buckets);
-  const { templates } = useSelector((state: RootState) => state.templates);
 
   const handleLogout = () => {
     Alert.alert(
@@ -132,22 +129,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsSection}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{checklists.length}</Text>
-            <Text style={styles.statLabel}>Checklists</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{buckets.length}</Text>
-            <Text style={styles.statLabel}>Buckets</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{templates.length}</Text>
-            <Text style={styles.statLabel}>Templates</Text>
-          </View>
-        </View>
-
         {/* Menu Items */}
         <View style={styles.menuSection}>
           {menuItems.map((item, index) => (
@@ -246,38 +227,6 @@ const styles = StyleSheet.create({
   userDetailText: {
     fontSize: 14,
     color: '#6B7280',
-  },
-  statsSection: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 16,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
   },
   menuSection: {
     backgroundColor: '#FFFFFF',

@@ -17,7 +17,7 @@ import { ChecklistCard } from '../../components/ChecklistCard';
 import { BucketCard } from '../../components/BucketCard';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { Plus, SquareCheck, Clock, Zap } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -102,27 +102,6 @@ export default function HomeScreen() {
           >
             <Plus size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
-
-        {/* Quick Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <SquareCheck size={20} color="#10B981" />
-            <Text style={styles.statNumber}>{checklists.length}</Text>
-            <Text style={styles.statLabel}>Active Lists</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Clock size={20} color="#F59E0B" />
-            <Text style={styles.statNumber}>
-              {checklists.filter(c => c.target_date && new Date(c.target_date) < new Date()).length}
-            </Text>
-            <Text style={styles.statLabel}>Due Soon</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Zap size={20} color="#8B5CF6" />
-            <Text style={styles.statNumber}>{buckets.length}</Text>
-            <Text style={styles.statLabel}>Buckets</Text>
-          </View>
         </View>
 
         {/* Recent Checklists */}
@@ -213,38 +192,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 4,
   },
   section: {
     marginTop: 24,

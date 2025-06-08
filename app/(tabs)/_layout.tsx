@@ -3,9 +3,11 @@ import { Tabs } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { Home, FolderOpen, FileText, User } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+  const insets = useSafeAreaInsets();
 
   if (!isAuthenticated) {
     return null; // Will be handled by auth flow
@@ -21,8 +23,8 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopColor: '#E5E7EB',
           paddingTop: 8,
-          paddingBottom: 8,
-          height: 64,
+          paddingBottom: Math.max(insets.bottom, 8),
+          height: 64 + Math.max(insets.bottom - 8, 0),
         },
         tabBarLabelStyle: {
           fontSize: 12,
