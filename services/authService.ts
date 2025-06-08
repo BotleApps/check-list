@@ -1,55 +1,147 @@
+import { supabase } from '../lib/supabase';
 import { User } from '../types/database';
 
-// Mock implementation - replace with actual API calls
 class AuthService {
-  private mockUsers: User[] = [
-    {
-      user_id: '1',
-      email: 'demo@example.com',
-      name: 'Demo User',
-      created_at: new Date().toISOString(),
-    },
-  ];
-
   async login(email: string, password: string): Promise<User> {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const user = this.mockUsers.find(u => u.email === email);
-    if (!user || password !== 'demo123') {
-      throw new Error('Invalid credentials');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      throw new Error(error.message);
     }
-    
+
+    if (!data.user) {
+      throw new Error('No user data returned');
+    }
+
+    // Get or create user profile
+    const user = await this.getUserProfile(data.user.id, data.user.email || email);
     return user;
   }
 
   async register(email: string, password: string, name: string): Promise<User> {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (this.mockUsers.find(u => u.email === email)) {
-      throw new Error('User already exists');
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+        },
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message);
     }
 
-    const newUser: User = {
-      user_id: Math.random().toString(36).substr(2, 9),
-      email,
-      name,
-      created_at: new Date().toISOString(),
-    };
+    if (!data.user) {
+      throw new Error('No user data returned');
+    }
 
-    this.mockUsers.push(newUser);
-    return newUser;
+    // Create user profile
+    const user = await this.createUserProfile(data.user.id, email, name);
+    return user;
   }
 
   async logout(): Promise<void> {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 
   async forgotPassword(email: string): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    // Mock implementation
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async getCurrentUser(): Promise<User | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return null;
+    }
+
+    try {
+      const userProfile = await this.getUserProfile(user.id, user.email || '');
+      return userProfile;
+    } catch (error) {
+      console.error('Error getting user profile:', error);
+      return null;
+    }
+  }
+
+  async updatePassword(newPassword: string): Promise<void> {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  private async getUserProfile(userId: string, email: string): Promise<User> {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = not found
+      throw new Error(error.message);
+    }
+
+    if (!data) {
+      // User profile doesn't exist, create one
+      return await this.createUserProfile(userId, email, email.split('@')[0]);
+    }
+
+    return data;
+  }
+
+  private async createUserProfile(userId: string, email: string, name: string): Promise<User> {
+    const userProfile: Omit<User, 'created_at'> = {
+      user_id: userId,
+      email,
+      name,
+    };
+
+    const { data, error } = await supabase
+      .from('users')
+      .insert(userProfile)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  }
+
+  // Listen to auth state changes
+  onAuthStateChange(callback: (user: User | null) => void) {
+    return supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        try {
+          const user = await this.getUserProfile(session.user.id, session.user.email || '');
+          callback(user);
+        } catch (error) {
+          console.error('Error getting user profile on auth change:', error);
+          callback(null);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        callback(null);
+      }
+    });
   }
 }
 

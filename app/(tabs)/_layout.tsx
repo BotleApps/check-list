@@ -1,8 +1,8 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
+import { Home, FolderOpen, FileText, User } from 'lucide-react-native';
 
 export default function TabLayout() {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
@@ -35,7 +35,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ size, color }) => (
-            <Text style={{ fontSize: size, color }}>🏠</Text>
+            <Home size={size} color={color} />
           ),
         }}
       />
@@ -44,7 +44,7 @@ export default function TabLayout() {
         options={{
           title: 'Buckets',
           tabBarIcon: ({ size, color }) => (
-            <Text style={{ fontSize: size, color }}>📁</Text>
+            <FolderOpen size={size} color={color} />
           ),
         }}
       />
@@ -53,7 +53,7 @@ export default function TabLayout() {
         options={{
           title: 'Templates',
           tabBarIcon: ({ size, color }) => (
-            <Text style={{ fontSize: size, color }}>📋</Text>
+            <FileText size={size} color={color} />
           ),
         }}
       />
@@ -62,7 +62,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ size, color }) => (
-            <Text style={{ fontSize: size, color }}>👤</Text>
+            <User size={size} color={color} />
           ),
         }}
       />

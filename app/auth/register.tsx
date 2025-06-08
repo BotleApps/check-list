@@ -14,17 +14,20 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { loginUser, clearError, forgotPassword } from '../../store/slices/authSlice';
+import { registerUser, clearError } from '../../store/slices/authSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 
-export default function LoginScreen() {
+export default function RegisterScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
   const { loading, error, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -34,38 +37,40 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (error) {
-      Alert.alert('Login Failed', error);
+      Alert.alert('Registration Failed', error);
       dispatch(clearError());
     }
   }, [error, dispatch]);
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
+  const handleRegister = async () => {
+    if (!email.trim() || !password.trim() || !confirmPassword.trim() || !fullName.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    try {
-      await dispatch(loginUser({ email: email.trim(), password })).unwrap();
-    } catch (error) {
-      // Error is handled by useEffect above
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
     }
-  };
 
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      Alert.alert('Email Required', 'Please enter your email address to reset your password');
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
       return;
     }
 
     try {
-      await dispatch(forgotPassword(email.trim())).unwrap();
+      await dispatch(registerUser({ 
+        email: email.trim(), 
+        password,
+        name: fullName.trim()
+      })).unwrap();
       Alert.alert(
-        'Password Reset Sent',
-        'Please check your email for password reset instructions.'
+        'Registration Successful',
+        'Please check your email for verification instructions.',
+        [{ text: 'OK', onPress: () => router.push('/auth/login') }]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to send password reset email. Please try again.');
+      // Error is handled by useEffect above
     }
   };
 
@@ -81,12 +86,24 @@ export default function LoginScreen() {
             <View style={styles.logoContainer}>
               <Text style={styles.logo}>✅</Text>
             </View>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue to CheckList</Text>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Sign up to get started with CheckList</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.icon}>👤</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Full name"
+                value={fullName}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+            </View>
+
             <View style={styles.inputContainer}>
               <Text style={styles.icon}>📧</Text>
               <TextInput
@@ -104,7 +121,7 @@ export default function LoginScreen() {
               <Text style={styles.icon}>🔒</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Password"
+                placeholder="Password (min. 6 characters)"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -120,31 +137,44 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.forgotPasswordButton}
-              onPress={handleForgotPassword}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
+            <View style={styles.inputContainer}>
+              <Text style={styles.icon}>🔒</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeButton}
+              >
+                <Text style={styles.icon}>
+                  {showConfirmPassword ? '🙈' : '👁️'}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
+              style={[styles.registerButton, loading && styles.registerButtonDisabled]}
+              onPress={handleRegister}
               disabled={loading}
             >
               {loading ? (
                 <LoadingSpinner size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
+                <Text style={styles.registerButtonText}>Create Account</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          {/* Sign Up Link */}
+          {/* Sign In Link */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/auth/register')}>
-              <Text style={styles.signUpText}>Sign Up</Text>
+            <Text style={styles.footerText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.push('/auth/login')}>
+              <Text style={styles.signInText}>Sign In</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -220,26 +250,18 @@ const styles = StyleSheet.create({
   eyeButton: {
     padding: 4,
   },
-  forgotPasswordButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    color: '#2563EB',
-    fontWeight: '600',
-  },
-  loginButton: {
-    backgroundColor: '#2563EB',
+  registerButton: {
+    backgroundColor: '#16A34A',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 8,
   },
-  loginButtonDisabled: {
+  registerButtonDisabled: {
     backgroundColor: '#9CA3AF',
   },
-  loginButtonText: {
+  registerButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
@@ -253,7 +275,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
-  signUpText: {
+  signInText: {
     fontSize: 14,
     color: '#2563EB',
     fontWeight: '600',

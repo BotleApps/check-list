@@ -1,53 +1,102 @@
-# Checklist App
+# CheckList App ✅
 
-A simple, collaborative checklist application built with React, Tailwind CSS, and Supabase. Create, track, and share checklists for personal or team use, with support for reusable templates, buckets, categories, and tags.
+A modern, intuitive checklist application built with **React Native/Expo** and **Supabase**. Create, manage, and organize your tasks with a beautiful iOS Notes-inspired interface.
 
-## Table of Contents
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Supabase Setup](#supabase-setup)
-- [Usage](#usage)
-- [Data Model](#data-model)
-- [Contributing](#contributing)
-- [License](#license)
+## ✨ Features
 
-## Features
-- **Create Checklists**: Build named checklists with items, due dates, statuses, and notes.
-- **Organize**: Group checklists in user-defined buckets; tag checklists for easy filtering.
-- **Track Progress**: Mark items as pending, in progress, completed, or canceled.
-- **Share Checklists**: Share checklists via unique links (view or edit permissions).
-- **Templates**: Create reusable checklist templates organized by categories.
-- **Offline Support**: LocalStorage for offline checklist management (MVP).
-- **Cloud Sync**: Supabase for user authentication, cloud storage, and real-time sharing.
-- **Responsive Design**: Mobile-friendly UI with Tailwind CSS.
+### 🎯 **Modern User Experience**
+- **iOS Notes-style interface** with clean, intuitive design
+- **Interactive checklist creation** with real-time multiline display
+- **Smart input handling** - Enter key creates new items
+- **Responsive design** optimized for web and mobile
 
-## Tech Stack
-- **Frontend**: React, Tailwind CSS
-- **Backend**: Supabase (PostgreSQL for data, Auth for user management)
-- **Storage**: LocalStorage (MVP), Supabase PostgreSQL (cloud)
-- **Deployment**: Vercel/Netlify (frontend), Supabase (backend)
+### 🔐 **Complete Authentication System**
+- **Email authentication** powered by Supabase
+- **User registration** with email verification
+- **Password reset** functionality
+- **Secure session management**
 
-## Getting Started
+### 📱 **Checklist Management**
+- **Create and edit** checklists with ease
+- **Organize with buckets** for better categorization
+- **Template system** for reusable checklists
+- **Progress tracking** with visual indicators
+
+### 🚀 **Deployment Ready**
+- **Netlify deployment** configured
+- **React 19 compatibility** with legacy peer deps
+- **Environment configuration** for multiple environments
+- **Optimized build process**
+
+## 🛠 Tech Stack
+
+- **Frontend**: React Native/Expo, TypeScript
+- **State Management**: Redux Toolkit with persistence
+- **Authentication**: Supabase Auth
+- **Database**: Supabase (PostgreSQL)
+- **Styling**: React Native StyleSheet
+- **Icons**: Lucide React Native
+- **Deployment**: Netlify
+- **Development**: Expo CLI, Metro bundler
+
+## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js (v16 or later)
-- npm or yarn
-- Supabase account and project
-- Git
+- **Node.js** (v16 or later)
+- **npm** or yarn
+- **Git**
 
-### Installation
-1. Clone the repository:
+### Development Setup
+
+1. **Clone and install**:
    ```bash
-   git clone https://github.com/<your-username>/checklist-app.git
-   cd checklist-app
+   git clone https://github.com/your-username/check-list.git
+   cd check-list
+   npm install --legacy-peer-deps
    ```
-2. Install dependencies:
+
+2. **Start development server**:
    ```bash
-   npm install
+   npm run dev
    ```
+
+3. **Open in browser**:
+   - Web: http://localhost:8081
+   - Mobile: Scan QR code with Expo Go app
+
+### 🔧 Mock Authentication Mode
+
+The app runs in **mock authentication mode** by default, allowing you to test all features without Supabase setup:
+
+- ✅ Any email/password works for login
+- ✅ Registration flow works with validation
+- ✅ Forgot password flow shows success messages
+- ✅ All authentication screens are functional
+
+See [`TESTING-GUIDE.md`](./TESTING-GUIDE.md) for detailed testing instructions.
+
+### 🌐 Production Deployment
+
+1. **Set up Supabase** (optional for development):
+   ```bash
+   # Copy environment template
+   cp .env.example .env
+   
+   # Add your Supabase credentials to .env
+   EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+2. **Deploy to Netlify**:
+   ```bash
+   # Build for production
+   npm run build:web
+   
+   # Deploy (or connect GitHub repo to Netlify)
+   ./deploy.sh
+   ```
+
+See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for detailed deployment instructions.
 3. Create a `.env` file in the root directory and add your Supabase credentials:
    ```env
    VITE_SUPABASE_URL=your-supabase-url

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -14,47 +14,19 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { loginUser, clearError, forgotPassword } from '../../store/slices/authSlice';
+import { forgotPassword } from '../../store/slices/authSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 
-export default function LoginScreen() {
+export default function ForgotPasswordScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
-  const { loading, error, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { loading } = useSelector((state: RootState) => state.auth);
 
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.replace('/(tabs)');
-    }
-  }, [isAuthenticated, router]);
-
-  useEffect(() => {
-    if (error) {
-      Alert.alert('Login Failed', error);
-      dispatch(clearError());
-    }
-  }, [error, dispatch]);
-
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    try {
-      await dispatch(loginUser({ email: email.trim(), password })).unwrap();
-    } catch (error) {
-      // Error is handled by useEffect above
-    }
-  };
-
-  const handleForgotPassword = async () => {
+  const handleResetPassword = async () => {
     if (!email.trim()) {
-      Alert.alert('Email Required', 'Please enter your email address to reset your password');
+      Alert.alert('Error', 'Please enter your email address');
       return;
     }
 
@@ -62,7 +34,8 @@ export default function LoginScreen() {
       await dispatch(forgotPassword(email.trim())).unwrap();
       Alert.alert(
         'Password Reset Sent',
-        'Please check your email for password reset instructions.'
+        'Please check your email for password reset instructions.',
+        [{ text: 'OK', onPress: () => router.push('/auth/login') }]
       );
     } catch (error) {
       Alert.alert('Error', 'Failed to send password reset email. Please try again.');
@@ -81,8 +54,8 @@ export default function LoginScreen() {
             <View style={styles.logoContainer}>
               <Text style={styles.logo}>✅</Text>
             </View>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue to CheckList</Text>
+            <Text style={styles.title}>Reset Password</Text>
+            <Text style={styles.subtitle}>Enter your email address and we'll send you a link to reset your password</Text>
           </View>
 
           {/* Form */}
@@ -100,51 +73,24 @@ export default function LoginScreen() {
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.icon}>🔒</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-              >
-                <Text style={styles.icon}>
-                  {showPassword ? '🙈' : '👁️'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             <TouchableOpacity
-              style={styles.forgotPasswordButton}
-              onPress={handleForgotPassword}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
+              style={[styles.resetButton, loading && styles.resetButtonDisabled]}
+              onPress={handleResetPassword}
               disabled={loading}
             >
               {loading ? (
                 <LoadingSpinner size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
+                <Text style={styles.resetButtonText}>Send Reset Link</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          {/* Sign Up Link */}
+          {/* Back to Login Link */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/auth/register')}>
-              <Text style={styles.signUpText}>Sign Up</Text>
+            <Text style={styles.footerText}>Remember your password? </Text>
+            <TouchableOpacity onPress={() => router.push('/auth/login')}>
+              <Text style={styles.signInText}>Sign In</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -192,6 +138,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
+    lineHeight: 22,
   },
   form: {
     marginBottom: 32,
@@ -203,7 +150,7 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
     borderRadius: 12,
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 24,
     backgroundColor: '#F9FAFB',
   },
   icon: {
@@ -217,29 +164,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
   },
-  eyeButton: {
-    padding: 4,
-  },
-  forgotPasswordButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    color: '#2563EB',
-    fontWeight: '600',
-  },
-  loginButton: {
+  resetButton: {
     backgroundColor: '#2563EB',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loginButtonDisabled: {
+  resetButtonDisabled: {
     backgroundColor: '#9CA3AF',
   },
-  loginButtonText: {
+  resetButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
@@ -253,7 +188,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
-  signUpText: {
+  signInText: {
     fontSize: 14,
     color: '#2563EB',
     fontWeight: '600',
