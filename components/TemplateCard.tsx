@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ChecklistTemplateHeader } from '../types/database';
-import { FileTemplate, Tag } from 'lucide-react-native';
+import { LayoutTemplate, Tag } from 'lucide-react-native';
 
 interface TemplateCardProps {
   template: ChecklistTemplateHeader;
@@ -19,7 +19,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.iconContainer}>
-        <FileTemplate size={24} color="#0891B2" />
+        <LayoutTemplate size={24} color="#0891B2" />
       </View>
       
       <View style={styles.content}>

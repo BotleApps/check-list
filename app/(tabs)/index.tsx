@@ -17,7 +17,7 @@ import { ChecklistCard } from '../../components/ChecklistCard';
 import { BucketCard } from '../../components/BucketCard';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { Plus, CheckSquare, Clock, Zap } from 'lucide-react-native';
+import { Plus, SquareCheck, Clock, Zap } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -107,7 +107,7 @@ export default function HomeScreen() {
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <CheckSquare size={20} color="#10B981" />
+            <SquareCheck size={20} color="#10B981" />
             <Text style={styles.statNumber}>{checklists.length}</Text>
             <Text style={styles.statLabel}>Active Lists</Text>
           </View>
