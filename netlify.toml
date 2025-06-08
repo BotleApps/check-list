@@ -5,8 +5,8 @@
   # Directory with the static site files  
   publish = "dist"
   
-  # Build command
-  command = "npm run build:web"
+  # Build command with legacy peer deps to handle React 19 compatibility
+  command = "npm install --legacy-peer-deps && npm run build:web"
 
 [build.environment]
   # Node version

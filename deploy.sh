@@ -12,7 +12,7 @@ fi
 
 # Install dependencies
 echo "📦 Installing dependencies..."
-npm install
+npm install --legacy-peer-deps
 
 # Build the web version
 echo "🔨 Building web version..."
