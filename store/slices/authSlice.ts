@@ -7,6 +7,8 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   isAuthenticated: boolean;
+  requiresEmailConfirmation: boolean;
+  pendingConfirmationEmail?: string;
 }
 
 const initialState: AuthState = {
@@ -14,6 +16,7 @@ const initialState: AuthState = {
   loading: true, // Start with loading true to check initial session
   error: null,
   isAuthenticated: false,
+  requiresEmailConfirmation: false,
 };
 
 export const loginUser = createAsyncThunk(
@@ -49,6 +52,14 @@ export const forgotPassword = createAsyncThunk(
   }
 );
 
+export const resendConfirmation = createAsyncThunk(
+  'auth/resendConfirmation',
+  async (email: string) => {
+    await authService.resendConfirmation(email);
+    return email;
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -67,6 +78,11 @@ const authSlice = createSlice({
       state.error = null;
       state.loading = false;
     },
+    clearEmailConfirmation: (state) => {
+      state.requiresEmailConfirmation = false;
+      state.pendingConfirmationEmail = undefined;
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -76,8 +92,17 @@ const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload;
-        state.isAuthenticated = true;
+        if (action.payload.user) {
+          state.user = action.payload.user;
+          state.isAuthenticated = true;
+          state.requiresEmailConfirmation = false;
+          state.pendingConfirmationEmail = undefined;
+        } else if (action.payload.requiresEmailConfirmation) {
+          state.user = null;
+          state.isAuthenticated = false;
+          state.requiresEmailConfirmation = true;
+          state.error = action.payload.message || 'Email confirmation required';
+        }
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
@@ -89,8 +114,19 @@ const authSlice = createSlice({
       })
       .addCase(registerUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload;
-        state.isAuthenticated = true;
+        if (action.payload.user) {
+          state.user = action.payload.user;
+          state.isAuthenticated = true;
+          state.requiresEmailConfirmation = false;
+          state.pendingConfirmationEmail = undefined;
+        } else if (action.payload.requiresEmailConfirmation) {
+          state.user = null;
+          state.isAuthenticated = false;
+          state.requiresEmailConfirmation = true;
+          state.error = action.payload.message || 'Email confirmation required';
+          // Store the email for potential resend functionality
+          state.pendingConfirmationEmail = action.meta.arg.email;
+        }
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.loading = false;
@@ -132,9 +168,20 @@ const authSlice = createSlice({
       .addCase(forgotPassword.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Password reset failed';
+      })
+      .addCase(resendConfirmation.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(resendConfirmation.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(resendConfirmation.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Resend confirmation failed';
       });
   },
 });
 
-export const { clearError, setUser, clearAuth } = authSlice.actions;
+export const { clearError, setUser, clearAuth, clearEmailConfirmation } = authSlice.actions;
 export default authSlice.reducer;

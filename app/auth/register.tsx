@@ -16,11 +16,12 @@ import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
 import { registerUser, clearError } from '../../store/slices/authSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { EmailConfirmationScreen } from '../../components/EmailConfirmationScreen';
 
 export default function RegisterScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
-  const { loading, error, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { loading, error, isAuthenticated, requiresEmailConfirmation } = useSelector((state: RootState) => state.auth);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,15 +65,16 @@ export default function RegisterScreen() {
         password,
         name: fullName.trim()
       })).unwrap();
-      Alert.alert(
-        'Registration Successful',
-        'Please check your email for verification instructions.',
-        [{ text: 'OK', onPress: () => router.push('/auth/login') }]
-      );
+      // Success is handled by the component state changes
     } catch (error) {
       // Error is handled by useEffect above
     }
   };
+
+  // Show email confirmation screen if required
+  if (requiresEmailConfirmation) {
+    return <EmailConfirmationScreen />;
+  }
 
   return (
     <SafeAreaView style={styles.container}>

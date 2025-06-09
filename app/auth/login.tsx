@@ -20,7 +20,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
-  const { loading, error, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { loading, error, isAuthenticated, requiresEmailConfirmation } = useSelector((state: RootState) => state.auth);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,11 +33,17 @@ export default function LoginScreen() {
   }, [isAuthenticated, router]);
 
   useEffect(() => {
-    if (error) {
+    if (requiresEmailConfirmation) {
+      router.push('/auth/email-confirmation');
+    }
+  }, [requiresEmailConfirmation, router]);
+
+  useEffect(() => {
+    if (error && !requiresEmailConfirmation) {
       Alert.alert('Login Failed', error);
       dispatch(clearError());
     }
-  }, [error, dispatch]);
+  }, [error, requiresEmailConfirmation, dispatch]);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {

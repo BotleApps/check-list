@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase';
 import { User } from '../types/database';
 
 class AuthService {
-  async login(email: string, password: string): Promise<User> {
+  async login(email: string, password: string): Promise<{ user?: User; requiresEmailConfirmation?: boolean; message?: string }> {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -16,15 +16,23 @@ class AuthService {
       throw new Error('No user data returned');
     }
 
+    // Check if email is confirmed
+    if (!data.user.email_confirmed_at) {
+      return {
+        requiresEmailConfirmation: true,
+        message: 'Please check your email and click the confirmation link to access your account.'
+      };
+    }
+
     // Wait for session to be properly established  
     await this.waitForSession();
 
     // Get or create user profile
     const user = await this.getUserProfile(data.user.id, data.user.email || email);
-    return user;
+    return { user };
   }
 
-  async register(email: string, password: string, name: string): Promise<User> {
+  async register(email: string, password: string, name: string): Promise<{ user?: User; requiresEmailConfirmation?: boolean; message?: string }> {
     try {
       console.log('Starting registration for:', email);
       
@@ -53,35 +61,29 @@ class AuthService {
 
       // Check if email confirmation is required
       if (!data.session && data.user && !data.user.email_confirmed_at) {
-        console.log('Email confirmation required. User created but not confirmed.');
+        console.log('Email confirmation required. User created but cannot access app yet.');
         
-        // Return a basic user object - the trigger will have created the profile
-        const userProfile: User = {
-          user_id: data.user.id,
-          email: email,
-          name: name,
-          created_at: new Date().toISOString(),
+        return {
+          requiresEmailConfirmation: true,
+          message: 'Please check your email and click the confirmation link to complete your registration.'
         };
-        
-        console.log('Registration successful, email confirmation pending');
-        return userProfile;
       }
 
-      // If we have a session, fetch the profile (created by trigger)
+      // If we have a session, user is confirmed and can access the app
       if (data.session) {
-        console.log('Session established, fetching user profile...');
+        console.log('User confirmed, session established, fetching user profile...');
         try {
           const user = await this.getUserProfile(data.user.id, email);
           console.log('User profile fetched successfully');
-          return user;
+          return { user };
         } catch (profileError) {
           console.log('Profile not found, creating manually...');
           const user = await this.createUserProfile(data.user.id, email, name);
-          return user;
+          return { user };
         }
       }
 
-      // Fallback: try to wait for session and then get profile
+      // Fallback: try to wait for session (for auto-confirmed users)
       console.log('Waiting for session...');
       try {
         await this.waitForSession();
@@ -89,17 +91,13 @@ class AuthService {
         
         const user = await this.getUserProfile(data.user.id, email);
         console.log('User profile fetched successfully');
-        return user;
+        return { user };
       } catch (sessionError) {
-        console.log('Session timeout, but user created. Returning basic profile.');
-        // Even if session times out, the user was created successfully
-        const userProfile: User = {
-          user_id: data.user.id,
-          email: email,
-          name: name,
-          created_at: new Date().toISOString(),
+        console.log('Session timeout - likely requires email confirmation.');
+        return {
+          requiresEmailConfirmation: true,
+          message: 'Please check your email and click the confirmation link to complete your registration.'
         };
-        return userProfile;
       }
     } catch (error) {
       console.error('Registration failed:', error);
@@ -230,6 +228,17 @@ class AuthService {
     } catch (error) {
       console.error('Error updating user profile:', error);
       throw error;
+    }
+  }
+
+  async resendConfirmation(email: string): Promise<void> {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
+
+    if (error) {
+      throw new Error(`Failed to resend confirmation: ${error.message}`);
     }
   }
 
