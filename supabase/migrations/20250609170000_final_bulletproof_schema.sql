@@ -39,8 +39,11 @@ CREATE POLICY "users_own_data" ON public.users
 
 CREATE POLICY "users_can_signup" ON public.users
     FOR INSERT 
-    TO authenticated
-    WITH CHECK (auth.uid() = user_id);
+    WITH CHECK (
+        auth.uid() = user_id OR  -- Normal user signup
+        auth.role() = 'service_role' OR  -- Service role
+        current_setting('role') = 'supabase_auth_admin'  -- Auth trigger
+    );
 
 -- =========================================================================
 -- 2. CATEGORY MASTER

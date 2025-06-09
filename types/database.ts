@@ -76,5 +76,10 @@ export interface User {
   user_id: string;
   email: string;
   name: string;
+  avatar_url?: string;
+  role?: string;
+  preferences?: any;
   created_at: string;
+  updated_at?: string;
+  last_login?: string;
 }
