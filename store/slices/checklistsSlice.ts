@@ -37,7 +37,11 @@ export const fetchChecklistWithItems = createAsyncThunk(
 export const createChecklist = createAsyncThunk(
   'checklists/createChecklist',
   async (checklist: Omit<ChecklistHeader, 'checklist_id' | 'created_at' | 'updated_at'>) => {
-    const response = await checklistService.createChecklist(checklist);
+    const response = await checklistService.createChecklist(
+      checklist.user_id,
+      checklist.name,
+      checklist.bucket_id
+    );
     return response;
   }
 );
@@ -53,7 +57,13 @@ export const updateChecklistItem = createAsyncThunk(
 export const createChecklistItem = createAsyncThunk(
   'checklists/createChecklistItem',
   async (item: Omit<ChecklistItem, 'item_id' | 'created_at' | 'updated_at'>) => {
-    const response = await checklistService.createChecklistItem(item);
+    const response = await checklistService.addChecklistItem(
+      item.checklist_id,
+      item.text,
+      item.notes,
+      item.due_date,
+      item.order
+    );
     return response;
   }
 );

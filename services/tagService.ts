@@ -1,55 +1,85 @@
 import { TagMaster } from '../types/database';
+import { supabase } from '../lib/supabase';
 
 class TagService {
-  private mockTags: TagMaster[] = [
-    {
-      tag_id: '1',
-      name: 'grocery',
-      created_at: new Date().toISOString(),
-    },
-    {
-      tag_id: '2',
-      name: 'work',
-      created_at: new Date().toISOString(),
-    },
-    {
-      tag_id: '3',
-      name: 'personal',
-      created_at: new Date().toISOString(),
-    },
-    {
-      tag_id: '4',
-      name: 'urgent',
-      created_at: new Date().toISOString(),
-    },
-    {
-      tag_id: '5',
-      name: 'weekly',
-      created_at: new Date().toISOString(),
-    },
-    {
-      tag_id: '6',
-      name: 'project',
-      created_at: new Date().toISOString(),
-    },
-  ];
-
   async getAllTags(): Promise<TagMaster[]> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return this.mockTags;
+    const { data, error } = await supabase
+      .from('tag_master')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data || [];
   }
 
   async createTag(name: string): Promise<TagMaster> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const newTag: TagMaster = {
-      tag_id: Math.random().toString(36).substr(2, 9),
-      name: name.toLowerCase(),
-      created_at: new Date().toISOString(),
-    };
+    // Check if tag already exists
+    const { data: existing } = await supabase
+      .from('tag_master')
+      .select('*')
+      .eq('name', name)
+      .single();
 
-    this.mockTags.push(newTag);
-    return newTag;
+    if (existing) {
+      return existing;
+    }
+
+    const newTag = { name };
+
+    const { data, error } = await supabase
+      .from('tag_master')
+      .insert(newTag)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  }
+
+  async updateTag(tagId: string, name: string): Promise<TagMaster> {
+    const { data, error } = await supabase
+      .from('tag_master')
+      .update({ name })
+      .eq('tag_id', tagId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  }
+
+  async deleteTag(tagId: string): Promise<void> {
+    const { error } = await supabase
+      .from('tag_master')
+      .delete()
+      .eq('tag_id', tagId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async searchTags(query: string): Promise<TagMaster[]> {
+    const { data, error } = await supabase
+      .from('tag_master')
+      .select('*')
+      .ilike('name', `%${query}%`)
+      .order('name', { ascending: true });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data || [];
   }
 }
 

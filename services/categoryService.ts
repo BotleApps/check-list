@@ -1,50 +1,64 @@
 import { CategoryMaster } from '../types/database';
+import { supabase } from '../lib/supabase';
 
 class CategoryService {
-  private mockCategories: CategoryMaster[] = [
-    {
-      category_id: '1',
-      name: 'Personal',
-      user_id: '1',
-      created_at: new Date().toISOString(),
-    },
-    {
-      category_id: '2',
-      name: 'Work',
-      user_id: '1',
-      created_at: new Date().toISOString(),
-    },
-    {
-      category_id: '3',
-      name: 'Home',
-      user_id: '1',
-      created_at: new Date().toISOString(),
-    },
-    {
-      category_id: '4',
-      name: 'Travel',
-      user_id: '1',
-      created_at: new Date().toISOString(),
-    },
-  ];
-
   async getUserCategories(userId: string): Promise<CategoryMaster[]> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return this.mockCategories.filter(c => c.user_id === userId);
+    const { data, error } = await supabase
+      .from('category_master')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name', { ascending: true });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data || [];
   }
 
-  async createCategory(name: string, userId: string): Promise<CategoryMaster> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const newCategory: CategoryMaster = {
-      category_id: Math.random().toString(36).substr(2, 9),
-      name,
+  async createCategory(userId: string, name: string): Promise<CategoryMaster> {
+    const newCategory = {
       user_id: userId,
-      created_at: new Date().toISOString(),
+      name,
     };
 
-    this.mockCategories.push(newCategory);
-    return newCategory;
+    const { data, error } = await supabase
+      .from('category_master')
+      .insert(newCategory)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  }
+
+  async updateCategory(categoryId: string, name: string): Promise<CategoryMaster> {
+    const { data, error } = await supabase
+      .from('category_master')
+      .update({ name })
+      .eq('category_id', categoryId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  }
+
+  async deleteCategory(categoryId: string): Promise<void> {
+    const { error } = await supabase
+      .from('category_master')
+      .delete()
+      .eq('category_id', categoryId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 }
 

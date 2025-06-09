@@ -48,13 +48,13 @@ export default function HomeScreen() {
   };
 
   const getChecklistProgress = (checklistId: string) => {
-    // Mock implementation - in real app, calculate from items
-    return Math.floor(Math.random() * 100);
+    // TODO: Calculate from actual checklist items
+    return 0;
   };
 
   const getChecklistItemCount = (checklistId: string) => {
-    // Mock implementation - in real app, get actual count
-    return Math.floor(Math.random() * 10) + 1;
+    // TODO: Get actual item count from database
+    return 0;
   };
 
   const getBucketChecklistCount = (bucketId: string) => {

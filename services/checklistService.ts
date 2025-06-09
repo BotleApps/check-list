@@ -1,203 +1,199 @@
 import { ChecklistHeader, ChecklistItem } from '../types/database';
+import { supabase } from '../lib/supabase';
 
 class ChecklistService {
-  private mockChecklists: ChecklistHeader[] = [
-    {
-      checklist_id: '1',
-      user_id: '1',
-      name: 'Weekly Grocery Shopping',
-      target_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      bucket_id: '1',
-      tags: ['grocery', 'weekly'],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      checklist_id: '2',
-      user_id: '1',
-      name: 'Project Alpha Deliverables',
-      target_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      bucket_id: '2',
-      tags: ['work', 'project'],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      checklist_id: '3',
-      user_id: '1',
-      name: 'Home Renovation Checklist',
-      target_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      bucket_id: '3',
-      tags: ['home', 'renovation'],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ];
-
-  private mockItems: ChecklistItem[] = [
-    {
-      item_id: '1',
-      checklist_id: '1',
-      text: 'Buy milk and eggs',
-      due_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      status: 'pending',
-      due_days: 2,
-      notes: 'Organic if available',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      order: 0,
-    },
-    {
-      item_id: '2',
-      checklist_id: '1',
-      text: 'Get fresh vegetables',
-      status: 'pending',
-      due_days: 1,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      order: 1,
-    },
-    {
-      item_id: '3',
-      checklist_id: '1',
-      text: 'Pick up dry cleaning',
-      status: 'completed',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      order: 2,
-    },
-    {
-      item_id: '4',
-      checklist_id: '2',
-      text: 'Complete technical documentation',
-      due_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-      status: 'pending',
-      due_days: 5,
-      notes: 'Include API specifications',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      order: 0,
-    },
-    {
-      item_id: '5',
-      checklist_id: '2',
-      text: 'Review code with team',
-      status: 'pending',
-      due_days: 3,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      order: 1,
-    },
-    {
-      item_id: '6',
-      checklist_id: '3',
-      text: 'Get contractor quotes',
-      status: 'completed',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      order: 0,
-    },
-    {
-      item_id: '7',
-      checklist_id: '3',
-      text: 'Select paint colors',
-      status: 'pending',
-      due_days: 7,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      order: 1,
-    },
-  ];
-
   async getUserChecklists(userId: string): Promise<ChecklistHeader[]> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return this.mockChecklists.filter(c => c.user_id === userId);
-  }
+    const { data, error } = await supabase
+      .from('checklist_headers')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-  async getChecklistWithItems(checklistId: string): Promise<{ checklist: ChecklistHeader; items: ChecklistItem[] }> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const checklist = this.mockChecklists.find(c => c.checklist_id === checklistId);
-    if (!checklist) {
-      throw new Error('Checklist not found');
+    if (error) {
+      throw new Error(error.message);
     }
 
-    const items = this.mockItems
-      .filter(i => i.checklist_id === checklistId)
-      .sort((a, b) => a.order - b.order);
-
-    return { checklist, items };
+    return data || [];
   }
 
-  async createChecklist(checklist: Omit<ChecklistHeader, 'checklist_id' | 'created_at' | 'updated_at'>): Promise<ChecklistHeader> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newChecklist: ChecklistHeader = {
-      ...checklist,
-      checklist_id: Math.random().toString(36).substr(2, 9),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+  async getChecklistWithItems(checklistId: string): Promise<{
+    checklist: ChecklistHeader;
+    items: ChecklistItem[];
+  }> {
+    // Get the checklist
+    const { data: checklist, error: checklistError } = await supabase
+      .from('checklist_headers')
+      .select('*')
+      .eq('checklist_id', checklistId)
+      .single();
+
+    if (checklistError) {
+      throw new Error(checklistError.message);
+    }
+
+    // Get the checklist items
+    const { data: items, error: itemsError } = await supabase
+      .from('checklist_items')
+      .select('*')
+      .eq('checklist_id', checklistId)
+      .order('order', { ascending: true });
+
+    if (itemsError) {
+      throw new Error(itemsError.message);
+    }
+
+    return {
+      checklist,
+      items: items || [],
+    };
+  }
+
+  async createChecklist(
+    userId: string,
+    name: string,
+    bucketId?: string,
+    categoryId?: string,
+    tags?: string[],
+    fromTemplateId?: string
+  ): Promise<ChecklistHeader> {
+    const newChecklist = {
+      user_id: userId,
+      name,
+      bucket_id: bucketId,
+      category_id: categoryId,
+      tags,
+      from_template_id: fromTemplateId,
     };
 
-    this.mockChecklists.push(newChecklist);
-    return newChecklist;
+    const { data, error } = await supabase
+      .from('checklist_headers')
+      .insert(newChecklist)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
   }
 
   async updateChecklistItem(item: ChecklistItem): Promise<ChecklistItem> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const index = this.mockItems.findIndex(i => i.item_id === item.item_id);
-    if (index === -1) {
-      throw new Error('Item not found');
+    const { data, error } = await supabase
+      .from('checklist_items')
+      .update({
+        text: item.text,
+        status: item.status,
+        notes: item.notes,
+        due_date: item.due_date,
+        order: item.order,
+      })
+      .eq('item_id', item.item_id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
     }
 
-    const updatedItem = {
-      ...item,
-      updated_at: new Date().toISOString(),
-    };
-
-    this.mockItems[index] = updatedItem;
-    return updatedItem;
+    return data;
   }
 
-  async createChecklistItem(item: Omit<ChecklistItem, 'item_id' | 'created_at' | 'updated_at'>): Promise<ChecklistItem> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const newItem: ChecklistItem = {
-      ...item,
-      item_id: Math.random().toString(36).substr(2, 9),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+  async addChecklistItem(
+    checklistId: string,
+    text: string,
+    notes?: string,
+    dueDate?: string,
+    order?: number
+  ): Promise<ChecklistItem> {
+    // If no order specified, get the next order number
+    if (order === undefined) {
+      const { data: existingItems } = await supabase
+        .from('checklist_items')
+        .select('order')
+        .eq('checklist_id', checklistId)
+        .order('order', { ascending: false })
+        .limit(1);
+
+      order = (existingItems?.[0]?.order || 0) + 1;
+    }
+
+    const newItem = {
+      checklist_id: checklistId,
+      text,
+      notes,
+      due_date: dueDate,
+      order,
+      status: 'pending' as const,
     };
 
-    this.mockItems.push(newItem);
-    return newItem;
+    const { data, error } = await supabase
+      .from('checklist_items')
+      .insert(newItem)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
   }
 
   async deleteChecklistItem(itemId: string): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const index = this.mockItems.findIndex(i => i.item_id === itemId);
-    if (index === -1) {
-      throw new Error('Item not found');
-    }
+    const { error } = await supabase
+      .from('checklist_items')
+      .delete()
+      .eq('item_id', itemId);
 
-    this.mockItems.splice(index, 1);
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 
-  async reorderItems(checklistId: string, items: ChecklistItem[]): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    items.forEach((item, index) => {
-      const existingIndex = this.mockItems.findIndex(i => i.item_id === item.item_id);
-      if (existingIndex !== -1) {
-        this.mockItems[existingIndex] = {
-          ...item,
-          order: index,
-          updated_at: new Date().toISOString(),
-        };
-      }
-    });
+  async deleteChecklist(checklistId: string): Promise<void> {
+    // Delete checklist items first (if not handled by cascade)
+    await supabase
+      .from('checklist_items')
+      .delete()
+      .eq('checklist_id', checklistId);
+
+    // Delete the checklist
+    const { error } = await supabase
+      .from('checklist_headers')
+      .delete()
+      .eq('checklist_id', checklistId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async updateChecklist(
+    checklistId: string,
+    name?: string,
+    bucketId?: string,
+    categoryId?: string,
+    tags?: string[]
+  ): Promise<ChecklistHeader> {
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (name !== undefined) updates.name = name;
+    if (bucketId !== undefined) updates.bucket_id = bucketId;
+    if (categoryId !== undefined) updates.category_id = categoryId;
+    if (tags !== undefined) updates.tags = tags;
+
+    const { data, error } = await supabase
+      .from('checklist_headers')
+      .update(updates)
+      .eq('checklist_id', checklistId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
   }
 }
 

@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   RefreshControl,
   TextInput,
+  Alert,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
@@ -88,7 +89,10 @@ export default function TemplatesScreen() {
         <Text style={styles.headerTitle}>Templates</Text>
         <TouchableOpacity
           style={styles.createButton}
-          onPress={() => router.push('/template-create/new')}
+          onPress={() => {
+            // TODO: Implement template creation route
+            Alert.alert('Coming Soon', 'Template creation will be available soon');
+          }}
         >
           <Plus size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -166,7 +170,10 @@ export default function TemplatesScreen() {
               template={template}
               categoryName={getCategoryName(template.category_id)}
               itemCount={getTemplateItemCount(template.template_id)}
-              onPress={() => router.push(`/template-create/${template.template_id}`)}
+              onPress={() => {
+                // TODO: Implement template editing route
+                Alert.alert('Coming Soon', 'Template editing will be available soon');
+              }}
             />
           ))
         ) : (
@@ -180,7 +187,10 @@ export default function TemplatesScreen() {
             {!searchQuery && !selectedCategory && (
               <TouchableOpacity
                 style={styles.createFirstButton}
-                onPress={() => router.push('/template-create/new')}
+                onPress={() => {
+                  // TODO: Implement template creation route
+                  Alert.alert('Coming Soon', 'Template creation will be available soon');
+                }}
               >
                 <Text style={styles.createFirstButtonText}>Create your first template</Text>
               </TouchableOpacity>

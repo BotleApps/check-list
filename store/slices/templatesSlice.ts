@@ -37,7 +37,12 @@ export const fetchTemplateWithItems = createAsyncThunk(
 export const createTemplate = createAsyncThunk(
   'templates/createTemplate',
   async (template: Omit<ChecklistTemplateHeader, 'template_id' | 'created_at' | 'updated_at'>) => {
-    const response = await templateService.createTemplate(template);
+    const response = await templateService.createTemplate(
+      template.user_id,
+      template.name,
+      template.category_id,
+      template.tags
+    );
     return response;
   }
 );

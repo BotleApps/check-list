@@ -1,67 +1,64 @@
 import { Bucket } from '../types/database';
+import { supabase } from '../lib/supabase';
 
 class BucketService {
-  private mockBuckets: Bucket[] = [
-    {
-      bucket_id: '1',
-      user_id: '1',
-      bucket_name: 'Personal',
-      created_at: new Date().toISOString(),
-    },
-    {
-      bucket_id: '2',
-      user_id: '1',
-      bucket_name: 'Work',
-      created_at: new Date().toISOString(),
-    },
-    {
-      bucket_id: '3',
-      user_id: '1',
-      bucket_name: 'Home Projects',
-      created_at: new Date().toISOString(),
-    },
-  ];
-
   async getUserBuckets(userId: string): Promise<Bucket[]> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return this.mockBuckets.filter(b => b.user_id === userId);
+    const { data, error } = await supabase
+      .from('buckets')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data || [];
   }
 
   async createBucket(userId: string, bucketName: string): Promise<Bucket> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newBucket: Bucket = {
-      bucket_id: Math.random().toString(36).substr(2, 9),
+    const newBucket = {
       user_id: userId,
       bucket_name: bucketName,
-      created_at: new Date().toISOString(),
     };
 
-    this.mockBuckets.push(newBucket);
-    return newBucket;
+    const { data, error } = await supabase
+      .from('buckets')
+      .insert(newBucket)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
   }
 
   async updateBucket(bucketId: string, bucketName: string): Promise<Bucket> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const bucket = this.mockBuckets.find(b => b.bucket_id === bucketId);
-    if (!bucket) {
-      throw new Error('Bucket not found');
+    const { data, error } = await supabase
+      .from('buckets')
+      .update({ bucket_name: bucketName })
+      .eq('bucket_id', bucketId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
     }
 
-    bucket.bucket_name = bucketName;
-    return bucket;
+    return data;
   }
 
   async deleteBucket(bucketId: string): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const index = this.mockBuckets.findIndex(b => b.bucket_id === bucketId);
-    if (index === -1) {
-      throw new Error('Bucket not found');
-    }
+    const { error } = await supabase
+      .from('buckets')
+      .delete()
+      .eq('bucket_id', bucketId);
 
-    this.mockBuckets.splice(index, 1);
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 }
 

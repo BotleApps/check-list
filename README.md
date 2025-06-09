@@ -64,20 +64,9 @@ A modern, intuitive checklist application built with **React Native/Expo** and *
    - Web: http://localhost:8081
    - Mobile: Scan QR code with Expo Go app
 
-### 🔧 Mock Authentication Mode
-
-The app runs in **mock authentication mode** by default, allowing you to test all features without Supabase setup:
-
-- ✅ Any email/password works for login
-- ✅ Registration flow works with validation
-- ✅ Forgot password flow shows success messages
-- ✅ All authentication screens are functional
-
-See [`TESTING-GUIDE.md`](./TESTING-GUIDE.md) for detailed testing instructions.
-
 ### 🌐 Production Deployment
 
-1. **Set up Supabase** (optional for development):
+1. **Set up Supabase**:
    ```bash
    # Copy environment template
    cp .env.example .env

@@ -1,64 +1,54 @@
-# Development Testing Guide
+# Testing Guide
 
-## 🔧 Mock Authentication Mode
+## 📱 Testing the Application
 
-Since Supabase is not configured with real credentials, the app is running in **mock authentication mode**. This allows you to test all the authentication flows without a real Supabase backend.
+### Prerequisites
+- Ensure you have Supabase credentials configured in your `.env` file
+- The app requires a real Supabase backend for authentication
 
-## 📱 Testing the Authentication Flow
+### 1. Authentication Flow
+- **Login**: Use your actual registered email and password
+- **Registration**: Register with a valid email address
+- **Forgot Password**: Uses real Supabase password reset functionality
 
-### 1. Login Screen
-- **Any email/password combination will work**
-- Try: `test@example.com` / `password123`
-- The app will create a mock user and sign you in
-- ✅ "Forgot Password" button works (shows mock success message)
-
-### 2. Registration Screen
-- **Any email/password/name combination will work**
-- Try: `newuser@example.com` / `password123` / `John Doe`
-- The app will create a mock user account
-- ✅ Password validation works (minimum 6 characters)
-- ✅ Password confirmation matching works
-
-### 3. Forgot Password Screen
-- **Any email will work**
-- Try: `test@example.com`
-- Shows success message (in real app, would send email)
-
-### 4. Navigation Testing
+### 2. Feature Testing
 - ✅ All auth screens are properly linked
 - ✅ Login ↔ Register navigation works
 - ✅ Forgot Password ↔ Login navigation works
-- ✅ After "login", you're redirected to the main app
+- ✅ After login, you're redirected to the main app
+- ✅ User profile is loaded from Supabase
+- ✅ All CRUD operations work with real data
 
-## 🎯 Next Steps for Production
+### 3. Network Resilience Testing
+- ✅ Test offline/online behavior
+- ✅ Network error handling and retry logic
+- ✅ Graceful degradation when connection is poor
 
-To enable **real Supabase authentication**:
+## 🎯 Production Setup
+
+To deploy the application:
 
 1. **Set up your Supabase project**:
    - Go to [supabase.com](https://supabase.com)
    - Create a new project
    - Enable email authentication in Auth settings
+   - Run the database migrations from `supabase/migrations/`
 
 2. **Update environment variables**:
-   - Replace the placeholder values in `.env`:
+   - Set the values in your hosting platform (Netlify, etc.):
    ```bash
    EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    EXPO_PUBLIC_SUPABASE_ANON_KEY=your-actual-anon-key
    ```
 
-3. **Restart the development server**:
+3. **Deploy**:
    ```bash
-   npm run dev
+   npm run build:web
+   ./deploy.sh
    ```
 
-The app will automatically detect valid Supabase credentials and switch from mock mode to real authentication!
+## 🐛 Troubleshooting
 
-## 🎉 Ready for Deployment
-
-- ✅ Build system works (`npm run build:web`)
-- ✅ All authentication screens functional
-- ✅ Modern UX implemented
-- ✅ Netlify deployment configured
-- ✅ Error handling implemented
-
-The app is now ready for production deployment with real Supabase authentication!
+- **Auth Issues**: Check Supabase logs and ensure environment variables are set
+- **Network Issues**: Check browser developer tools for network errors
+- **Build Issues**: Ensure all dependencies are installed and TypeScript compiles without errors
