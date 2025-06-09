@@ -34,13 +34,14 @@ export interface ChecklistItem {
   item_id: string;
   checklist_id: string;
   text: string;
-  due_date?: string;
-  status: 'pending' | 'completed' | 'cancelled';
-  due_days?: number;
-  notes?: string;
+  description?: string;
+  is_completed: boolean;
+  completed_at?: string;
+  order_index: number;
+  is_required: boolean;
+  tags: string[];
   created_at: string;
   updated_at: string;
-  order: number;
 }
 
 export interface ChecklistShare {

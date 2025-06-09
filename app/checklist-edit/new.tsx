@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { createChecklist } from '../../store/slices/checklistsSlice';
+import { createChecklistWithItems } from '../../store/slices/checklistsSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { fetchTags } from '../../store/slices/tagsSlice';
 import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck } from 'lucide-react-native';
@@ -176,10 +176,8 @@ export default function NewChecklistScreen() {
     try {
       const checklistData = {
         name: title.trim(),
-        description: '',
         user_id: user.user_id,
         bucket_id: selectedBucketId || undefined,
-        target_date: targetDate || undefined,
         tags: selectedTags,
         items: validItems.map((item, index) => ({
           text: item.trim(),
@@ -187,7 +185,7 @@ export default function NewChecklistScreen() {
         })),
       };
 
-      await dispatch(createChecklist(checklistData)).unwrap();
+      await dispatch(createChecklistWithItems(checklistData)).unwrap();
       Alert.alert('Success', 'Checklist created successfully!', [
         { text: 'OK', onPress: () => router.back() }
       ]);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,24 +8,27 @@ import {
   SafeAreaView,
   Alert,
   RefreshControl,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklistWithItems, updateChecklistItem } from '../../store/slices/checklistsSlice';
+import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem } from '../../store/slices/checklistsSlice';
 import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { 
   ArrowLeft, 
-  Edit, 
   Share2, 
   MoreVertical, 
   Plus,
   Calendar,
   Tag,
-  FolderOpen
+  FolderOpen,
+  Check
 } from 'lucide-react-native';
 
 export default function ChecklistDetailsScreen() {
@@ -33,6 +36,12 @@ export default function ChecklistDetailsScreen() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const [refreshing, setRefreshing] = useState(false);
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [newItemText, setNewItemText] = useState('');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemText, setEditingItemText] = useState('');
+  const newItemInputRef = useRef<TextInput>(null);
+  const editItemInputRef = useRef<TextInput>(null);
 
   const { user } = useSelector((state: RootState) => state.auth);
   const { checklists, currentChecklist, currentItems, loading, error } = useSelector(
@@ -57,26 +66,95 @@ export default function ChecklistDetailsScreen() {
     setRefreshing(false);
   };
 
-  const handleItemToggle = async (itemId: string, currentStatus: string) => {
+  const handleItemToggle = async (itemId: string, currentCompleted: boolean) => {
     if (!user) return;
     
-    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
     const item = items.find(i => i.item_id === itemId);
     if (!item) return;
     
     try {
       await dispatch(updateChecklistItem({
         ...item,
-        status: newStatus as 'pending' | 'completed' | 'cancelled'
+        is_completed: !currentCompleted
       })).unwrap();
     } catch (error) {
       Alert.alert('Error', 'Failed to update item status');
     }
   };
 
+  const handleAddNewItem = () => {
+    setIsAddingItem(true);
+    setNewItemText('');
+    // Focus the input after a short delay to ensure it's rendered
+    setTimeout(() => {
+      newItemInputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleSaveNewItem = async () => {
+    if (!newItemText.trim() || !id) return;
+    
+    try {
+      const maxOrder = items.length > 0 ? Math.max(...items.map(item => item.order_index)) : 0;
+      
+      await dispatch(createChecklistItem({
+        checklist_id: id,
+        text: newItemText.trim(),
+        description: '',
+        is_completed: false,
+        order_index: maxOrder + 1,
+        is_required: false,
+        tags: [],
+      })).unwrap();
+      
+      setIsAddingItem(false);
+      setNewItemText('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add item. Please try again.');
+    }
+  };
+
+  const handleCancelNewItem = () => {
+    setIsAddingItem(false);
+    setNewItemText('');
+  };
+
+  const handleItemPress = (item: any) => {
+    setEditingItemId(item.item_id);
+    setEditingItemText(item.text);
+    // Focus the input after a short delay to ensure it's rendered
+    setTimeout(() => {
+      editItemInputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleSaveEditItem = async () => {
+    if (!editingItemText.trim() || !editingItemId) return;
+    
+    const item = items.find(i => i.item_id === editingItemId);
+    if (!item) return;
+    
+    try {
+      await dispatch(updateChecklistItem({
+        ...item,
+        text: editingItemText.trim()
+      })).unwrap();
+      
+      setEditingItemId(null);
+      setEditingItemText('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update item. Please try again.');
+    }
+  };
+
+  const handleCancelEditItem = () => {
+    setEditingItemId(null);
+    setEditingItemText('');
+  };
+
   const getProgress = () => {
     if (items.length === 0) return 0;
-    const completedItems = items.filter(item => item.status === 'completed').length;
+    const completedItems = items.filter(item => item.is_completed).length;
     return (completedItems / items.length) * 100;
   };
 
@@ -94,10 +172,6 @@ export default function ChecklistDetailsScreen() {
       'Checklist Actions',
       'Choose an action',
       [
-        {
-          text: 'Edit Checklist',
-          onPress: () => router.push(`/checklist-edit/new?editId=${id}` as any)
-        },
         {
           text: 'Share Checklist',
           onPress: () => {
@@ -169,18 +243,16 @@ export default function ChecklistDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+      <KeyboardAvoidingView 
+        style={styles.container} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Header */}
+        <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color="#111827" />
         </TouchableOpacity>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            onPress={() => router.push(`/checklist-edit/new?editId=${id}` as any)}
-            style={styles.actionButton}
-          >
-            <Edit size={20} color="#6B7280" />
-          </TouchableOpacity>
           <TouchableOpacity 
             onPress={() => Alert.alert('Feature Coming Soon', 'Share functionality will be available soon')}
             style={styles.actionButton}
@@ -211,7 +283,7 @@ export default function ChecklistDetailsScreen() {
           <View style={styles.progressContainer}>
             <View style={styles.progressHeader}>
               <Text style={styles.progressText}>
-                {items.filter(item => item.status === 'completed').length} of {items.length} completed
+                {items.filter(item => item.is_completed).length} of {items.length} completed
               </Text>
               <Text style={styles.progressPercentage}>
                 {Math.round(getProgress())}%
@@ -254,14 +326,15 @@ export default function ChecklistDetailsScreen() {
           <View style={styles.itemsHeader}>
             <Text style={styles.itemsTitle}>Tasks</Text>
             <TouchableOpacity 
-              onPress={() => router.push(`/checklist-edit/new?editId=${id}&addItem=true` as any)}
+              onPress={handleAddNewItem}
               style={styles.addButton}
+              disabled={isAddingItem}
             >
-              <Plus size={20} color="#2563EB" />
+              <Plus size={20} color={isAddingItem ? "#9CA3AF" : "#2563EB"} />
             </TouchableOpacity>
           </View>
 
-          {items.length === 0 ? (
+          {items.length === 0 && !isAddingItem ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No tasks yet</Text>
               <Text style={styles.emptySubtext}>
@@ -269,19 +342,77 @@ export default function ChecklistDetailsScreen() {
               </Text>
             </View>
           ) : (
-            items
-              .sort((a, b) => a.order - b.order)
-              .map((item) => (
-                <ChecklistItem
-                  key={item.item_id}
-                  item={item}
-                  onToggle={() => handleItemToggle(item.item_id, item.status)}
-                  onPress={() => router.push(`/checklist-edit/new?editId=${id}&editItem=${item.item_id}` as any)}
-                />
-              ))
+            <>
+              {items
+                .sort((a, b) => a.order_index - b.order_index)
+                .map((item) => (
+                  editingItemId === item.item_id ? (
+                    // Editing mode for this item
+                    <View key={item.item_id} style={styles.newItemContainer}>
+                      <View style={styles.newItemRow}>
+                        <TouchableOpacity
+                          style={styles.newItemCheckbox}
+                          onPress={() => handleItemToggle(item.item_id, item.is_completed)}
+                        >
+                          {item.is_completed ? (
+                            <View style={styles.checkedBox}>
+                              <Check size={16} color="#FFFFFF" strokeWidth={2} />
+                            </View>
+                          ) : (
+                            <View style={styles.uncheckedBox} />
+                          )}
+                        </TouchableOpacity>
+                        <TextInput
+                          ref={editItemInputRef}
+                          style={styles.newItemInput}
+                          value={editingItemText}
+                          onChangeText={setEditingItemText}
+                          onSubmitEditing={handleSaveEditItem}
+                          onBlur={handleCancelEditItem}
+                          returnKeyType="done"
+                          blurOnSubmit={true}
+                          multiline={false}
+                        />
+                      </View>
+                    </View>
+                  ) : (
+                    // Normal display mode
+                    <ChecklistItem
+                      key={item.item_id}
+                      item={item}
+                      onToggle={() => handleItemToggle(item.item_id, item.is_completed)}
+                      onPress={() => handleItemPress(item)}
+                    />
+                  )
+                ))}
+              
+              {/* New Item Input */}
+              {isAddingItem && (
+                <View style={styles.newItemContainer}>
+                  <View style={styles.newItemRow}>
+                    <View style={styles.newItemCheckbox}>
+                      <View style={styles.uncheckedBox} />
+                    </View>
+                    <TextInput
+                      ref={newItemInputRef}
+                      style={styles.newItemInput}
+                      placeholder="Enter task..."
+                      value={newItemText}
+                      onChangeText={setNewItemText}
+                      onSubmitEditing={handleSaveNewItem}
+                      onBlur={handleCancelNewItem}
+                      returnKeyType="done"
+                      blurOnSubmit={true}
+                      multiline={false}
+                    />
+                  </View>
+                </View>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -406,5 +537,61 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
+  },
+  newItemInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    minHeight: 44,
+  },
+  newItemContainer: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  newItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  newItemCheckbox: {
+    marginRight: 12,
+  },
+  uncheckedBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+  },
+  checkedBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButton: {
+    backgroundColor: '#2563EB',
+    padding: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  cancelButton: {
+    backgroundColor: '#F3F4F6',
+    padding: 8,
+    borderRadius: 4,
+  },
+  cancelButtonText: {
+    color: '#111827',
+    fontWeight: '600',
   },
 });

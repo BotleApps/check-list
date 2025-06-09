@@ -46,6 +46,28 @@ export const createChecklist = createAsyncThunk(
   }
 );
 
+export const createChecklistWithItems = createAsyncThunk(
+  'checklists/createChecklistWithItems',
+  async (data: {
+    name: string;
+    user_id: string;
+    bucket_id?: string;
+    category_id?: string;
+    tags?: string[];
+    items: Array<{ text: string; completed?: boolean; description?: string }>;
+  }) => {
+    const response = await checklistService.createChecklistWithItems(
+      data.user_id,
+      data.name,
+      data.items,
+      data.bucket_id,
+      data.category_id,
+      data.tags
+    );
+    return response;
+  }
+);
+
 export const updateChecklistItem = createAsyncThunk(
   'checklists/updateChecklistItem',
   async (item: ChecklistItem) => {
@@ -60,9 +82,8 @@ export const createChecklistItem = createAsyncThunk(
     const response = await checklistService.addChecklistItem(
       item.checklist_id,
       item.text,
-      item.notes,
-      item.due_date,
-      item.order
+      item.description,
+      item.order_index
     );
     return response;
   }
@@ -110,6 +131,10 @@ const checklistsSlice = createSlice({
       })
       .addCase(createChecklist.fulfilled, (state, action) => {
         state.checklists.push(action.payload);
+      })
+      .addCase(createChecklistWithItems.fulfilled, (state, action) => {
+        state.checklists.push(action.payload.checklist);
+        state.currentItems = action.payload.items;
       })
       .addCase(updateChecklistItem.fulfilled, (state, action) => {
         const index = state.currentItems.findIndex(i => i.item_id === action.payload.item_id);

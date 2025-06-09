@@ -14,15 +14,8 @@ export const ChecklistItem: React.FC<ChecklistItemProps> = ({
   onToggle,
   onPress,
 }) => {
-  const isCompleted = item.status === 'completed';
-  const isCancelled = item.status === 'cancelled';
-  const isOverdue = item.due_date && new Date(item.due_date) < new Date() && !isCompleted;
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
-  };
+  const isCompleted = item.is_completed;
+  const isOverdue = false; // Remove due date functionality for now since it's not in the new schema
 
   return (
     <View style={[styles.container, isCompleted && styles.completed]}>
@@ -37,7 +30,7 @@ export const ChecklistItem: React.FC<ChecklistItemProps> = ({
         ) : (
           <Circle 
             size={20} 
-            color={isCancelled ? '#9CA3AF' : '#6B7280'} 
+            color="#6B7280" 
             strokeWidth={2} 
           />
         )}
@@ -51,7 +44,6 @@ export const ChecklistItem: React.FC<ChecklistItemProps> = ({
           style={[
             styles.text,
             isCompleted && styles.completedText,
-            isCancelled && styles.cancelledText,
           ]}
           numberOfLines={2}
         >
@@ -59,20 +51,11 @@ export const ChecklistItem: React.FC<ChecklistItemProps> = ({
         </Text>
 
         <View style={styles.metadata}>
-          {item.due_date && (
-            <View style={[styles.dateContainer, isOverdue && styles.overdueDate]}>
-              <Calendar size={12} color={isOverdue ? '#DC2626' : '#6B7280'} />
-              <Text style={[styles.metadataText, isOverdue && styles.overdueText]}>
-                {formatDate(item.due_date)}
-              </Text>
-            </View>
-          )}
-
-          {item.notes && (
+          {item.description && (
             <View style={styles.notesContainer}>
               <FileText size={12} color="#6B7280" />
               <Text style={styles.metadataText} numberOfLines={1}>
-                {item.notes}
+                {item.description}
               </Text>
             </View>
           )}
