@@ -407,7 +407,7 @@ export default function ChecklistDetailsScreen() {
             {bucket && (
               <View style={styles.metadataItem}>
                 <FolderOpen size={16} color="#6B7280" />
-                <Text style={styles.metadataText}>{bucket.bucket_name}</Text>
+                <Text style={styles.metadataText}>{bucket.name}</Text>
               </View>
             )}
             

@@ -25,7 +25,9 @@ export const fetchBuckets = createAsyncThunk(
 export const createBucket = createAsyncThunk(
   'buckets/createBucket',
   async ({ userId, bucketName }: { userId: string; bucketName: string }) => {
+    console.log('createBucket thunk called with:', { userId, bucketName });
     const response = await bucketService.createBucket(userId, bucketName);
+    console.log('createBucket response:', response);
     return response;
   }
 );
@@ -68,8 +70,20 @@ const bucketsSlice = createSlice({
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch buckets';
       })
+      .addCase(createBucket.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        console.log('createBucket pending');
+      })
       .addCase(createBucket.fulfilled, (state, action) => {
+        state.loading = false;
         state.buckets.push(action.payload);
+        console.log('createBucket fulfilled, new bucket added:', action.payload);
+      })
+      .addCase(createBucket.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to create bucket';
+        console.error('createBucket rejected:', action.error);
       })
       .addCase(updateBucket.fulfilled, (state, action) => {
         const index = state.buckets.findIndex(b => b.bucket_id === action.payload.bucket_id);

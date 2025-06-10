@@ -19,7 +19,7 @@ class BucketService {
   async createBucket(userId: string, bucketName: string): Promise<Bucket> {
     const newBucket = {
       user_id: userId,
-      bucket_name: bucketName,
+      name: bucketName,
     };
 
     const { data, error } = await supabase
@@ -38,7 +38,7 @@ class BucketService {
   async updateBucket(bucketId: string, bucketName: string): Promise<Bucket> {
     const { data, error } = await supabase
       .from('buckets')
-      .update({ bucket_name: bucketName })
+      .update({ name: bucketName })
       .eq('bucket_id', bucketId)
       .select()
       .single();

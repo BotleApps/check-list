@@ -21,7 +21,7 @@ export const BucketCard: React.FC<BucketCardProps> = ({
       </View>
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1}>
-          {bucket.bucket_name}
+          {bucket.name}
         </Text>
         <Text style={styles.subtitle}>
           {checklistCount} checklist{checklistCount !== 1 ? 's' : ''}

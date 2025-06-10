@@ -69,7 +69,7 @@ export default function HomeScreen() {
   const getBucketName = (bucketId: string | null | undefined) => {
     if (!bucketId) return undefined;
     const bucket = buckets.find(b => b.bucket_id === bucketId);
-    return bucket?.bucket_name;
+    return bucket?.name;
   };
 
   const getBucketChecklistCount = (bucketId: string) => {

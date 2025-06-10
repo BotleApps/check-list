@@ -107,7 +107,7 @@ export function RobustBucketList({ userId }: RobustBucketListProps) {
 
   const renderBucket = ({ item }: { item: Bucket }) => (
     <View style={styles.bucketItem}>
-      <Text style={styles.bucketName}>{item.bucket_name}</Text>
+      <Text style={styles.bucketName}>{item.name}</Text>
       <TouchableOpacity
         style={styles.deleteButton}
         onPress={() => deleteBucket(item.bucket_id)}

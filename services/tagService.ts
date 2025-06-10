@@ -16,6 +16,12 @@ class TagService {
   }
 
   async createTag(name: string): Promise<TagMaster> {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
     // Check if tag already exists
     const { data: existing } = await supabase
       .from('tag_master')
@@ -27,7 +33,10 @@ class TagService {
       return existing;
     }
 
-    const newTag = { name };
+    const newTag = { 
+      name,
+      created_by: user.id
+    };
 
     const { data, error } = await supabase
       .from('tag_master')

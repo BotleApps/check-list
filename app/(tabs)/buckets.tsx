@@ -90,7 +90,7 @@ export default function BucketsScreen() {
   };
 
   const filteredBuckets = buckets.filter(bucket =>
-    bucket.bucket_name.toLowerCase().includes(searchQuery.toLowerCase())
+    bucket.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const bucketChecklists = selectedBucket
@@ -122,7 +122,7 @@ export default function BucketsScreen() {
             <ArrowLeft size={24} color="#2563EB" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>{selectedBucket.bucket_name}</Text>
+            <Text style={styles.headerTitle}>{selectedBucket.name}</Text>
             <Text style={styles.headerSubtitle}>
               {bucketChecklists.length} checklist{bucketChecklists.length !== 1 ? 's' : ''}
             </Text>

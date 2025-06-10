@@ -207,9 +207,15 @@ export default function NewChecklistScreen() {
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    console.log('handleSave called with user:', user?.user_id);
+    
+    if (!user) {
+      console.log('No user found');
+      return;
+    }
 
     if (!title.trim()) {
+      console.log('No title provided');
       Alert.alert('Error', 'Please enter a title for your checklist');
       return;
     }
@@ -219,6 +225,7 @@ export default function NewChecklistScreen() {
     const validStates = itemStates.filter((_, index) => items[index].trim() !== '');
     
     if (validItems.length === 0) {
+      console.log('No valid items');
       Alert.alert('Error', 'Please add at least one item to your checklist');
       return;
     }
@@ -236,12 +243,18 @@ export default function NewChecklistScreen() {
         })),
       };
 
-      await dispatch(createChecklistWithItems(checklistData)).unwrap();
+      console.log('Saving checklist with data:', checklistData);
+      
+      const result = await dispatch(createChecklistWithItems(checklistData)).unwrap();
+      console.log('Checklist created successfully:', result);
+      
       Alert.alert('Success', 'Checklist created successfully!', [
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create checklist. Please try again.');
+      console.error('Error creating checklist:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('Error', `Failed to create checklist: ${errorMessage}`);
     }
   };
 
@@ -270,39 +283,66 @@ export default function NewChecklistScreen() {
 
   const getSelectedBucketName = () => {
     const bucket = buckets.find(b => b.bucket_id === selectedBucketId);
-    return bucket?.bucket_name || 'Select Folder';
+    return bucket?.name || 'Select Folder';
   };
 
   const handleCreateFolder = async () => {
-    if (!newFolderName.trim() || !user) return;
+    console.log('handleCreateFolder called with:', { 
+      newFolderName: newFolderName.trim(), 
+      user: user?.user_id 
+    });
+    
+    if (!newFolderName.trim() || !user) {
+      console.log('Early return: missing name or user');
+      return;
+    }
     
     setCreatingFolder(true);
     try {
+      console.log('Dispatching createBucket...');
       const newBucket = await dispatch(createBucket({ 
         userId: user.user_id, 
         bucketName: newFolderName.trim() 
       })).unwrap();
+      
+      console.log('New bucket created:', newBucket);
       setSelectedBucketId(newBucket.bucket_id);
       setNewFolderName('');
       setCreatingFolder(false);
       setShowBucketModal(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create folder. Please try again.');
+      console.error('Error creating folder:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('Error', `Failed to create folder: ${errorMessage}`);
       setCreatingFolder(false);
     }
   };
 
   const handleCreateTag = async () => {
-    if (!newTagName.trim()) return;
+    console.log('handleCreateTag called with:', { newTagName: newTagName.trim() });
+    
+    if (!newTagName.trim()) {
+      console.log('Early return: missing tag name');
+      return;
+    }
     
     setCreatingTag(true);
     try {
-      await dispatch(createTag(newTagName.trim())).unwrap();
-      setSelectedTags(prev => [...prev, newTagName.trim()]);
+      console.log('Dispatching createTag...');
+      const newTag = await dispatch(createTag(newTagName.trim())).unwrap();
+      console.log('New tag created:', newTag);
+      
+      setSelectedTags(prev => {
+        const updated = [...prev, newTag.name];
+        console.log('Updated selected tags:', updated);
+        return updated;
+      });
       setNewTagName('');
       setCreatingTag(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create tag. Please try again.');
+      console.error('Error creating tag:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('Error', `Failed to create tag: ${errorMessage}`);
       setCreatingTag(false);
     }
   };
@@ -584,7 +624,7 @@ export default function NewChecklistScreen() {
                     styles.modalItemText,
                     selectedBucketId === item.bucket_id && styles.modalItemTextSelected
                   ]}>
-                    {item.bucket_name}
+                    {item.name}
                   </Text>
                 </TouchableOpacity>
               )}

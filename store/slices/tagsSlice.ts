@@ -22,7 +22,9 @@ export const fetchTags = createAsyncThunk('tags/fetchTags', async () => {
 export const createTag = createAsyncThunk(
   'tags/createTag',
   async (name: string) => {
+    console.log('createTag thunk called with:', name);
     const response = await tagService.createTag(name);
+    console.log('createTag response:', response);
     return response;
   }
 );
