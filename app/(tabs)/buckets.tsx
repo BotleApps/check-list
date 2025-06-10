@@ -11,10 +11,10 @@ import {
   Alert,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
 import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
-import { fetchChecklists } from '../../store/slices/checklistsSlice';
+import { fetchChecklistsWithStats } from '../../store/slices/checklistsSlice';
 import { BucketCard } from '../../components/BucketCard';
 import { ChecklistCard } from '../../components/ChecklistCard';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -46,16 +46,25 @@ export default function BucketsScreen() {
   useEffect(() => {
     if (user) {
       dispatch(fetchBuckets(user.user_id));
-      dispatch(fetchChecklists(user.user_id));
+      dispatch(fetchChecklistsWithStats(user.user_id));
     }
   }, [user, dispatch]);
+
+  // Refresh data when screen comes into focus (backup strategy)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        dispatch(fetchChecklistsWithStats(user.user_id));
+      }
+    }, [user, dispatch])
+  );
 
   const onRefresh = async () => {
     if (!user) return;
     setRefreshing(true);
     await Promise.all([
       dispatch(fetchBuckets(user.user_id)),
-      dispatch(fetchChecklists(user.user_id)),
+      dispatch(fetchChecklistsWithStats(user.user_id)),
     ]);
     setRefreshing(false);
   };
@@ -80,13 +89,21 @@ export default function BucketsScreen() {
   };
 
   const getChecklistProgress = (checklistId: string) => {
-    // Mock implementation
-    return Math.floor(Math.random() * 100);
+    const checklist = checklists.find(c => c.checklist_id === checklistId) as any;
+    if (checklist && checklist.total_items > 0) {
+      return Math.round((checklist.completed_items / checklist.total_items) * 100);
+    }
+    return 0;
   };
 
   const getChecklistItemCount = (checklistId: string) => {
-    // Mock implementation
-    return Math.floor(Math.random() * 10) + 1;
+    const checklist = checklists.find(c => c.checklist_id === checklistId) as any;
+    return checklist?.total_items || 0;
+  };
+
+  const getChecklistCompletedCount = (checklistId: string) => {
+    const checklist = checklists.find(c => c.checklist_id === checklistId) as any;
+    return checklist?.completed_items || 0;
   };
 
   const filteredBuckets = buckets.filter(bucket =>
@@ -148,6 +165,7 @@ export default function BucketsScreen() {
                 checklist={checklist}
                 progress={getChecklistProgress(checklist.checklist_id)}
                 itemCount={getChecklistItemCount(checklist.checklist_id)}
+                completedCount={getChecklistCompletedCount(checklist.checklist_id)}
                 onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
               />
             ))

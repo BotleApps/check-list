@@ -39,6 +39,62 @@ class ChecklistService {
     return checklists;
   }
 
+  async getUserChecklistsWithStats(userId: string): Promise<(ChecklistHeader & {
+    total_items: number;
+    completed_items: number;
+  })[]> {
+    // Get checklists with item counts using a more efficient query
+    const { data, error } = await supabase
+      .from('checklist_headers')
+      .select(`
+        *,
+        checklist_items (
+          item_id,
+          is_completed
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data) return [];
+
+    // Process the data to include statistics and convert tag IDs to names
+    const checklistsWithStats = await Promise.all(
+      data.map(async (checklist: any) => {
+        const items = checklist.checklist_items || [];
+        const total_items = items.length;
+        const completed_items = items.filter((item: any) => item.is_completed).length;
+
+        // Convert tag IDs to tag names for display
+        let tags: string[] = [];
+        if (checklist.tags && checklist.tags.length > 0) {
+          const { data: tagData } = await supabase
+            .from('tag_master')
+            .select('name')
+            .in('tag_id', checklist.tags);
+          
+          tags = tagData?.map(tag => tag.name) || [];
+        }
+
+        // Remove the nested checklist_items from the result and add our computed stats
+        const { checklist_items, ...checklistData } = checklist;
+        
+        return {
+          ...checklistData,
+          tags,
+          total_items,
+          completed_items,
+        };
+      })
+    );
+
+    return checklistsWithStats;
+  }
+
   async getChecklistWithItems(checklistId: string): Promise<{
     checklist: ChecklistHeader;
     items: ChecklistItem[];

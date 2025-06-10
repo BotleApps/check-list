@@ -26,6 +26,14 @@ export const fetchChecklists = createAsyncThunk(
   }
 );
 
+export const fetchChecklistsWithStats = createAsyncThunk(
+  'checklists/fetchChecklistsWithStats',
+  async (userId: string) => {
+    const response = await checklistService.getUserChecklistsWithStats(userId);
+    return response;
+  }
+);
+
 export const fetchChecklistWithItems = createAsyncThunk(
   'checklists/fetchChecklistWithItems',
   async (checklistId: string) => {
@@ -137,6 +145,53 @@ const checklistsSlice = createSlice({
     reorderItems: (state, action: PayloadAction<ChecklistItem[]>) => {
       state.currentItems = action.payload;
     },
+    // Optimistic updates
+    updateChecklistTitle: (state, action: PayloadAction<{ checklistId: string; name: string }>) => {
+      const { checklistId, name } = action.payload;
+      
+      // Update in checklists array
+      const checklistIndex = state.checklists.findIndex(c => c.checklist_id === checklistId);
+      if (checklistIndex !== -1) {
+        state.checklists[checklistIndex].name = name;
+      }
+      
+      // Update current checklist if it's the same one
+      if (state.currentChecklist?.checklist_id === checklistId) {
+        state.currentChecklist.name = name;
+      }
+    },
+    updateItemCompletion: (state, action: PayloadAction<{ 
+      checklistId: string; 
+      itemId: string; 
+      isCompleted: boolean; 
+      completedAt?: string 
+    }>) => {
+      const { checklistId, itemId, isCompleted, completedAt } = action.payload;
+      
+      // Update in current items
+      const itemIndex = state.currentItems.findIndex(item => item.item_id === itemId);
+      if (itemIndex !== -1) {
+        state.currentItems[itemIndex].is_completed = isCompleted;
+        state.currentItems[itemIndex].completed_at = completedAt || undefined;
+      }
+      
+      // Update stats in checklists array if we have stats
+      const checklistIndex = state.checklists.findIndex(c => c.checklist_id === checklistId);
+      if (checklistIndex !== -1) {
+        const checklist = state.checklists[checklistIndex] as any;
+        if (checklist.total_items !== undefined) {
+          const completedCount = state.currentItems.filter(item => item.is_completed).length;
+          checklist.completed_items = completedCount;
+        }
+      }
+    },
+    updateItemText: (state, action: PayloadAction<{ itemId: string; text: string }>) => {
+      const { itemId, text } = action.payload;
+      const itemIndex = state.currentItems.findIndex(item => item.item_id === itemId);
+      if (itemIndex !== -1) {
+        state.currentItems[itemIndex].text = text;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -151,6 +206,18 @@ const checklistsSlice = createSlice({
       .addCase(fetchChecklists.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch checklists';
+      })
+      .addCase(fetchChecklistsWithStats.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchChecklistsWithStats.fulfilled, (state, action) => {
+        state.loading = false;
+        state.checklists = action.payload as ChecklistHeader[];
+      })
+      .addCase(fetchChecklistsWithStats.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch checklists with stats';
       })
       .addCase(fetchChecklistWithItems.pending, (state) => {
         state.loading = true;
@@ -194,5 +261,13 @@ const checklistsSlice = createSlice({
   },
 });
 
-export const { clearError, setCurrentChecklist, clearCurrentData, reorderItems } = checklistsSlice.actions;
+export const { 
+  clearError, 
+  setCurrentChecklist, 
+  clearCurrentData, 
+  reorderItems,
+  updateChecklistTitle,
+  updateItemCompletion,
+  updateItemText
+} = checklistsSlice.actions;
 export default checklistsSlice.reducer;

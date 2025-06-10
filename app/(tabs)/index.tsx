@@ -9,9 +9,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklists } from '../../store/slices/checklistsSlice';
+import { fetchChecklistsWithStats } from '../../store/slices/checklistsSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { ChecklistCard } from '../../components/ChecklistCard';
 import { BucketCard } from '../../components/BucketCard';
@@ -32,16 +32,25 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      dispatch(fetchChecklists(user.user_id));
+      dispatch(fetchChecklistsWithStats(user.user_id));
       dispatch(fetchBuckets(user.user_id));
     }
   }, [isAuthenticated, user, dispatch]);
+
+  // Refresh data when screen comes into focus (backup strategy)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isAuthenticated && user) {
+        dispatch(fetchChecklistsWithStats(user.user_id));
+      }
+    }, [isAuthenticated, user, dispatch])
+  );
 
   const onRefresh = async () => {
     if (!user) return;
     setRefreshing(true);
     await Promise.all([
-      dispatch(fetchChecklists(user.user_id)),
+      dispatch(fetchChecklistsWithStats(user.user_id)),
       dispatch(fetchBuckets(user.user_id)),
     ]);
     setRefreshing(false);
@@ -55,23 +64,21 @@ export default function HomeScreen() {
   };
 
   const getChecklistProgress = (checklistId: string) => {
-    // TODO: Calculate from actual checklist items when available
-    // For now, return a placeholder value
-    return Math.floor(Math.random() * 100);
+    const checklist = checklists.find(c => c.checklist_id === checklistId) as any;
+    if (checklist && checklist.total_items > 0) {
+      return Math.round((checklist.completed_items / checklist.total_items) * 100);
+    }
+    return 0;
   };
 
   const getChecklistItemCount = (checklistId: string) => {
-    // TODO: Get actual item count from database when available
-    // For now, return a placeholder value
-    return Math.floor(Math.random() * 10) + 1;
+    const checklist = checklists.find(c => c.checklist_id === checklistId) as any;
+    return checklist?.total_items || 0;
   };
 
   const getChecklistCompletedCount = (checklistId: string) => {
-    // TODO: Get actual completed count from database when available
-    // For now, calculate based on progress and item count
-    const progress = getChecklistProgress(checklistId);
-    const itemCount = getChecklistItemCount(checklistId);
-    return Math.floor((progress / 100) * itemCount);
+    const checklist = checklists.find(c => c.checklist_id === checklistId) as any;
+    return checklist?.completed_items || 0;
   };
 
   const getBucketName = (bucketId: string | null | undefined) => {
@@ -100,7 +107,7 @@ export default function HomeScreen() {
     return (
       <ErrorMessage
         message={checklistsError}
-        onRetry={() => user && dispatch(fetchChecklists(user.user_id))}
+        onRetry={() => user && dispatch(fetchChecklistsWithStats(user.user_id))}
       />
     );
   }

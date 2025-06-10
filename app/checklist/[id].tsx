@@ -15,7 +15,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData } from '../../store/slices/checklistsSlice';
+import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle } from '../../store/slices/checklistsSlice';
 import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -82,18 +82,38 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleItemToggle = async (itemId: string, currentCompleted: boolean) => {
-    if (!user || savingItem === itemId) return;
+    if (!user || savingItem === itemId || !checklist) return;
     
     const item = items.find(i => i.item_id === itemId);
     if (!item) return;
     
+    const newCompletedState = !currentCompleted;
+    const completedAt = newCompletedState ? new Date().toISOString() : undefined;
+    
+    // Optimistic update - immediately update UI
+    dispatch(updateItemCompletion({
+      checklistId: checklist.checklist_id,
+      itemId,
+      isCompleted: newCompletedState,
+      completedAt
+    }));
+    
     setSavingItem(itemId);
     try {
+      // Send to server
       await dispatch(updateChecklistItem({
         ...item,
-        is_completed: !currentCompleted
+        is_completed: newCompletedState,
+        completed_at: completedAt
       })).unwrap();
     } catch (error) {
+      // Revert optimistic update on error
+      dispatch(updateItemCompletion({
+        checklistId: checklist.checklist_id,
+        itemId,
+        isCompleted: currentCompleted,
+        completedAt: item.completed_at
+      }));
       Alert.alert('Error', 'Failed to update item status');
     } finally {
       setSavingItem(null);
@@ -155,16 +175,30 @@ export default function ChecklistDetailsScreen() {
     const item = items.find(i => i.item_id === editingItemId);
     if (!item) return;
     
+    const newText = editingItemText.trim();
+    const originalText = item.text;
+    
+    // Optimistic update - immediately update UI
+    dispatch(updateItemText({
+      itemId: editingItemId,
+      text: newText
+    }));
+    
+    setEditingItemId(null);
+    setEditingItemText('');
+    
     setSavingItem(editingItemId);
     try {
       await dispatch(updateChecklistItem({
         ...item,
-        text: editingItemText.trim()
+        text: newText
       })).unwrap();
-      
-      setEditingItemId(null);
-      setEditingItemText('');
     } catch (error) {
+      // Revert optimistic update on error
+      dispatch(updateItemText({
+        itemId: editingItemId,
+        text: originalText
+      }));
       Alert.alert('Error', 'Failed to update item. Please try again.');
     } finally {
       setSavingItem(null);
@@ -194,18 +228,30 @@ export default function ChecklistDetailsScreen() {
       return;
     }
     
+    const newTitle = editingTitleText.trim();
+    const originalTitle = checklist.name;
+    
+    // Optimistic update - immediately update UI
+    dispatch(updateChecklistTitle({
+      checklistId: checklist.checklist_id,
+      name: newTitle
+    }));
+    
+    setEditingTitle(false);
+    setEditingTitleText('');
+    
     try {
       await dispatch(updateChecklist({
         checklistId: checklist.checklist_id,
-        name: editingTitleText.trim()
+        name: newTitle
       })).unwrap();
-      
-      setEditingTitle(false);
-      setEditingTitleText('');
     } catch (error) {
+      // Revert optimistic update on error
+      dispatch(updateChecklistTitle({
+        checklistId: checklist.checklist_id,
+        name: originalTitle
+      }));
       Alert.alert('Error', 'Failed to update title. Please try again.');
-      setEditingTitle(false);
-      setEditingTitleText('');
     }
   };
 
