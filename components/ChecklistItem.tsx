@@ -7,21 +7,28 @@ interface ChecklistItemProps {
   item: ChecklistItemType;
   onToggle: () => void;
   onPress: () => void;
+  isLoading?: boolean;
 }
 
 export const ChecklistItem: React.FC<ChecklistItemProps> = ({
   item,
   onToggle,
   onPress,
+  isLoading = false,
 }) => {
   const isCompleted = item.is_completed;
   const isOverdue = false; // Remove due date functionality for now since it's not in the new schema
 
   return (
-    <View style={[styles.container, isCompleted && styles.completed]}>
+    <View style={[
+      styles.container, 
+      isCompleted && styles.completed,
+      isLoading && styles.loading
+    ]}>
       <TouchableOpacity
         style={styles.checkboxContainer}
         onPress={onToggle}
+        disabled={isLoading}
       >
         {isCompleted ? (
           <View style={styles.checkedBox}>
@@ -76,6 +83,9 @@ const styles = StyleSheet.create({
   },
   completed: {
     opacity: 0.7,
+  },
+  loading: {
+    opacity: 0.5,
   },
   checkboxContainer: {
     marginRight: 12,

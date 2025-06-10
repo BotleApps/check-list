@@ -76,6 +76,26 @@ export const updateChecklistItem = createAsyncThunk(
   }
 );
 
+export const updateChecklist = createAsyncThunk(
+  'checklists/updateChecklist',
+  async (data: {
+    checklistId: string;
+    name?: string;
+    bucketId?: string;
+    categoryId?: string;
+    tags?: string[];
+  }) => {
+    const response = await checklistService.updateChecklist(
+      data.checklistId,
+      data.name,
+      data.bucketId,
+      data.categoryId,
+      data.tags
+    );
+    return response;
+  }
+);
+
 export const createChecklistItem = createAsyncThunk(
   'checklists/createChecklistItem',
   async (item: Omit<ChecklistItem, 'item_id' | 'created_at' | 'updated_at'>) => {
@@ -107,6 +127,10 @@ const checklistsSlice = createSlice({
     setCurrentChecklist: (state, action: PayloadAction<ChecklistHeader | null>) => {
       state.currentChecklist = action.payload;
     },
+    clearCurrentData: (state) => {
+      state.currentChecklist = null;
+      state.currentItems = [];
+    },
     reorderItems: (state, action: PayloadAction<ChecklistItem[]>) => {
       state.currentItems = action.payload;
     },
@@ -125,9 +149,18 @@ const checklistsSlice = createSlice({
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch checklists';
       })
+      .addCase(fetchChecklistWithItems.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
       .addCase(fetchChecklistWithItems.fulfilled, (state, action) => {
+        state.loading = false;
         state.currentChecklist = action.payload.checklist;
         state.currentItems = action.payload.items;
+      })
+      .addCase(fetchChecklistWithItems.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch checklist details';
       })
       .addCase(createChecklist.fulfilled, (state, action) => {
         state.checklists.push(action.payload);
@@ -142,6 +175,13 @@ const checklistsSlice = createSlice({
           state.currentItems[index] = action.payload;
         }
       })
+      .addCase(updateChecklist.fulfilled, (state, action) => {
+        state.currentChecklist = action.payload;
+        const checklistIndex = state.checklists.findIndex(c => c.checklist_id === action.payload.checklist_id);
+        if (checklistIndex !== -1) {
+          state.checklists[checklistIndex] = action.payload;
+        }
+      })
       .addCase(createChecklistItem.fulfilled, (state, action) => {
         state.currentItems.push(action.payload);
       })
@@ -151,5 +191,5 @@ const checklistsSlice = createSlice({
   },
 });
 
-export const { clearError, setCurrentChecklist, reorderItems } = checklistsSlice.actions;
+export const { clearError, setCurrentChecklist, clearCurrentData, reorderItems } = checklistsSlice.actions;
 export default checklistsSlice.reducer;

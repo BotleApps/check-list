@@ -15,7 +15,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem } from '../../store/slices/checklistsSlice';
+import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData } from '../../store/slices/checklistsSlice';
 import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -40,8 +40,13 @@ export default function ChecklistDetailsScreen() {
   const [newItemText, setNewItemText] = useState('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingTitleText, setEditingTitleText] = useState('');
+  const [savingItem, setSavingItem] = useState<string | null>(null);
+  const [addingNewItem, setAddingNewItem] = useState(false);
   const newItemInputRef = useRef<TextInput>(null);
   const editItemInputRef = useRef<TextInput>(null);
+  const editTitleInputRef = useRef<TextInput>(null);
 
   const { user } = useSelector((state: RootState) => state.auth);
   const { checklists, currentChecklist, currentItems, loading, error } = useSelector(
@@ -49,12 +54,14 @@ export default function ChecklistDetailsScreen() {
   );
   const { buckets } = useSelector((state: RootState) => state.buckets);
 
-  const checklist = currentChecklist || checklists.find(c => c.checklist_id === id);
+  const checklist = currentChecklist;
   const items = currentItems;
   const bucket = buckets.find(b => b.bucket_id === checklist?.bucket_id);
 
   useEffect(() => {
     if (id && user) {
+      // Clear current data first to avoid showing stale data
+      dispatch(clearCurrentData());
       dispatch(fetchChecklistWithItems(id));
     }
   }, [id, user, dispatch]);
@@ -67,11 +74,12 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleItemToggle = async (itemId: string, currentCompleted: boolean) => {
-    if (!user) return;
+    if (!user || savingItem === itemId) return;
     
     const item = items.find(i => i.item_id === itemId);
     if (!item) return;
     
+    setSavingItem(itemId);
     try {
       await dispatch(updateChecklistItem({
         ...item,
@@ -79,6 +87,8 @@ export default function ChecklistDetailsScreen() {
       })).unwrap();
     } catch (error) {
       Alert.alert('Error', 'Failed to update item status');
+    } finally {
+      setSavingItem(null);
     }
   };
 
@@ -92,8 +102,9 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleSaveNewItem = async () => {
-    if (!newItemText.trim() || !id) return;
+    if (!newItemText.trim() || !id || addingNewItem) return;
     
+    setAddingNewItem(true);
     try {
       const maxOrder = items.length > 0 ? Math.max(...items.map(item => item.order_index)) : 0;
       
@@ -111,6 +122,8 @@ export default function ChecklistDetailsScreen() {
       setNewItemText('');
     } catch (error) {
       Alert.alert('Error', 'Failed to add item. Please try again.');
+    } finally {
+      setAddingNewItem(false);
     }
   };
 
@@ -129,11 +142,12 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleSaveEditItem = async () => {
-    if (!editingItemText.trim() || !editingItemId) return;
+    if (!editingItemText.trim() || !editingItemId || savingItem === editingItemId) return;
     
     const item = items.find(i => i.item_id === editingItemId);
     if (!item) return;
     
+    setSavingItem(editingItemId);
     try {
       await dispatch(updateChecklistItem({
         ...item,
@@ -144,12 +158,52 @@ export default function ChecklistDetailsScreen() {
       setEditingItemText('');
     } catch (error) {
       Alert.alert('Error', 'Failed to update item. Please try again.');
+    } finally {
+      setSavingItem(null);
     }
   };
 
   const handleCancelEditItem = () => {
     setEditingItemId(null);
     setEditingItemText('');
+  };
+
+  const handleTitlePress = () => {
+    if (!checklist) return;
+    setEditingTitle(true);
+    setEditingTitleText(checklist.name);
+    // Focus the input after a short delay to ensure it's rendered
+    setTimeout(() => {
+      editTitleInputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!editingTitleText.trim() || !checklist) {
+      // If empty, revert to original title
+      setEditingTitle(false);
+      setEditingTitleText('');
+      return;
+    }
+    
+    try {
+      await dispatch(updateChecklist({
+        checklistId: checklist.checklist_id,
+        name: editingTitleText.trim()
+      })).unwrap();
+      
+      setEditingTitle(false);
+      setEditingTitleText('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update title. Please try again.');
+      setEditingTitle(false);
+      setEditingTitleText('');
+    }
+  };
+
+  const handleCancelTitle = () => {
+    setEditingTitle(false);
+    setEditingTitleText('');
   };
 
   const getProgress = () => {
@@ -211,8 +265,20 @@ export default function ChecklistDetailsScreen() {
     );
   };
 
-  if (loading && items.length === 0) {
-    return <LoadingSpinner />;
+  if (loading && !checklist) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#111827" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.centerContent}>
+          <LoadingSpinner />
+          <Text style={styles.loadingText}>Loading checklist...</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   if (error) {
@@ -247,6 +313,16 @@ export default function ChecklistDetailsScreen() {
         style={styles.container} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        {/* Loading Overlay */}
+        {loading && checklist && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingIndicator}>
+              <LoadingSpinner />
+              <Text style={styles.overlayText}>Updating...</Text>
+            </View>
+          </View>
+        )}
+
         {/* Header */}
         <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -273,7 +349,23 @@ export default function ChecklistDetailsScreen() {
       >
         {/* Checklist Info */}
         <View style={styles.checklistInfo}>
-          <Text style={styles.title}>{checklist.name}</Text>
+          {editingTitle ? (
+            <TextInput
+              ref={editTitleInputRef}
+              style={styles.titleInput}
+              value={editingTitleText}
+              onChangeText={setEditingTitleText}
+              onSubmitEditing={handleSaveTitle}
+              onBlur={handleSaveTitle}
+              returnKeyType="done"
+              blurOnSubmit={true}
+              multiline={false}
+            />
+          ) : (
+            <TouchableOpacity onPress={handleTitlePress}>
+              <Text style={styles.title}>{checklist.name}</Text>
+            </TouchableOpacity>
+          )}
           
           {checklist.description && (
             <Text style={styles.description}>{checklist.description}</Text>
@@ -328,9 +420,9 @@ export default function ChecklistDetailsScreen() {
             <TouchableOpacity 
               onPress={handleAddNewItem}
               style={styles.addButton}
-              disabled={isAddingItem}
+              disabled={isAddingItem || addingNewItem}
             >
-              <Plus size={20} color={isAddingItem ? "#9CA3AF" : "#2563EB"} />
+              <Plus size={20} color={(isAddingItem || addingNewItem) ? "#9CA3AF" : "#2563EB"} />
             </TouchableOpacity>
           </View>
 
@@ -382,6 +474,7 @@ export default function ChecklistDetailsScreen() {
                       item={item}
                       onToggle={() => handleItemToggle(item.item_id, item.is_completed)}
                       onPress={() => handleItemPress(item)}
+                      isLoading={savingItem === item.item_id}
                     />
                   )
                 ))}
@@ -455,6 +548,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
+  },
+  titleInput: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
   },
   description: {
     fontSize: 16,
@@ -536,6 +639,43 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 16,
     color: '#6B7280',
+    textAlign: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingIndicator: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  overlayText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 12,
     textAlign: 'center',
   },
   newItemInput: {

@@ -104,10 +104,10 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Recent Checklists */}
+        {/* Checklists */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Checklists</Text>
+            <Text style={styles.sectionTitle}>Checklists</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/buckets')}>
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
