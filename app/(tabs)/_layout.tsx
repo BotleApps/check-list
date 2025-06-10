@@ -44,6 +44,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="buckets"
         options={{
+          href: null, // Hide this tab from navigation
           title: 'Buckets',
           tabBarIcon: ({ size, color }) => (
             <FolderOpen size={size} color={color} />
