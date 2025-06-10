@@ -45,8 +45,8 @@ export const FolderSelectionModal: React.FC<FolderSelectionModalProps> = ({
     setCreatingFolder(true);
     try {
       const result = await dispatch(createBucket({
-        name: newFolderName.trim(),
-        user_id: user.user_id,
+        userId: user.user_id,
+        bucketName: newFolderName.trim(),
       })).unwrap();
       
       setNewFolderName('');

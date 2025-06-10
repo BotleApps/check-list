@@ -56,13 +56,6 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning!';
-    if (hour < 17) return 'Good afternoon!';
-    return 'Good evening!';
-  };
-
   const getChecklistProgress = (checklistId: string) => {
     const checklist = checklists.find(c => c.checklist_id === checklistId) as any;
     if (checklist && checklist.total_items > 0) {
@@ -120,18 +113,9 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
+        {/* Header - removed greeting and create button */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.userName}>{user?.name}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.createButton}
-            onPress={() => router.push('/checklist-edit/new')}
-          >
-            <Plus size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          {/* Header content removed as requested */}
         </View>
 
         {/*Recebt Checklists */}
@@ -187,6 +171,14 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+      
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.floatingButton}
+        onPress={() => router.push('/checklist-edit/new')}
+      >
+        <Plus size={24} color="#FFFFFF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -200,30 +192,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-  },
-  greeting: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  createButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
+    minHeight: 20, // Minimal header space
   },
   section: {
     marginTop: 24,
@@ -264,5 +237,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  floatingButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });

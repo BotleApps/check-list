@@ -17,7 +17,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata } from '../../store/slices/checklistsSlice';
+import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata, deleteChecklist } from '../../store/slices/checklistsSlice';
 import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
 import { fetchTags, createTag } from '../../store/slices/tagsSlice';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -405,9 +405,21 @@ export default function ChecklistDetailsScreen() {
                 {
                   text: 'Delete',
                   style: 'destructive',
-                  onPress: () => {
-                    // TODO: Implement delete functionality
-                    Alert.alert('Feature Coming Soon', 'Delete functionality will be available soon');
+                  onPress: async () => {
+                    if (!checklist) return;
+                    
+                    try {
+                      await dispatch(deleteChecklist(checklist.checklist_id)).unwrap();
+                      Alert.alert('Success', 'Checklist deleted successfully', [
+                        {
+                          text: 'OK',
+                          onPress: () => router.back()
+                        }
+                      ]);
+                    } catch (error) {
+                      console.error('Error deleting checklist:', error);
+                      Alert.alert('Error', 'Failed to delete checklist. Please try again.');
+                    }
                   }
                 }
               ]
@@ -620,47 +632,51 @@ export default function ChecklistDetailsScreen() {
 
           {/* Folder and Date Row */}
           <View style={styles.metadataRow}>
-            {/* Folder */}
-            {editingHeader ? (
-              <TouchableOpacity 
-                style={styles.editableField}
-                onPress={() => setShowBucketModal(true)}
-              >
-                <FolderOpen size={16} color="#6B7280" />
-                <Text style={styles.editableFieldText}>
-                  {getBucketName(editingBucketId)}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              bucket && (
-                <View style={styles.fieldContainer}>
+            {/* Folder - Left side */}
+            <View style={styles.leftField}>
+              {editingHeader ? (
+                <TouchableOpacity 
+                  style={styles.editableField}
+                  onPress={() => setShowBucketModal(true)}
+                >
                   <FolderOpen size={16} color="#6B7280" />
-                  <Text style={styles.fieldText}>{bucket.name}</Text>
-                </View>
-              )
-            )}
-            
-            {/* Date */}
-            {editingHeader ? (
-              <TouchableOpacity 
-                style={styles.editableField}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Calendar size={16} color="#6B7280" />
-                <Text style={styles.editableFieldText}>
-                  {editingTargetDate ? formatDate(editingTargetDate.toISOString()) : 'Set date'}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              checklist.due_date && (
-                <View style={styles.fieldContainer}>
-                  <Calendar size={16} color="#6B7280" />
-                  <Text style={styles.fieldText}>
-                    {formatDate(checklist.due_date)}
+                  <Text style={styles.editableFieldText}>
+                    {getBucketName(editingBucketId)}
                   </Text>
-                </View>
-              )
-            )}
+                </TouchableOpacity>
+              ) : (
+                bucket && (
+                  <View style={styles.fieldContainer}>
+                    <FolderOpen size={16} color="#6B7280" />
+                    <Text style={styles.fieldText}>{bucket.name}</Text>
+                  </View>
+                )
+              )}
+            </View>
+            
+            {/* Date - Right side (always shown if exists) */}
+            <View style={styles.rightField}>
+              {editingHeader ? (
+                <TouchableOpacity 
+                  style={styles.editableField}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Calendar size={16} color="#6B7280" />
+                  <Text style={styles.editableFieldText}>
+                    {editingTargetDate ? formatDate(editingTargetDate.toISOString()) : 'Set date'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                checklist.due_date && (
+                  <View style={styles.fieldContainer}>
+                    <Calendar size={16} color="#6B7280" />
+                    <Text style={styles.fieldText}>
+                      {formatDate(checklist.due_date)}
+                    </Text>
+                  </View>
+                )
+              )}
+            </View>
           </View>
 
           {/* Tags Row */}
@@ -1223,8 +1239,17 @@ const styles = StyleSheet.create({
   },
   metadataRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 16,
     marginBottom: 16,
+  },
+  leftField: {
+    flex: 1,
+  },
+  rightField: {
+    flex: 1,
+    alignItems: 'flex-end',
   },
   editableField: {
     flexDirection: 'row',

@@ -130,6 +130,14 @@ export const deleteChecklistItem = createAsyncThunk(
   }
 );
 
+export const deleteChecklist = createAsyncThunk(
+  'checklists/deleteChecklist',
+  async (checklistId: string) => {
+    await checklistService.deleteChecklist(checklistId);
+    return checklistId;
+  }
+);
+
 const checklistsSlice = createSlice({
   name: 'checklists',
   initialState,
@@ -305,6 +313,15 @@ const checklistsSlice = createSlice({
       })
       .addCase(deleteChecklistItem.fulfilled, (state, action) => {
         state.currentItems = state.currentItems.filter(i => i.item_id !== action.payload);
+      })
+      .addCase(deleteChecklist.fulfilled, (state, action) => {
+        // Remove from checklists array
+        state.checklists = state.checklists.filter(c => c.checklist_id !== action.payload);
+        // Clear current data if the deleted checklist was the current one
+        if (state.currentChecklist?.checklist_id === action.payload) {
+          state.currentChecklist = null;
+          state.currentItems = [];
+        }
       });
   },
 });
