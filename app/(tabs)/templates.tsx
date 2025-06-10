@@ -13,7 +13,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { fetchTemplates } from '../../store/slices/templatesSlice';
+import { fetchPublicTemplatesWithPreview } from '../../store/slices/templatesSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
 import { TemplateCard } from '../../components/TemplateCard';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -29,48 +29,39 @@ export default function TemplatesScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const { user } = useSelector((state: RootState) => state.auth);
-  const { templates, loading: templatesLoading, error: templatesError } = useSelector(
+  const { templatesWithPreview = [], loading: templatesLoading, error: templatesError } = useSelector(
     (state: RootState) => state.templates
   );
   const { categories } = useSelector((state: RootState) => state.categories);
 
   useEffect(() => {
-    if (user) {
-      dispatch(fetchTemplates(user.user_id));
-      dispatch(fetchCategories());
-    }
-  }, [user, dispatch]);
+    // Fetch public templates with preview - no user dependency needed
+    dispatch(fetchPublicTemplatesWithPreview());
+    dispatch(fetchCategories());
+  }, [dispatch]);
 
   const onRefresh = async () => {
-    if (!user) return;
     setRefreshing(true);
     await Promise.all([
-      dispatch(fetchTemplates(user.user_id)),
+      dispatch(fetchPublicTemplatesWithPreview()),
       dispatch(fetchCategories()),
     ]);
     setRefreshing(false);
-  };
-
-  const getTemplateItemCount = (templateId: string) => {
-    // Mock implementation - in real app, get actual count
-    return Math.floor(Math.random() * 8) + 1;
-  };
-
-  const getCategoryName = (categoryId?: string) => {
+  };  const getCategoryName = (categoryId?: string) => {
     if (!categoryId) return undefined;
     return categories.find(c => c.category_id === categoryId)?.name;
   };
 
-  const filteredTemplates = templates.filter(template => {
+  const filteredTemplates = templatesWithPreview.filter(template => {
     const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      template.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      (template.description && template.description.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesCategory = !selectedCategory || template.category_id === selectedCategory;
     
     return matchesSearch && matchesCategory;
   });
 
-  if (templatesLoading && templates.length === 0) {
+  if (templatesLoading && templatesWithPreview.length === 0) {
     return <LoadingSpinner />;
   }
 
@@ -78,7 +69,7 @@ export default function TemplatesScreen() {
     return (
       <ErrorMessage
         message={templatesError}
-        onRetry={() => user && dispatch(fetchTemplates(user.user_id))}
+        onRetry={() => dispatch(fetchPublicTemplatesWithPreview())}
       />
     );
   }
@@ -169,10 +160,11 @@ export default function TemplatesScreen() {
               key={template.template_id}
               template={template}
               categoryName={getCategoryName(template.category_id)}
-              itemCount={getTemplateItemCount(template.template_id)}
+              itemCount={template.item_count}
+              previewItems={template.preview_items}
               onPress={() => {
-                // TODO: Implement template editing route
-                Alert.alert('Coming Soon', 'Template editing will be available soon');
+                // TODO: Implement template details modal with "Use Template" option
+                Alert.alert('Template Details', 'Template detail view with Use Template option coming soon!');
               }}
             />
           ))

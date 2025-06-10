@@ -4,6 +4,10 @@ import { templateService } from '../../services/templateService';
 
 interface TemplatesState {
   templates: ChecklistTemplateHeader[];
+  templatesWithPreview: (ChecklistTemplateHeader & {
+    preview_items: { text: string; is_required: boolean }[];
+    item_count: number;
+  })[];
   currentTemplate: ChecklistTemplateHeader | null;
   currentTemplateItems: ChecklistTemplateItem[];
   loading: boolean;
@@ -12,6 +16,7 @@ interface TemplatesState {
 
 const initialState: TemplatesState = {
   templates: [],
+  templatesWithPreview: [],
   currentTemplate: null,
   currentTemplateItems: [],
   loading: false,
@@ -26,6 +31,14 @@ export const fetchTemplates = createAsyncThunk(
   }
 );
 
+export const fetchPublicTemplates = createAsyncThunk(
+  'templates/fetchPublicTemplates',
+  async () => {
+    const response = await templateService.getPublicTemplates();
+    return response;
+  }
+);
+
 export const fetchTemplateWithItems = createAsyncThunk(
   'templates/fetchTemplateWithItems',
   async (templateId: string) => {
@@ -36,13 +49,21 @@ export const fetchTemplateWithItems = createAsyncThunk(
 
 export const createTemplate = createAsyncThunk(
   'templates/createTemplate',
-  async (template: Omit<ChecklistTemplateHeader, 'template_id' | 'created_at' | 'updated_at'>) => {
+  async (template: { userId: string; name: string; categoryId?: string; description?: string }) => {
     const response = await templateService.createTemplate(
-      template.user_id,
+      template.userId,
       template.name,
-      template.category_id,
-      template.tags
+      template.categoryId,
+      template.description
     );
+    return response;
+  }
+);
+
+export const fetchPublicTemplatesWithPreview = createAsyncThunk(
+  'templates/fetchPublicTemplatesWithPreview',
+  async () => {
+    const response = await templateService.getPublicTemplatesWithPreview();
     return response;
   }
 );
@@ -72,6 +93,30 @@ const templatesSlice = createSlice({
       .addCase(fetchTemplateWithItems.fulfilled, (state, action) => {
         state.currentTemplate = action.payload.template;
         state.currentTemplateItems = action.payload.items;
+      })
+      .addCase(fetchPublicTemplates.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPublicTemplates.fulfilled, (state, action) => {
+        state.loading = false;
+        state.templates = action.payload;
+      })
+      .addCase(fetchPublicTemplates.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch public templates';
+      })
+      .addCase(fetchPublicTemplatesWithPreview.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPublicTemplatesWithPreview.fulfilled, (state, action) => {
+        state.loading = false;
+        state.templatesWithPreview = action.payload;
+      })
+      .addCase(fetchPublicTemplatesWithPreview.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch templates with preview';
       })
       .addCase(createTemplate.fulfilled, (state, action) => {
         state.templates.push(action.payload);

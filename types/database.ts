@@ -74,10 +74,12 @@ export interface ChecklistShare {
 
 export interface ChecklistTemplateHeader {
   template_id: string;
-  user_id: string;
   name: string;
+  description?: string;
   category_id?: string;
-  tags: string[];
+  is_public: boolean;
+  is_active: boolean;
+  created_by: string;
   created_at: string;
   updated_at: string;
 }
@@ -86,10 +88,12 @@ export interface ChecklistTemplateItem {
   item_id: string;
   template_id: string;
   text: string;
-  status: 'pending' | 'completed' | 'cancelled';
-  due_days?: number;
-  notes?: string;
-  order: number;
+  description?: string;
+  order_index: number;
+  is_required: boolean;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface User {

@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ChecklistTemplateHeader } from '../types/database';
-import { LayoutTemplate, Tag } from 'lucide-react-native';
+import { LayoutTemplate } from 'lucide-react-native';
 
 interface TemplateCardProps {
   template: ChecklistTemplateHeader;
   categoryName?: string;
   itemCount: number;
+  previewItems?: { text: string; is_required: boolean }[];
   onPress: () => void;
 }
 
@@ -14,6 +15,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
   template,
   categoryName,
   itemCount,
+  previewItems = [],
   onPress,
 }) => {
   return (
@@ -36,19 +38,31 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
           </Text>
         </View>
 
-        {template.tags.length > 0 && (
-          <View style={styles.tagsSection}>
-            <Tag size={12} color="#6B7280" />
-            <View style={styles.tags}>
-              {template.tags.slice(0, 2).map((tag, index) => (
-                <View key={index} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
+        {template.description && (
+          <Text style={styles.description} numberOfLines={2}>
+            {template.description}
+          </Text>
+        )}
+        
+        {/* Preview Items */}
+        {previewItems.length > 0 && (
+          <View style={styles.previewSection}>
+            <Text style={styles.previewLabel}>Preview:</Text>
+            {previewItems.slice(0, 2).map((item, index) => (
+              <View key={index} style={styles.previewItem}>
+                <View style={[styles.previewCheckbox, item.is_required && styles.requiredCheckbox]}>
+                  {item.is_required && <Text style={styles.requiredMark}>!</Text>}
                 </View>
-              ))}
-              {template.tags.length > 2 && (
-                <Text style={styles.moreTagsText}>+{template.tags.length - 2}</Text>
-              )}
-            </View>
+                <Text style={styles.previewItemText} numberOfLines={1}>
+                  {item.text}
+                </Text>
+              </View>
+            ))}
+            {itemCount > 2 && (
+              <Text style={styles.moreItemsText}>
+                +{itemCount - 2} more items
+              </Text>
+            )}
           </View>
         )}
       </View>
@@ -110,31 +124,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
-  tagsSection: {
+  description: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  previewSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  previewLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  previewItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    marginBottom: 4,
   },
-  tags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
+  previewCheckbox: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requiredCheckbox: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#FEF3C7',
+  },
+  requiredMark: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+  },
+  previewItemText: {
+    fontSize: 13,
+    color: '#374151',
     flex: 1,
   },
-  tag: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 8,
-  },
-  tagText: {
-    fontSize: 10,
-    color: '#374151',
-    fontWeight: '500',
-  },
-  moreTagsText: {
-    fontSize: 10,
+  moreItemsText: {
+    fontSize: 12,
     color: '#6B7280',
-    fontWeight: '500',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 });

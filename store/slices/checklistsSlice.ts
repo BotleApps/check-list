@@ -331,9 +331,19 @@ const checklistsSlice = createSlice({
           state.currentItems = [];
         }
       })
+      .addCase(shareChecklist.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
       .addCase(shareChecklist.fulfilled, (state, action) => {
+        state.loading = false;
         // Sharing doesn't change the current state, just success notification will be handled in UI
         console.log('Checklist shared successfully:', action.payload);
+      })
+      .addCase(shareChecklist.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to share checklist';
+        console.error('Share checklist failed:', action.error);
       });
   },
 });

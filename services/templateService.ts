@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase';
 class TemplateService {
   async getUserTemplates(userId: string): Promise<ChecklistTemplateHeader[]> {
     const { data, error } = await supabase
-      .from('checklist_templates')
+      .from('templates')
       .select('*')
-      .eq('user_id', userId)
+      .eq('created_by', userId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -16,13 +16,97 @@ class TemplateService {
     return data || [];
   }
 
+  async getPublicTemplates(): Promise<ChecklistTemplateHeader[]> {
+    const { data, error } = await supabase
+      .from('templates')
+      .select(`
+        *,
+        category_master (
+          category_id,
+          name
+        )
+      `)
+      .eq('is_public', true)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data || [];
+  }
+
+  async getPublicTemplatesWithPreview(): Promise<(ChecklistTemplateHeader & {
+    preview_items: { text: string; is_required: boolean }[];
+    item_count: number;
+  })[]> {
+    const { data: templates, error } = await supabase
+      .from('templates')
+      .select(`
+        *,
+        category_master (
+          category_id,
+          name
+        )
+      `)
+      .eq('is_public', true)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!templates || templates.length === 0) {
+      return [];
+    }
+
+    // For each template, get the first 2 items and total count
+    const templatesWithPreview = await Promise.all(
+      templates.map(async (template) => {
+        try {
+          // Get first 2 items for preview
+          const { data: previewItems } = await supabase
+            .from('template_items')
+            .select('text, is_required')
+            .eq('template_id', template.template_id)
+            .order('order_index', { ascending: true })
+            .limit(2);
+
+          // Get total item count
+          const { count } = await supabase
+            .from('template_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('template_id', template.template_id);
+
+          return {
+            ...template,
+            preview_items: previewItems || [],
+            item_count: count || 0,
+          };
+        } catch (error) {
+          console.error(`Error fetching items for template ${template.template_id}:`, error);
+          // Return template with empty preview if items fail to load
+          return {
+            ...template,
+            preview_items: [],
+            item_count: 0,
+          };
+        }
+      })
+    );
+
+    return templatesWithPreview;
+  }
+
   async getTemplateWithItems(templateId: string): Promise<{
     template: ChecklistTemplateHeader;
     items: ChecklistTemplateItem[];
   }> {
     // Get the template
     const { data: template, error: templateError } = await supabase
-      .from('checklist_templates')
+      .from('templates')
       .select('*')
       .eq('template_id', templateId)
       .single();
@@ -33,10 +117,10 @@ class TemplateService {
 
     // Get the template items
     const { data: items, error: itemsError } = await supabase
-      .from('checklist_template_items')
+      .from('template_items')
       .select('*')
       .eq('template_id', templateId)
-      .order('order', { ascending: true });
+      .order('order_index', { ascending: true });
 
     if (itemsError) {
       throw new Error(itemsError.message);
@@ -52,17 +136,19 @@ class TemplateService {
     userId: string,
     name: string,
     categoryId?: string,
-    tags?: string[]
+    description?: string
   ): Promise<ChecklistTemplateHeader> {
     const newTemplate = {
-      user_id: userId,
+      created_by: userId,
       name,
       category_id: categoryId,
-      tags,
+      description,
+      is_public: false,
+      is_active: true
     };
 
     const { data, error } = await supabase
-      .from('checklist_templates')
+      .from('templates')
       .insert(newTemplate)
       .select()
       .single();
@@ -78,17 +164,17 @@ class TemplateService {
     templateId: string,
     name: string,
     categoryId?: string,
-    tags?: string[]
+    description?: string
   ): Promise<ChecklistTemplateHeader> {
     const updates = {
       name,
       category_id: categoryId,
-      tags,
+      description,
       updated_at: new Date().toISOString(),
     };
 
     const { data, error } = await supabase
-      .from('checklist_templates')
+      .from('templates')
       .update(updates)
       .eq('template_id', templateId)
       .select()
@@ -102,15 +188,9 @@ class TemplateService {
   }
 
   async deleteTemplate(templateId: string): Promise<void> {
-    // Delete template items first (if not handled by cascade)
-    await supabase
-      .from('checklist_template_items')
-      .delete()
-      .eq('template_id', templateId);
-
-    // Delete the template
+    // Delete the template (template_items will be cascade deleted)
     const { error } = await supabase
-      .from('checklist_templates')
+      .from('templates')
       .delete()
       .eq('template_id', templateId);
 
@@ -122,33 +202,32 @@ class TemplateService {
   async addTemplateItem(
     templateId: string,
     text: string,
-    notes?: string,
-    dueDays?: number,
+    description?: string,
+    isRequired?: boolean,
     order?: number
   ): Promise<ChecklistTemplateItem> {
     // If no order specified, get the next order number
     if (order === undefined) {
       const { data: existingItems } = await supabase
-        .from('checklist_template_items')
-        .select('order')
+        .from('template_items')
+        .select('order_index')
         .eq('template_id', templateId)
-        .order('order', { ascending: false })
+        .order('order_index', { ascending: false })
         .limit(1);
 
-      order = (existingItems?.[0]?.order || 0) + 1;
+      order = (existingItems?.[0]?.order_index || 0) + 1;
     }
 
     const newItem = {
       template_id: templateId,
       text,
-      notes,
-      due_days: dueDays,
-      order,
-      status: 'pending' as const,
+      description,
+      order_index: order,
+      is_required: isRequired || false,
     };
 
     const { data, error } = await supabase
-      .from('checklist_template_items')
+      .from('template_items')
       .insert(newItem)
       .select()
       .single();
@@ -163,18 +242,18 @@ class TemplateService {
   async updateTemplateItem(
     itemId: string,
     text?: string,
-    notes?: string,
-    dueDays?: number,
+    description?: string,
+    isRequired?: boolean,
     order?: number
   ): Promise<ChecklistTemplateItem> {
     const updates: any = {};
     if (text !== undefined) updates.text = text;
-    if (notes !== undefined) updates.notes = notes;
-    if (dueDays !== undefined) updates.due_days = dueDays;
-    if (order !== undefined) updates.order = order;
+    if (description !== undefined) updates.description = description;
+    if (isRequired !== undefined) updates.is_required = isRequired;
+    if (order !== undefined) updates.order_index = order;
 
     const { data, error } = await supabase
-      .from('checklist_template_items')
+      .from('template_items')
       .update(updates)
       .eq('item_id', itemId)
       .select()
@@ -189,7 +268,7 @@ class TemplateService {
 
   async deleteTemplateItem(itemId: string): Promise<void> {
     const { error } = await supabase
-      .from('checklist_template_items')
+      .from('template_items')
       .delete()
       .eq('item_id', itemId);
 

@@ -525,10 +525,10 @@ class ChecklistService {
       const templateItems = items.map((item, index) => ({
         template_id: template.template_id,
         text: item.text,
-        status: 'pending', // Reset status for template
-        due_days: item.due_days,
-        notes: item.notes,
-        order_index: index
+        description: item.description || null,
+        order_index: index,
+        is_required: false, // Default to false for templates
+        tags: [] // Reset tags for template
       }));
 
       const { error: itemsInsertError } = await supabase
