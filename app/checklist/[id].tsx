@@ -25,6 +25,8 @@ import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
+import { FolderSelectionModal } from '../../components/FolderSelectionModal';
+import { TagSelectionModal } from '../../components/TagSelectionModal';
 import { 
   ArrowLeft, 
   Share2, 
@@ -806,115 +808,20 @@ export default function ChecklistDetailsScreen() {
         </View>
       </ScrollView>
       
-      {/* Bucket Selection Modal */}
-      <Modal
+      {/* Reusable Modals */}
+      <FolderSelectionModal
         visible={showBucketModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Folder</Text>
-            <TouchableOpacity 
-              onPress={() => setShowBucketModal(false)}
-              style={styles.modalCloseButton}
-            >
-              <X size={24} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          
-          <ScrollView style={styles.modalContent}>
-            <TouchableOpacity
-              style={[
-                styles.modalOption,
-                !editingBucketId && styles.modalOptionSelected
-              ]}
-              onPress={() => {
-                console.log('Selected "No folder", setting editingBucketId to empty string');
-                setEditingBucketId('');
-                setShowBucketModal(false);
-              }}
-            >
-              <Text style={[
-                styles.modalOptionText,
-                !editingBucketId && styles.modalOptionTextSelected
-              ]}>
-                No folder
-              </Text>
-              {!editingBucketId && (
-                <Check size={20} color="#2563EB" />
-              )}
-            </TouchableOpacity>
-            
-            {buckets.map((bucket) => (
-              <TouchableOpacity
-                key={bucket.bucket_id}
-                style={[
-                  styles.modalOption,
-                  editingBucketId === bucket.bucket_id && styles.modalOptionSelected
-                ]}
-                onPress={() => {
-                  console.log(`Selected folder: ${bucket.name} (ID: ${bucket.bucket_id})`);
-                  setEditingBucketId(bucket.bucket_id);
-                  setShowBucketModal(false);
-                }}
-              >
-                <Text style={[
-                  styles.modalOptionText,
-                  editingBucketId === bucket.bucket_id && styles.modalOptionTextSelected
-                ]}>
-                  {bucket.name}
-                </Text>
-                {editingBucketId === bucket.bucket_id && (
-                  <Check size={20} color="#2563EB" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+        selectedFolderId={editingBucketId}
+        onSelect={(folderId) => setEditingBucketId(folderId)}
+        onClose={() => setShowBucketModal(false)}
+      />
       
-      {/* Tag Selection Modal */}
-      <Modal
+      <TagSelectionModal
         visible={showTagModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Tags</Text>
-            <TouchableOpacity 
-              onPress={() => setShowTagModal(false)}
-              style={styles.modalCloseButton}
-            >
-              <Text style={styles.modalDoneText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <ScrollView style={styles.modalContent}>
-            {tags.map((tag) => (
-              <TouchableOpacity
-                key={tag.tag_id}
-                style={[
-                  styles.modalOption,
-                  editingTags.includes(tag.name) && styles.modalOptionSelected
-                ]}
-                onPress={() => toggleEditingTag(tag.name)}
-              >
-                <Text style={[
-                  styles.modalOptionText,
-                  editingTags.includes(tag.name) && styles.modalOptionTextSelected
-                ]}>
-                  {tag.name}
-                </Text>
-                {editingTags.includes(tag.name) && (
-                  <Check size={20} color="#2563EB" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+        selectedTagNames={editingTags}
+        onSelect={(tagNames) => setEditingTags(tagNames)}
+        onClose={() => setShowTagModal(false)}
+      />
       
       {/* Date Picker Modal */}
       {showDatePicker && (

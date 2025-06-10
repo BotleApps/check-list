@@ -11,15 +11,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
-  FlatList,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { createChecklistWithItems } from '../../store/slices/checklistsSlice';
-import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
-import { fetchTags, createTag } from '../../store/slices/tagsSlice';
+import { fetchBuckets } from '../../store/slices/bucketsSlice';
+import { fetchTags } from '../../store/slices/tagsSlice';
+import { FolderSelectionModal } from '../../components/FolderSelectionModal';
+import { TagSelectionModal } from '../../components/TagSelectionModal';
 import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck, X, Plus } from 'lucide-react-native';
 
 export default function NewChecklistScreen() {
@@ -37,13 +38,9 @@ export default function NewChecklistScreen() {
   const [targetDate, setTargetDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedBucketId, setSelectedBucketId] = useState<string>('');
-  const [showBucketModal, setShowBucketModal] = useState(false);
+  const [showFolderModal, setShowFolderModal] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showTagModal, setShowTagModal] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [creatingFolder, setCreatingFolder] = useState(false);
-  const [newTagName, setNewTagName] = useState('');
-  const [creatingTag, setCreatingTag] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [newItemText, setNewItemText] = useState('');
   const [addingNewItem, setAddingNewItem] = useState(false);
@@ -286,67 +283,6 @@ export default function NewChecklistScreen() {
     return bucket?.name || 'Select Folder';
   };
 
-  const handleCreateFolder = async () => {
-    console.log('handleCreateFolder called with:', { 
-      newFolderName: newFolderName.trim(), 
-      user: user?.user_id 
-    });
-    
-    if (!newFolderName.trim() || !user) {
-      console.log('Early return: missing name or user');
-      return;
-    }
-    
-    setCreatingFolder(true);
-    try {
-      console.log('Dispatching createBucket...');
-      const newBucket = await dispatch(createBucket({ 
-        userId: user.user_id, 
-        bucketName: newFolderName.trim() 
-      })).unwrap();
-      
-      console.log('New bucket created:', newBucket);
-      setSelectedBucketId(newBucket.bucket_id);
-      setNewFolderName('');
-      setCreatingFolder(false);
-      setShowBucketModal(false);
-    } catch (error) {
-      console.error('Error creating folder:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Alert.alert('Error', `Failed to create folder: ${errorMessage}`);
-      setCreatingFolder(false);
-    }
-  };
-
-  const handleCreateTag = async () => {
-    console.log('handleCreateTag called with:', { newTagName: newTagName.trim() });
-    
-    if (!newTagName.trim()) {
-      console.log('Early return: missing tag name');
-      return;
-    }
-    
-    setCreatingTag(true);
-    try {
-      console.log('Dispatching createTag...');
-      const newTag = await dispatch(createTag(newTagName.trim())).unwrap();
-      console.log('New tag created:', newTag);
-      
-      setSelectedTags(prev => {
-        const updated = [...prev, newTag.name];
-        console.log('Updated selected tags:', updated);
-        return updated;
-      });
-      setNewTagName('');
-      setCreatingTag(false);
-    } catch (error) {
-      console.error('Error creating tag:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Alert.alert('Error', `Failed to create tag: ${errorMessage}`);
-      setCreatingTag(false);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
@@ -496,8 +432,7 @@ export default function NewChecklistScreen() {
             <TouchableOpacity 
               style={styles.folderButton}
               onPress={() => {
-                setNewFolderName(''); // Clear input when opening modal
-                setShowBucketModal(true);
+                setShowFolderModal(true);
               }}
             >
               <Folder size={20} color="#007AFF" />
@@ -513,7 +448,6 @@ export default function NewChecklistScreen() {
             <TouchableOpacity 
               style={styles.tagsButton}
               onPress={() => {
-                setNewTagName(''); // Clear input when opening modal
                 setShowTagModal(true);
               }}
             >
@@ -566,142 +500,21 @@ export default function NewChecklistScreen() {
             </View>
           </SafeAreaView>
         </Modal>
-
-        {/* Bucket Selection Modal */}
-        <Modal
-          visible={showBucketModal}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Folder</Text>
-              <TouchableOpacity onPress={() => {
-                setShowBucketModal(false);
-                setNewFolderName(''); // Clear input when closing modal
-              }}>
-                <Text style={styles.doneButtonText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            
-            {/* Create New Folder Section */}
-            <View style={styles.createNewSection}>
-              <TextInput
-                style={styles.createNewInput}
-                placeholder="Create new folder..."
-                value={newFolderName}
-                onChangeText={setNewFolderName}
-                placeholderTextColor="#C7C7CC"
-                returnKeyType="done"
-                onSubmitEditing={handleCreateFolder}
-              />
-              <TouchableOpacity 
-                style={[styles.createNewButton, (!newFolderName.trim() || creatingFolder) && styles.createNewButtonDisabled]}
-                onPress={handleCreateFolder}
-                disabled={!newFolderName.trim() || creatingFolder}
-              >
-                <Text style={[styles.createNewButtonText, (!newFolderName.trim() || creatingFolder) && styles.createNewButtonTextDisabled]}>
-                  {creatingFolder ? 'Creating...' : 'Create'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            
-            <FlatList
-              data={buckets}
-              keyExtractor={(item) => item.bucket_id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.modalItem,
-                    selectedBucketId === item.bucket_id && styles.modalItemSelected
-                  ]}
-                  onPress={() => {
-                    setSelectedBucketId(item.bucket_id);
-                    setShowBucketModal(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalItemText,
-                    selectedBucketId === item.bucket_id && styles.modalItemTextSelected
-                  ]}>
-                    {item.name}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>No folders available</Text>
-              }
-            />
-          </SafeAreaView>
-        </Modal>
-
-        {/* Tag Selection Modal */}
-        <Modal
+        
+        {/* Reusable Modals */}
+        <FolderSelectionModal
+          visible={showFolderModal}
+          selectedFolderId={selectedBucketId}
+          onSelect={(folderId) => setSelectedBucketId(folderId)}
+          onClose={() => setShowFolderModal(false)}
+        />
+        
+        <TagSelectionModal
           visible={showTagModal}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Tags</Text>
-              <TouchableOpacity onPress={() => {
-                setShowTagModal(false);
-                setNewTagName(''); // Clear input when closing modal
-              }}>
-                <Text style={styles.doneButtonText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            
-            {/* Create New Tag Section */}
-            <View style={styles.createNewSection}>
-              <TextInput
-                style={styles.createNewInput}
-                placeholder="Create new tag..."
-                value={newTagName}
-                onChangeText={setNewTagName}
-                placeholderTextColor="#C7C7CC"
-                returnKeyType="done"
-                onSubmitEditing={handleCreateTag}
-              />
-              <TouchableOpacity 
-                style={[styles.createNewButton, (!newTagName.trim() || creatingTag) && styles.createNewButtonDisabled]}
-                onPress={handleCreateTag}
-                disabled={!newTagName.trim() || creatingTag}
-              >
-                <Text style={[styles.createNewButtonText, (!newTagName.trim() || creatingTag) && styles.createNewButtonTextDisabled]}>
-                  {creatingTag ? 'Creating...' : 'Create'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            
-            <FlatList
-              data={tags}
-              keyExtractor={(item) => item.tag_id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.modalItem,
-                    selectedTags.includes(item.name) && styles.modalItemSelected
-                  ]}
-                  onPress={() => toggleTag(item.name)}
-                >
-                  <Text style={[
-                    styles.modalItemText,
-                    selectedTags.includes(item.name) && styles.modalItemTextSelected
-                  ]}>
-                    {item.name}
-                  </Text>
-                  {selectedTags.includes(item.name) && (
-                    <SquareCheck size={20} color="#007AFF" />
-                  )}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>No tags available</Text>
-              }
-            />
-          </SafeAreaView>
-        </Modal>
+          selectedTagNames={selectedTags}
+          onSelect={(tagNames) => setSelectedTags(tagNames)}
+          onClose={() => setShowTagModal(false)}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
