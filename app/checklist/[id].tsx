@@ -240,11 +240,25 @@ export default function ChecklistDetailsScreen() {
   const handleEditHeader = () => {
     if (!checklist) return;
     
+    console.log('Starting edit mode with current checklist data:', {
+      name: checklist.name,
+      bucket_id: checklist.bucket_id,
+      due_date: checklist.due_date,
+      tags: checklist.tags
+    });
+    
     setEditingHeader(true);
     setEditingTitleText(checklist.name);
     setEditingBucketId(checklist.bucket_id || '');
     setEditingTargetDate(checklist.due_date ? new Date(checklist.due_date) : null);
     setEditingTags([...checklist.tags]);
+    
+    console.log('Edit mode initialized with:', {
+      editingTitleText: checklist.name,
+      editingBucketId: checklist.bucket_id || '',
+      editingTargetDate: checklist.due_date ? new Date(checklist.due_date) : null,
+      editingTags: [...checklist.tags]
+    });
   };
 
   const handleSaveHeader = async () => {
@@ -267,6 +281,13 @@ export default function ChecklistDetailsScreen() {
       tags: editingTags
     };
     
+    console.log('Saving header with bucket data:', {
+      originalBucketId: originalData.bucket_id,
+      editingBucketId,
+      newBucketId: newData.bucket_id,
+      bucketIdForDispatch: newData.bucket_id || undefined
+    });
+    
     // Optimistic update
     dispatch(updateChecklistMetadata({
       checklistId: checklist.checklist_id,
@@ -283,11 +304,12 @@ export default function ChecklistDetailsScreen() {
       await dispatch(updateChecklist({
         checklistId: checklist.checklist_id,
         name: newData.name,
-        bucketId: newData.bucket_id || undefined,
+        bucketId: newData.bucket_id,
         tags: newData.tags,
         dueDate: newData.due_date || undefined
       })).unwrap();
     } catch (error) {
+      console.error('Error saving header:', error);
       // Revert optimistic update on error
       dispatch(updateChecklistMetadata({
         checklistId: checklist.checklist_id,
@@ -303,6 +325,7 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleCancelEditHeader = () => {
+    console.log('Canceling edit mode, reverting to original values');
     setEditingHeader(false);
     setEditingTitleText('');
     setEditingBucketId('');
@@ -329,9 +352,19 @@ export default function ChecklistDetailsScreen() {
   };
 
   const getBucketName = (bucketId?: string) => {
-    if (!bucketId) return 'No folder';
+    console.log('getBucketName called with bucketId:', bucketId);
+    console.log('Available buckets:', buckets);
+    
+    if (!bucketId) {
+      console.log('No bucketId provided, returning "No folder"');
+      return 'No folder';
+    }
+    
     const bucket = buckets.find(b => b.bucket_id === bucketId);
-    return bucket?.name || 'Unknown folder';
+    const bucketName = bucket?.name || 'Unknown folder';
+    
+    console.log('Found bucket:', bucket, 'returning name:', bucketName);
+    return bucketName;
   };
 
   const getProgress = () => {
@@ -387,6 +420,39 @@ export default function ChecklistDetailsScreen() {
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (selectedDate) {
       setEditingTargetDate(selectedDate);
+    }
+  };
+
+  // Handle back navigation with unsaved changes check
+  const handleBackPress = () => {
+    if (editingHeader) {
+      Alert.alert(
+        'Unsaved Changes',
+        'You have unsaved changes. What would you like to do?',
+        [
+          {
+            text: 'Save & Exit',
+            onPress: async () => {
+              await handleSaveHeader();
+              router.back();
+            },
+          },
+          {
+            text: 'Discard Changes',
+            style: 'destructive',
+            onPress: () => {
+              handleCancelEditHeader();
+              router.back();
+            },
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
+    } else {
+      router.back();
     }
   };
 
@@ -472,7 +538,7 @@ export default function ChecklistDetailsScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
           <ArrowLeft size={24} color="#111827" />
         </TouchableOpacity>
         <View style={styles.headerActions}>
@@ -764,6 +830,7 @@ export default function ChecklistDetailsScreen() {
                 !editingBucketId && styles.modalOptionSelected
               ]}
               onPress={() => {
+                console.log('Selected "No folder", setting editingBucketId to empty string');
                 setEditingBucketId('');
                 setShowBucketModal(false);
               }}
@@ -787,6 +854,7 @@ export default function ChecklistDetailsScreen() {
                   editingBucketId === bucket.bucket_id && styles.modalOptionSelected
                 ]}
                 onPress={() => {
+                  console.log(`Selected folder: ${bucket.name} (ID: ${bucket.bucket_id})`);
                   setEditingBucketId(bucket.bucket_id);
                   setShowBucketModal(false);
                 }}

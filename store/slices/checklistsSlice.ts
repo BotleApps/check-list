@@ -92,7 +92,7 @@ export const updateChecklist = createAsyncThunk(
   async (data: {
     checklistId: string;
     name?: string;
-    bucketId?: string;
+    bucketId?: string | null;
     categoryId?: string;
     tags?: string[];
     dueDate?: string;
@@ -203,21 +203,39 @@ const checklistsSlice = createSlice({
     }>) => {
       const { checklistId, name, bucket_id, due_date, tags } = action.payload;
       
+      console.log('Redux: updateChecklistMetadata called with:', action.payload);
+      
       // Update in checklists array
       const checklistIndex = state.checklists.findIndex(c => c.checklist_id === checklistId);
       if (checklistIndex !== -1) {
+        console.log('Redux: Found checklist in array at index:', checklistIndex);
+        console.log('Redux: Current bucket_id:', state.checklists[checklistIndex].bucket_id);
+        
         if (name !== undefined) state.checklists[checklistIndex].name = name;
-        if (bucket_id !== undefined) state.checklists[checklistIndex].bucket_id = bucket_id || undefined;
+        if (bucket_id !== undefined) {
+          console.log('Redux: Updating bucket_id from', state.checklists[checklistIndex].bucket_id, 'to', bucket_id);
+          state.checklists[checklistIndex].bucket_id = bucket_id || undefined;
+        }
         if (due_date !== undefined) state.checklists[checklistIndex].due_date = due_date || undefined;
         if (tags !== undefined) state.checklists[checklistIndex].tags = tags;
+        
+        console.log('Redux: Updated checklist array item:', state.checklists[checklistIndex]);
       }
       
       // Update current checklist if it's the same one
       if (state.currentChecklist?.checklist_id === checklistId) {
+        console.log('Redux: Found current checklist, updating it too');
+        console.log('Redux: Current checklist bucket_id:', state.currentChecklist.bucket_id);
+        
         if (name !== undefined) state.currentChecklist.name = name;
-        if (bucket_id !== undefined) state.currentChecklist.bucket_id = bucket_id || undefined;
+        if (bucket_id !== undefined) {
+          console.log('Redux: Updating current checklist bucket_id from', state.currentChecklist.bucket_id, 'to', bucket_id);
+          state.currentChecklist.bucket_id = bucket_id || undefined;
+        }
         if (due_date !== undefined) state.currentChecklist.due_date = due_date || undefined;
         if (tags !== undefined) state.currentChecklist.tags = tags;
+        
+        console.log('Redux: Updated current checklist:', state.currentChecklist);
       }
     },
   },
@@ -274,9 +292,11 @@ const checklistsSlice = createSlice({
         }
       })
       .addCase(updateChecklist.fulfilled, (state, action) => {
+        console.log('Redux: updateChecklist.fulfilled with payload:', action.payload);
         state.currentChecklist = action.payload;
         const checklistIndex = state.checklists.findIndex(c => c.checklist_id === action.payload.checklist_id);
         if (checklistIndex !== -1) {
+          console.log('Redux: Updating checklist in array after server response');
           state.checklists[checklistIndex] = action.payload;
         }
       })

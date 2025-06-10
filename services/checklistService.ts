@@ -210,7 +210,24 @@ class ChecklistService {
       throw new Error(error.message);
     }
 
-    console.log('Checklist created successfully:', data);
+    console.log('Checklist created successfully (raw data):', data);
+
+    // Convert tag IDs back to tag names for the response
+    if (data.tags && data.tags.length > 0) {
+      const { data: tagNames, error: tagNamesError } = await supabase
+        .from('tag_master')
+        .select('tag_id, name')
+        .in('tag_id', data.tags);
+
+      if (tagNamesError) {
+        console.error('Error fetching tag names after creation:', tagNamesError);
+      } else {
+        data.tags = tagNames?.map(tag => tag.name) || [];
+        console.log('Converted tags back to names after creation:', data.tags);
+      }
+    }
+
+    console.log('Checklist final response:', data);
     return data;
   }
 
@@ -357,17 +374,67 @@ class ChecklistService {
   async updateChecklist(
     checklistId: string,
     name?: string,
-    bucketId?: string,
+    bucketId?: string | null,
     categoryId?: string,
     tags?: string[],
     dueDate?: string
   ): Promise<ChecklistHeader> {
+    console.log('UpdateChecklist service called with:', {
+      checklistId,
+      name,
+      bucketId,
+      categoryId,
+      tags,
+      dueDate
+    });
+
     const updates: any = { updated_at: new Date().toISOString() };
     if (name !== undefined) updates.name = name;
-    if (bucketId !== undefined) updates.bucket_id = bucketId;
+    if (bucketId !== undefined) {
+      updates.bucket_id = bucketId; // bucketId can be null to remove folder
+      console.log('Setting bucket_id to:', bucketId);
+    }
     if (categoryId !== undefined) updates.category_id = categoryId;
-    if (tags !== undefined) updates.tags = tags;
     if (dueDate !== undefined) updates.due_date = dueDate;
+    
+    // Convert tag names to tag IDs if tags are provided
+    if (tags !== undefined) {
+      if (tags.length > 0) {
+        console.log('Converting tag names to IDs for update...', tags);
+        
+        // Get all existing tags that match the provided names
+        const { data: existingTags, error: tagsError } = await supabase
+          .from('tag_master')
+          .select('tag_id, name')
+          .in('name', tags);
+
+        if (tagsError) {
+          console.error('Error fetching tags for update:', tagsError);
+          throw new Error(`Failed to fetch tags: ${tagsError.message}`);
+        }
+
+        console.log('Found existing tags for update:', existingTags);
+        const tagIds = existingTags?.map(tag => tag.tag_id) || [];
+        
+        // Check if all tags were found
+        const foundTagNames = existingTags?.map(tag => tag.name) || [];
+        const missingTags = tags.filter(tagName => !foundTagNames.includes(tagName));
+        
+        if (missingTags.length > 0) {
+          console.warn('Some tags were not found during update:', missingTags);
+          // For now, we'll just ignore missing tags
+        }
+        
+        updates.tags = tagIds;
+        console.log('Converted tag names to IDs:', { originalTags: tags, tagIds });
+      } else {
+        // Empty array means remove all tags
+        updates.tags = [];
+        console.log('Removing all tags from checklist');
+      }
+    }
+
+    console.log('Final update object:', updates);
 
     const { data, error } = await supabase
       .from('checklist_headers')
@@ -377,9 +444,28 @@ class ChecklistService {
       .single();
 
     if (error) {
+      console.error('UpdateChecklist error:', error);
       throw new Error(error.message);
     }
 
+    console.log('UpdateChecklist success (raw data):', data);
+
+    // Convert tag IDs back to tag names for the response
+    if (data.tags && data.tags.length > 0) {
+      const { data: tagNames, error: tagNamesError } = await supabase
+        .from('tag_master')
+        .select('tag_id, name')
+        .in('tag_id', data.tags);
+
+      if (tagNamesError) {
+        console.error('Error fetching tag names:', tagNamesError);
+      } else {
+        data.tags = tagNames?.map(tag => tag.name) || [];
+        console.log('Converted tags back to names:', data.tags);
+      }
+    }
+
+    console.log('UpdateChecklist final response:', data);
     return data;
   }
 }
