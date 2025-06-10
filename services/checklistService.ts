@@ -504,13 +504,14 @@ class ChecklistService {
 
     // Create the template header (without tags, but with category)
     const templateData = {
-      user_id: user.id,
+      created_by: user.id,
       name: checklist.name,
-      category_id: categoryId || null
+      category_id: categoryId || null,
+      is_public: true // Make it public when shared
     };
 
     const { data: template, error: templateError } = await supabase
-      .from('checklist_template_headers')
+      .from('templates')
       .insert(templateData)
       .select()
       .single();
@@ -531,13 +532,13 @@ class ChecklistService {
       }));
 
       const { error: itemsInsertError } = await supabase
-        .from('checklist_template_items')
+        .from('template_items')
         .insert(templateItems);
 
       if (itemsInsertError) {
         // Cleanup: delete the template header if items failed
         await supabase
-          .from('checklist_template_headers')
+          .from('templates')
           .delete()
           .eq('template_id', template.template_id);
         

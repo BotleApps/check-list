@@ -37,6 +37,17 @@ export default function HomeScreen() {
   );
   const { buckets, loading: bucketsLoading } = useSelector((state: RootState) => state.buckets);
 
+  // Debug logs
+  console.log('🔍 HomeScreen Debug:', {
+    checklistsCount: checklists.length,
+    bucketsCount: buckets.length,
+    loading: checklistsLoading,
+    error: checklistsError,
+    user: user?.user_id,
+    sampleChecklist: checklists[0] || null,
+    sampleBucket: buckets[0] || null
+  });
+
   useEffect(() => {
     if (isAuthenticated && user) {
       dispatch(fetchChecklistsWithStats(user.user_id));
@@ -84,7 +95,9 @@ export default function HomeScreen() {
   const getBucketName = (bucketId: string | null | undefined) => {
     if (!bucketId) return undefined;
     const bucket = buckets.find(b => b.bucket_id === bucketId);
-    return bucket?.name;
+    const name = bucket?.name;
+    console.log('🗂️ getBucketName:', { bucketId, foundBucket: !!bucket, name });
+    return name;
   };
 
   const getBucketChecklistCount = (bucketId: string) => {
@@ -120,22 +133,42 @@ export default function HomeScreen() {
 
   // Get group key based on sort type
   const getGroupKey = (checklist: any) => {
+    let groupKey;
     switch (sortBy) {
       case 'folder':
-        return getBucketName(checklist.bucket_id) || 'No Folder';
+        groupKey = getBucketName(checklist.bucket_id) || 'No Folder';
+        break;
       case 'created':
-        return formatDateGroupKey(checklist.created_at, 'No Date');
+        groupKey = formatDateGroupKey(checklist.created_at, 'No Date');
+        break;
       case 'target':
-        return formatDateGroupKey(checklist.due_date, 'No Due Date');
+        groupKey = formatDateGroupKey(checklist.due_date, 'No Due Date');
+        break;
       case 'modified':
-        return formatDateGroupKey(checklist.updated_at, 'No Date');
+        groupKey = formatDateGroupKey(checklist.updated_at, 'No Date');
+        break;
       default:
-        return 'Others';
+        groupKey = 'Others';
     }
+    console.log('🏷️ getGroupKey:', { 
+      checklistId: checklist.checklist_id, 
+      checklistName: checklist.name,
+      sortBy, 
+      groupKey,
+      bucketId: checklist.bucket_id 
+    });
+    return groupKey;
   };
 
   // Sorting and grouping logic
   const sortedAndGroupedChecklists = useMemo(() => {
+    console.log('🔄 Starting sorting and grouping:', {
+      originalChecklists: checklists.length,
+      searchQuery: searchQuery.trim(),
+      sortBy,
+      sortDirection
+    });
+
     // Filter checklists based on search query
     let filteredChecklists = checklists;
     if (searchQuery.trim()) {
@@ -144,6 +177,7 @@ export default function HomeScreen() {
         checklist.name.toLowerCase().includes(query) ||
         getBucketName(checklist.bucket_id)?.toLowerCase().includes(query)
       );
+      console.log('🔍 After search filter:', filteredChecklists.length);
     }
 
     // Sort checklists
@@ -182,6 +216,12 @@ export default function HomeScreen() {
       return acc;
     }, {} as Record<string, typeof checklists>);
 
+    console.log('📊 Grouped data:', {
+      groupKeys: Object.keys(grouped),
+      groupCounts: Object.entries(grouped).map(([key, items]) => ({ key, count: items.length })),
+      totalItems: sorted.length
+    });
+
     // Sort the groups themselves
     const sortedGroupEntries = Object.entries(grouped).sort(([keyA], [keyB]) => {
       // Handle "No" prefixed groups - they should come last
@@ -215,7 +255,14 @@ export default function HomeScreen() {
         keyB.localeCompare(keyA);
     });
 
-    return Object.fromEntries(sortedGroupEntries);
+    const finalResult = Object.fromEntries(sortedGroupEntries);
+    console.log('✅ Final grouped result:', {
+      groupCount: Object.keys(finalResult).length,
+      groups: Object.keys(finalResult),
+      isEmpty: Object.keys(finalResult).length === 0
+    });
+
+    return finalResult;
   }, [checklists, buckets, sortBy, sortDirection, searchQuery]);
 
   const toggleSort = (newSortBy: typeof sortBy) => {
@@ -314,9 +361,23 @@ export default function HomeScreen() {
         </View>
 
         {/* Grouped Checklists */}
+        {(() => {
+          const hasChecklists = checklists.length > 0;
+          const hasGroups = Object.keys(sortedAndGroupedChecklists).length > 0;
+          console.log('🎨 Render decision:', {
+            hasChecklists,
+            hasGroups,
+            willRenderGroups: hasChecklists && hasGroups,
+            willRenderSearchEmpty: hasChecklists && !hasGroups,
+            willRenderCompleteEmpty: !hasChecklists
+          });
+          return null;
+        })()}
         {checklists.length > 0 ? (
           Object.keys(sortedAndGroupedChecklists).length > 0 ? (
-            Object.entries(sortedAndGroupedChecklists).map(([groupName, groupChecklists]) => (
+            <>
+              {console.log('🎨 Rendering groups:', Object.keys(sortedAndGroupedChecklists))}
+              {Object.entries(sortedAndGroupedChecklists).map(([groupName, groupChecklists]) => (
               <View key={groupName} style={styles.section}>
                 <View style={styles.groupHeader}>
                   <Text style={styles.groupTitle}>{groupName}</Text>
@@ -335,7 +396,8 @@ export default function HomeScreen() {
                   />
                 ))}
               </View>
-            ))
+            ))}
+            </>
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>

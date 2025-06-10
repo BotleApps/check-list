@@ -24,8 +24,11 @@ export interface TagMaster {
 export interface CategoryMaster {
   category_id: string;
   name: string;
-  user_id: string;
+  description?: string;
+  color?: string;
+  is_active?: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface ChecklistHeader {

@@ -118,9 +118,17 @@ export default function ChecklistDetailsScreen() {
 
   useEffect(() => {
     if (user) {
+      console.log('📋 Fetching supporting data for user:', user.user_id);
       dispatch(fetchBuckets(user.user_id));
       dispatch(fetchTags());
-      dispatch(fetchCategories());
+      dispatch(fetchCategories())
+        .unwrap()
+        .then((categories) => {
+          console.log('📂 Global categories fetched successfully:', categories);
+        })
+        .catch((error) => {
+          console.error('❌ Error fetching categories:', error);
+        });
     }
   }, [user, dispatch]);
 
@@ -1012,6 +1020,19 @@ export default function ChecklistDetailsScreen() {
             <Text style={{fontSize: 12, color: '#666', marginBottom: 8}}>
               Categories found: {categories.length} | Loading: {categoriesLoading ? 'Yes' : 'No'}
             </Text>
+            {categories.length === 0 && (
+              <Text style={{fontSize: 12, color: '#ff6b6b', marginBottom: 8}}>
+                ⚠️ No categories available. Check console for loading errors.
+              </Text>
+            )}
+            {(() => {
+              console.log('📂 Categories in share modal:', { 
+                categoriesCount: categories.length, 
+                categories: categories.map(c => ({ id: c.category_id, name: c.name })),
+                loading: categoriesLoading 
+              });
+              return null;
+            })()}
             
             <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}>
               <TouchableOpacity

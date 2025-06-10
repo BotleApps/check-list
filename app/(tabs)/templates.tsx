@@ -37,7 +37,7 @@ export default function TemplatesScreen() {
   useEffect(() => {
     if (user) {
       dispatch(fetchTemplates(user.user_id));
-      dispatch(fetchCategories(user.user_id));
+      dispatch(fetchCategories());
     }
   }, [user, dispatch]);
 
@@ -46,7 +46,7 @@ export default function TemplatesScreen() {
     setRefreshing(true);
     await Promise.all([
       dispatch(fetchTemplates(user.user_id)),
-      dispatch(fetchCategories(user.user_id)),
+      dispatch(fetchCategories()),
     ]);
     setRefreshing(false);
   };
