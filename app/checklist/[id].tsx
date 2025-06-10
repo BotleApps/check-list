@@ -435,7 +435,7 @@ export default function ChecklistDetailsScreen() {
             </View>
           ) : (
             <>
-              {items
+              {[...items]
                 .sort((a, b) => a.order_index - b.order_index)
                 .map((item) => (
                   editingItemId === item.item_id ? (
