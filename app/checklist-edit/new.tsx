@@ -18,8 +18,8 @@ import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { createChecklistWithItems } from '../../store/slices/checklistsSlice';
-import { fetchBuckets } from '../../store/slices/bucketsSlice';
-import { fetchTags } from '../../store/slices/tagsSlice';
+import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
+import { fetchTags, createTag } from '../../store/slices/tagsSlice';
 import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck, X, Plus } from 'lucide-react-native';
 
 export default function NewChecklistScreen() {
@@ -40,6 +40,10 @@ export default function NewChecklistScreen() {
   const [showBucketModal, setShowBucketModal] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showTagModal, setShowTagModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [creatingTag, setCreatingTag] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [newItemText, setNewItemText] = useState('');
   const [addingNewItem, setAddingNewItem] = useState(false);
@@ -269,6 +273,40 @@ export default function NewChecklistScreen() {
     return bucket?.bucket_name || 'Select Folder';
   };
 
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || !user) return;
+    
+    setCreatingFolder(true);
+    try {
+      const newBucket = await dispatch(createBucket({ 
+        userId: user.user_id, 
+        bucketName: newFolderName.trim() 
+      })).unwrap();
+      setSelectedBucketId(newBucket.bucket_id);
+      setNewFolderName('');
+      setCreatingFolder(false);
+      setShowBucketModal(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create folder. Please try again.');
+      setCreatingFolder(false);
+    }
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+    
+    setCreatingTag(true);
+    try {
+      await dispatch(createTag(newTagName.trim())).unwrap();
+      setSelectedTags(prev => [...prev, newTagName.trim()]);
+      setNewTagName('');
+      setCreatingTag(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create tag. Please try again.');
+      setCreatingTag(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
@@ -417,7 +455,10 @@ export default function NewChecklistScreen() {
             <Text style={styles.sectionLabel}>Folder</Text>
             <TouchableOpacity 
               style={styles.folderButton}
-              onPress={() => setShowBucketModal(true)}
+              onPress={() => {
+                setNewFolderName(''); // Clear input when opening modal
+                setShowBucketModal(true);
+              }}
             >
               <Folder size={20} color="#007AFF" />
               <Text style={[styles.folderButtonText, selectedBucketId && styles.folderButtonTextSelected]}>
@@ -431,7 +472,10 @@ export default function NewChecklistScreen() {
             <Text style={styles.sectionLabel}>Tags</Text>
             <TouchableOpacity 
               style={styles.tagsButton}
-              onPress={() => setShowTagModal(true)}
+              onPress={() => {
+                setNewTagName(''); // Clear input when opening modal
+                setShowTagModal(true);
+              }}
             >
               <Tag size={20} color="#007AFF" />
               {selectedTags.length > 0 ? (
@@ -492,10 +536,36 @@ export default function NewChecklistScreen() {
           <SafeAreaView style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Folder</Text>
-              <TouchableOpacity onPress={() => setShowBucketModal(false)}>
+              <TouchableOpacity onPress={() => {
+                setShowBucketModal(false);
+                setNewFolderName(''); // Clear input when closing modal
+              }}>
                 <Text style={styles.doneButtonText}>Done</Text>
               </TouchableOpacity>
             </View>
+            
+            {/* Create New Folder Section */}
+            <View style={styles.createNewSection}>
+              <TextInput
+                style={styles.createNewInput}
+                placeholder="Create new folder..."
+                value={newFolderName}
+                onChangeText={setNewFolderName}
+                placeholderTextColor="#C7C7CC"
+                returnKeyType="done"
+                onSubmitEditing={handleCreateFolder}
+              />
+              <TouchableOpacity 
+                style={[styles.createNewButton, (!newFolderName.trim() || creatingFolder) && styles.createNewButtonDisabled]}
+                onPress={handleCreateFolder}
+                disabled={!newFolderName.trim() || creatingFolder}
+              >
+                <Text style={[styles.createNewButtonText, (!newFolderName.trim() || creatingFolder) && styles.createNewButtonTextDisabled]}>
+                  {creatingFolder ? 'Creating...' : 'Create'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
             <FlatList
               data={buckets}
               keyExtractor={(item) => item.bucket_id}
@@ -534,10 +604,36 @@ export default function NewChecklistScreen() {
           <SafeAreaView style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Tags</Text>
-              <TouchableOpacity onPress={() => setShowTagModal(false)}>
+              <TouchableOpacity onPress={() => {
+                setShowTagModal(false);
+                setNewTagName(''); // Clear input when closing modal
+              }}>
                 <Text style={styles.doneButtonText}>Done</Text>
               </TouchableOpacity>
             </View>
+            
+            {/* Create New Tag Section */}
+            <View style={styles.createNewSection}>
+              <TextInput
+                style={styles.createNewInput}
+                placeholder="Create new tag..."
+                value={newTagName}
+                onChangeText={setNewTagName}
+                placeholderTextColor="#C7C7CC"
+                returnKeyType="done"
+                onSubmitEditing={handleCreateTag}
+              />
+              <TouchableOpacity 
+                style={[styles.createNewButton, (!newTagName.trim() || creatingTag) && styles.createNewButtonDisabled]}
+                onPress={handleCreateTag}
+                disabled={!newTagName.trim() || creatingTag}
+              >
+                <Text style={[styles.createNewButtonText, (!newTagName.trim() || creatingTag) && styles.createNewButtonTextDisabled]}>
+                  {creatingTag ? 'Creating...' : 'Create'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
             <FlatList
               data={tags}
               keyExtractor={(item) => item.tag_id}
@@ -616,7 +712,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E5EA',
   },
   itemsList: {
-    paddingTop: 8,
+    paddingTop: 4,
   },
   itemRow: {
     flexDirection: 'row',
@@ -758,6 +854,44 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontWeight: '500',
   },
+  createNewSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F8F9FA',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+    gap: 12,
+  },
+  createNewInput: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    fontSize: 16,
+    color: '#000000',
+  },
+  createNewButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#007AFF',
+    borderRadius: 6,
+  },
+  createNewButtonDisabled: {
+    backgroundColor: '#C7C7CC',
+  },
+  createNewButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  createNewButtonTextDisabled: {
+    color: '#FFFFFF',
+  },
   selectionSummary: {
     backgroundColor: '#F8F9FA',
     marginHorizontal: 20,
@@ -788,7 +922,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#000000',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
