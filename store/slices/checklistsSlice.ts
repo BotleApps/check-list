@@ -95,13 +95,15 @@ export const updateChecklist = createAsyncThunk(
     bucketId?: string;
     categoryId?: string;
     tags?: string[];
+    dueDate?: string;
   }) => {
     const response = await checklistService.updateChecklist(
       data.checklistId,
       data.name,
       data.bucketId,
       data.categoryId,
-      data.tags
+      data.tags,
+      data.dueDate
     );
     return response;
   }
@@ -192,6 +194,32 @@ const checklistsSlice = createSlice({
         state.currentItems[itemIndex].text = text;
       }
     },
+    updateChecklistMetadata: (state, action: PayloadAction<{ 
+      checklistId: string; 
+      name?: string;
+      bucket_id?: string | null;
+      due_date?: string | null;
+      tags?: string[];
+    }>) => {
+      const { checklistId, name, bucket_id, due_date, tags } = action.payload;
+      
+      // Update in checklists array
+      const checklistIndex = state.checklists.findIndex(c => c.checklist_id === checklistId);
+      if (checklistIndex !== -1) {
+        if (name !== undefined) state.checklists[checklistIndex].name = name;
+        if (bucket_id !== undefined) state.checklists[checklistIndex].bucket_id = bucket_id || undefined;
+        if (due_date !== undefined) state.checklists[checklistIndex].due_date = due_date || undefined;
+        if (tags !== undefined) state.checklists[checklistIndex].tags = tags;
+      }
+      
+      // Update current checklist if it's the same one
+      if (state.currentChecklist?.checklist_id === checklistId) {
+        if (name !== undefined) state.currentChecklist.name = name;
+        if (bucket_id !== undefined) state.currentChecklist.bucket_id = bucket_id || undefined;
+        if (due_date !== undefined) state.currentChecklist.due_date = due_date || undefined;
+        if (tags !== undefined) state.currentChecklist.tags = tags;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -268,6 +296,7 @@ export const {
   reorderItems,
   updateChecklistTitle,
   updateItemCompletion,
-  updateItemText
+  updateItemText,
+  updateChecklistMetadata
 } = checklistsSlice.actions;
 export default checklistsSlice.reducer;

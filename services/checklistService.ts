@@ -359,13 +359,15 @@ class ChecklistService {
     name?: string,
     bucketId?: string,
     categoryId?: string,
-    tags?: string[]
+    tags?: string[],
+    dueDate?: string
   ): Promise<ChecklistHeader> {
     const updates: any = { updated_at: new Date().toISOString() };
     if (name !== undefined) updates.name = name;
     if (bucketId !== undefined) updates.bucket_id = bucketId;
     if (categoryId !== undefined) updates.category_id = categoryId;
     if (tags !== undefined) updates.tags = tags;
+    if (dueDate !== undefined) updates.due_date = dueDate;
 
     const { data, error } = await supabase
       .from('checklist_headers')

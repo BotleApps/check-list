@@ -11,11 +11,16 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle } from '../../store/slices/checklistsSlice';
+import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata } from '../../store/slices/checklistsSlice';
+import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
+import { fetchTags, createTag } from '../../store/slices/tagsSlice';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -28,7 +33,10 @@ import {
   Calendar,
   Tag,
   FolderOpen,
-  Check
+  Check,
+  Edit3,
+  Save,
+  X
 } from 'lucide-react-native';
 
 export default function ChecklistDetailsScreen() {
@@ -40,8 +48,18 @@ export default function ChecklistDetailsScreen() {
   const [newItemText, setNewItemText] = useState('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
-  const [editingTitle, setEditingTitle] = useState(false);
+  
+  // Header edit mode states
+  const [editingHeader, setEditingHeader] = useState(false);
   const [editingTitleText, setEditingTitleText] = useState('');
+  const [editingBucketId, setEditingBucketId] = useState<string>('');
+  const [editingTargetDate, setEditingTargetDate] = useState<Date | null>(null);
+  const [editingTags, setEditingTags] = useState<string[]>([]);
+  const [showBucketModal, setShowBucketModal] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [savingHeader, setSavingHeader] = useState(false);
+  
   const [savingItem, setSavingItem] = useState<string | null>(null);
   const [addingNewItem, setAddingNewItem] = useState(false);
   const newItemInputRef = useRef<TextInput>(null);
@@ -53,6 +71,7 @@ export default function ChecklistDetailsScreen() {
     (state: RootState) => state.checklists
   );
   const { buckets } = useSelector((state: RootState) => state.buckets);
+  const { tags } = useSelector((state: RootState) => state.tags);
 
   const checklist = currentChecklist;
   const items = currentItems;
@@ -73,6 +92,13 @@ export default function ChecklistDetailsScreen() {
         });
     }
   }, [id, user, dispatch]);
+
+  useEffect(() => {
+    if (user) {
+      dispatch(fetchBuckets(user.user_id));
+      dispatch(fetchTags());
+    }
+  }, [user, dispatch]);
 
   const onRefresh = async () => {
     if (!id || !user) return;
@@ -210,69 +236,108 @@ export default function ChecklistDetailsScreen() {
     setEditingItemText('');
   };
 
-  const handleTitlePress = () => {
+  // Header editing functions
+  const handleEditHeader = () => {
     if (!checklist) return;
-    setEditingTitle(true);
+    
+    setEditingHeader(true);
     setEditingTitleText(checklist.name);
-    // Focus the input after a short delay to ensure it's rendered
-    setTimeout(() => {
-      editTitleInputRef.current?.focus();
-    }, 100);
+    setEditingBucketId(checklist.bucket_id || '');
+    setEditingTargetDate(checklist.due_date ? new Date(checklist.due_date) : null);
+    setEditingTags([...checklist.tags]);
   };
 
-  const handleSaveTitle = async () => {
-    if (!editingTitleText.trim() || !checklist) {
-      // If empty, revert to original title
-      setEditingTitle(false);
-      setEditingTitleText('');
+  const handleSaveHeader = async () => {
+    if (!checklist || !editingTitleText.trim()) {
+      Alert.alert('Error', 'Title cannot be empty');
       return;
     }
     
-    const newTitle = editingTitleText.trim();
-    const originalTitle = checklist.name;
+    const originalData = {
+      name: checklist.name,
+      bucket_id: checklist.bucket_id,
+      due_date: checklist.due_date,
+      tags: checklist.tags
+    };
     
-    // Optimistic update - immediately update UI
-    dispatch(updateChecklistTitle({
+    const newData = {
+      name: editingTitleText.trim(),
+      bucket_id: editingBucketId || null,
+      due_date: editingTargetDate?.toISOString() || null,
+      tags: editingTags
+    };
+    
+    // Optimistic update
+    dispatch(updateChecklistMetadata({
       checklistId: checklist.checklist_id,
-      name: newTitle
+      name: newData.name,
+      bucket_id: newData.bucket_id,
+      due_date: newData.due_date,
+      tags: newData.tags
     }));
     
-    setEditingTitle(false);
-    setEditingTitleText('');
+    setEditingHeader(false);
+    setSavingHeader(true);
     
     try {
       await dispatch(updateChecklist({
         checklistId: checklist.checklist_id,
-        name: newTitle
+        name: newData.name,
+        bucketId: newData.bucket_id || undefined,
+        tags: newData.tags,
+        dueDate: newData.due_date || undefined
       })).unwrap();
     } catch (error) {
       // Revert optimistic update on error
-      dispatch(updateChecklistTitle({
+      dispatch(updateChecklistMetadata({
         checklistId: checklist.checklist_id,
-        name: originalTitle
+        name: originalData.name,
+        bucket_id: originalData.bucket_id,
+        due_date: originalData.due_date,
+        tags: originalData.tags
       }));
-      Alert.alert('Error', 'Failed to update title. Please try again.');
+      Alert.alert('Error', 'Failed to update checklist. Please try again.');
+    } finally {
+      setSavingHeader(false);
     }
   };
 
-  const handleCancelTitle = () => {
-    setEditingTitle(false);
+  const handleCancelEditHeader = () => {
+    setEditingHeader(false);
     setEditingTitleText('');
+    setEditingBucketId('');
+    setEditingTargetDate(null);
+    setEditingTags([]);
+  };
+
+  const toggleEditingTag = (tagName: string) => {
+    setEditingTags(prev => 
+      prev.includes(tagName) 
+        ? prev.filter(t => t !== tagName)
+        : [...prev, tagName]
+    );
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const getBucketName = (bucketId?: string) => {
+    if (!bucketId) return 'No folder';
+    const bucket = buckets.find(b => b.bucket_id === bucketId);
+    return bucket?.name || 'Unknown folder';
   };
 
   const getProgress = () => {
     if (items.length === 0) return 0;
     const completedItems = items.filter(item => item.is_completed).length;
     return (completedItems / items.length) * 100;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   const handleMoreActions = () => {
@@ -318,6 +383,24 @@ export default function ChecklistDetailsScreen() {
       ]
     );
   };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    if (selectedDate) {
+      setEditingTargetDate(selectedDate);
+    }
+  };
+
+  // Handle back navigation during editing
+  useEffect(() => {
+    const unsubscribe = router.canGoBack() ? router.replace : () => {};
+    
+    return () => {
+      // Auto-save if editing when component unmounts
+      if (editingHeader && checklist && editingTitleText.trim()) {
+        handleSaveHeader();
+      }
+    };
+  }, [editingHeader, editingTitleText, checklist]);
 
   if (loading && !checklist) {
     return (
@@ -413,26 +496,141 @@ export default function ChecklistDetailsScreen() {
       >
         {/* Checklist Info */}
         <View style={styles.checklistInfo}>
-          {editingTitle ? (
-            <TextInput
-              ref={editTitleInputRef}
-              style={styles.titleInput}
-              value={editingTitleText}
-              onChangeText={setEditingTitleText}
-              onSubmitEditing={handleSaveTitle}
-              onBlur={handleSaveTitle}
-              returnKeyType="done"
-              blurOnSubmit={true}
-              multiline={false}
-            />
-          ) : (
-            <TouchableOpacity onPress={handleTitlePress}>
+          {/* Title Row */}
+          <View style={styles.titleRow}>
+            {editingHeader ? (
+              <TextInput
+                ref={editTitleInputRef}
+                style={styles.titleInput}
+                value={editingTitleText}
+                onChangeText={setEditingTitleText}
+                placeholder="Enter title..."
+                returnKeyType="done"
+                multiline={false}
+                autoFocus={true}
+              />
+            ) : (
               <Text style={styles.title}>{checklist.name}</Text>
-            </TouchableOpacity>
-          )}
+            )}
+            
+            <View style={styles.headerActionButtons}>
+              {editingHeader ? (
+                <>
+                  <TouchableOpacity 
+                    onPress={handleSaveHeader}
+                    style={[styles.headerActionButton, styles.headerSaveButton]}
+                    disabled={savingHeader}
+                  >
+                    {savingHeader ? (
+                      <LoadingSpinner size="small" />
+                    ) : (
+                      <Save size={18} color="#FFFFFF" />
+                    )}
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    onPress={handleCancelEditHeader}
+                    style={[styles.headerActionButton, styles.cancelActionButton]}
+                  >
+                    <X size={18} color="#6B7280" />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity 
+                  onPress={handleEditHeader}
+                  style={[styles.headerActionButton, styles.editActionButton]}
+                >
+                  <Edit3 size={18} color="#6B7280" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
           
           {checklist.description && (
             <Text style={styles.description}>{checklist.description}</Text>
+          )}
+
+          {/* Folder and Date Row */}
+          <View style={styles.metadataRow}>
+            {/* Folder */}
+            {editingHeader ? (
+              <TouchableOpacity 
+                style={styles.editableField}
+                onPress={() => setShowBucketModal(true)}
+              >
+                <FolderOpen size={16} color="#6B7280" />
+                <Text style={styles.editableFieldText}>
+                  {getBucketName(editingBucketId)}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              bucket && (
+                <View style={styles.fieldContainer}>
+                  <FolderOpen size={16} color="#6B7280" />
+                  <Text style={styles.fieldText}>{bucket.name}</Text>
+                </View>
+              )
+            )}
+            
+            {/* Date */}
+            {editingHeader ? (
+              <TouchableOpacity 
+                style={styles.editableField}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Calendar size={16} color="#6B7280" />
+                <Text style={styles.editableFieldText}>
+                  {editingTargetDate ? formatDate(editingTargetDate.toISOString()) : 'Set date'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              checklist.due_date && (
+                <View style={styles.fieldContainer}>
+                  <Calendar size={16} color="#6B7280" />
+                  <Text style={styles.fieldText}>
+                    {formatDate(checklist.due_date)}
+                  </Text>
+                </View>
+              )
+            )}
+          </View>
+
+          {/* Tags Row */}
+          {(editingHeader || (checklist.tags && checklist.tags.length > 0)) && (
+            <View style={styles.tagsSection}>
+              {editingHeader ? (
+                <TouchableOpacity 
+                  style={styles.editableTagsField}
+                  onPress={() => setShowTagModal(true)}
+                >
+                  <Tag size={16} color="#6B7280" />
+                  <View style={styles.tagsContainer}>
+                    {editingTags.length > 0 ? (
+                      <View style={styles.tagsFlow}>
+                        {editingTags.map((tag, index) => (
+                          <View key={index} style={styles.tagChip}>
+                            <Text style={styles.tagText}>{tag}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text style={styles.editableFieldText}>Add tags</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.tagsDisplayContainer}>
+                  <Tag size={16} color="#6B7280" />
+                  <View style={styles.tagsFlow}>
+                    {checklist.tags?.map((tag, index) => (
+                      <View key={index} style={styles.tagChip}>
+                        <Text style={styles.tagText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
           )}
 
           {/* Progress */}
@@ -446,34 +644,6 @@ export default function ChecklistDetailsScreen() {
               </Text>
             </View>
             <ProgressBar progress={getProgress()} />
-          </View>
-
-          {/* Metadata */}
-          <View style={styles.metadata}>
-            {bucket && (
-              <View style={styles.metadataItem}>
-                <FolderOpen size={16} color="#6B7280" />
-                <Text style={styles.metadataText}>{bucket.name}</Text>
-              </View>
-            )}
-            
-            {checklist.due_date && (
-              <View style={styles.metadataItem}>
-                <Calendar size={16} color="#6B7280" />
-                <Text style={styles.metadataText}>
-                  Due {formatDate(checklist.due_date)}
-                </Text>
-              </View>
-            )}
-
-            {checklist.tags && checklist.tags.length > 0 && (
-              <View style={styles.metadataItem}>
-                <Tag size={16} color="#6B7280" />
-                <Text style={styles.metadataText}>
-                  {checklist.tags.join(', ')}
-                </Text>
-              </View>
-            )}
           </View>
         </View>
 
@@ -569,6 +739,158 @@ export default function ChecklistDetailsScreen() {
           )}
         </View>
       </ScrollView>
+      
+      {/* Bucket Selection Modal */}
+      <Modal
+        visible={showBucketModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Folder</Text>
+            <TouchableOpacity 
+              onPress={() => setShowBucketModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            <TouchableOpacity
+              style={[
+                styles.modalOption,
+                !editingBucketId && styles.modalOptionSelected
+              ]}
+              onPress={() => {
+                setEditingBucketId('');
+                setShowBucketModal(false);
+              }}
+            >
+              <Text style={[
+                styles.modalOptionText,
+                !editingBucketId && styles.modalOptionTextSelected
+              ]}>
+                No folder
+              </Text>
+              {!editingBucketId && (
+                <Check size={20} color="#2563EB" />
+              )}
+            </TouchableOpacity>
+            
+            {buckets.map((bucket) => (
+              <TouchableOpacity
+                key={bucket.bucket_id}
+                style={[
+                  styles.modalOption,
+                  editingBucketId === bucket.bucket_id && styles.modalOptionSelected
+                ]}
+                onPress={() => {
+                  setEditingBucketId(bucket.bucket_id);
+                  setShowBucketModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.modalOptionText,
+                  editingBucketId === bucket.bucket_id && styles.modalOptionTextSelected
+                ]}>
+                  {bucket.name}
+                </Text>
+                {editingBucketId === bucket.bucket_id && (
+                  <Check size={20} color="#2563EB" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+      
+      {/* Tag Selection Modal */}
+      <Modal
+        visible={showTagModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Tags</Text>
+            <TouchableOpacity 
+              onPress={() => setShowTagModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            {tags.map((tag) => (
+              <TouchableOpacity
+                key={tag.tag_id}
+                style={[
+                  styles.modalOption,
+                  editingTags.includes(tag.name) && styles.modalOptionSelected
+                ]}
+                onPress={() => toggleEditingTag(tag.name)}
+              >
+                <Text style={[
+                  styles.modalOptionText,
+                  editingTags.includes(tag.name) && styles.modalOptionTextSelected
+                ]}>
+                  {tag.name}
+                </Text>
+                {editingTags.includes(tag.name) && (
+                  <Check size={20} color="#2563EB" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+      
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <Modal
+          visible={showDatePicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Due Date</Text>
+              <TouchableOpacity 
+                onPress={() => setShowDatePicker(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.datePickerContainer}>
+              <TouchableOpacity
+                style={styles.modalOption}
+                onPress={() => {
+                  setEditingTargetDate(null);
+                  setShowDatePicker(false);
+                }}
+              >
+                <Text style={styles.modalOptionText}>No due date</Text>
+                {!editingTargetDate && (
+                  <Check size={20} color="#2563EB" />
+                )}
+              </TouchableOpacity>
+              
+              <DateTimePicker
+                value={editingTargetDate || new Date()}
+                mode="date"
+                display="spinner"
+                onChange={handleDateChange}
+                style={styles.datePicker}
+              />
+            </View>
+          </SafeAreaView>
+        </Modal>
+      )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -810,5 +1132,188 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Header edit styles
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  editButton: {
+    padding: 8,
+    marginLeft: 12,
+  },
+  editableMetadataItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  doneButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#EFF6FF',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  modalOptionTextSelected: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
+  datePickerContainer: {
+    padding: 16,
+  },
+  datePicker: {
+    backgroundColor: '#FFFFFF',
+  },
+  // New header edit styles
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  headerActionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerActionButton: {
+    padding: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 36,
+    minHeight: 36,
+  },
+  headerSaveButton: {
+    backgroundColor: '#2563EB',
+  },
+  cancelActionButton: {
+    backgroundColor: '#F3F4F6',
+  },
+  editActionButton: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  editableField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    flex: 1,
+  },
+  editableFieldText: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '500',
+  },
+  fieldContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  fieldText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  tagsSection: {
+    marginBottom: 16,
+  },
+  editableTagsField: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  tagsContainer: {
+    flex: 1,
+  },
+  tagsFlow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  tagChip: {
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  tagText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  tagsDisplayContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
   },
 });
