@@ -17,9 +17,10 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata, deleteChecklist } from '../../store/slices/checklistsSlice';
+import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata, deleteChecklist, shareChecklist } from '../../store/slices/checklistsSlice';
 import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
 import { fetchTags, createTag } from '../../store/slices/tagsSlice';
+import { fetchCategories } from '../../store/slices/categoriesSlice';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
@@ -62,6 +63,11 @@ export default function ChecklistDetailsScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [savingHeader, setSavingHeader] = useState(false);
   
+  // Share functionality states
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [sharing, setSharing] = useState(false);
+  
   const [savingItem, setSavingItem] = useState<string | null>(null);
   const [addingNewItem, setAddingNewItem] = useState(false);
   const newItemInputRef = useRef<TextInput>(null);
@@ -74,6 +80,7 @@ export default function ChecklistDetailsScreen() {
   );
   const { buckets } = useSelector((state: RootState) => state.buckets);
   const { tags } = useSelector((state: RootState) => state.tags);
+  const { categories, loading: categoriesLoading } = useSelector((state: RootState) => state.categories);
 
   const checklist = currentChecklist;
   const items = currentItems;
@@ -99,6 +106,7 @@ export default function ChecklistDetailsScreen() {
     if (user) {
       dispatch(fetchBuckets(user.user_id));
       dispatch(fetchTags());
+      dispatch(fetchCategories());
     }
   }, [user, dispatch]);
 
@@ -383,7 +391,7 @@ export default function ChecklistDetailsScreen() {
         {
           text: 'Share Checklist',
           onPress: () => {
-            Alert.alert('Feature Coming Soon', 'Share functionality will be available soon');
+            setShowShareModal(true);
           }
         },
         {
@@ -431,6 +439,37 @@ export default function ChecklistDetailsScreen() {
     );
   };
 
+  const handleShare = async () => {
+    if (!checklist) return;
+    
+    setSharing(true);
+    try {
+      const result = await dispatch(shareChecklist({
+        checklistId: checklist.checklist_id,
+        categoryId: selectedCategoryId || undefined
+      })).unwrap();
+      
+      Alert.alert(
+        'Success!', 
+        `Checklist "${result.name}" has been shared as a public template.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowShareModal(false);
+              setSelectedCategoryId('');
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error sharing checklist:', error);
+      Alert.alert('Error', 'Failed to share checklist. Please try again.');
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (selectedDate) {
       setEditingTargetDate(selectedDate);
@@ -472,15 +511,12 @@ export default function ChecklistDetailsScreen() {
 
   // Handle back navigation during editing
   useEffect(() => {
-    const unsubscribe = router.canGoBack() ? router.replace : () => {};
-    
+    // This effect is just for cleanup, no auto-save functionality
     return () => {
-      // Auto-save if editing when component unmounts
-      if (editingHeader && checklist && editingTitleText.trim()) {
-        handleSaveHeader();
-      }
+      // Remove auto-save since we now have explicit save/cancel buttons
+      // If the user wants to save, they should click the save button
     };
-  }, [editingHeader, editingTitleText, checklist]);
+  }, []);
 
   if (loading && !checklist) {
     return (
@@ -838,6 +874,106 @@ export default function ChecklistDetailsScreen() {
         onSelect={(tagNames) => setEditingTags(tagNames)}
         onClose={() => setShowTagModal(false)}
       />
+      
+      {/* Share Modal */}
+      <Modal
+        visible={showShareModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Share Checklist</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                setShowShareModal(false);
+                setSelectedCategoryId('');
+              }}
+              style={styles.modalCloseButton}
+            >
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.shareModalContent}>
+            <Text style={styles.shareDescription}>
+              Share this checklist as a public template. Other users will be able to use it to create their own checklists.
+            </Text>
+            
+            <Text style={styles.shareLabel}>Select a category (optional):</Text>
+            
+            {/* Debug info */}
+            <Text style={{fontSize: 12, color: '#666', marginBottom: 8}}>
+              Categories found: {categories.length} | Loading: {categoriesLoading ? 'Yes' : 'No'}
+            </Text>
+            
+            <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[
+                  styles.categoryOption,
+                  selectedCategoryId === '' && styles.categoryOptionSelected
+                ]}
+                onPress={() => setSelectedCategoryId('')}
+              >
+                <Text style={[
+                  styles.categoryOptionText,
+                  selectedCategoryId === '' && styles.categoryOptionTextSelected
+                ]}>
+                  No category
+                </Text>
+                {selectedCategoryId === '' && (
+                  <Check size={20} color="#2563EB" />
+                )}
+              </TouchableOpacity>
+              
+              {categories.map(category => (
+                <TouchableOpacity
+                  key={category.category_id}
+                  style={[
+                    styles.categoryOption,
+                    selectedCategoryId === category.category_id && styles.categoryOptionSelected
+                  ]}
+                  onPress={() => setSelectedCategoryId(category.category_id)}
+                >
+                  <Text style={[
+                    styles.categoryOptionText,
+                    selectedCategoryId === category.category_id && styles.categoryOptionTextSelected
+                  ]}>
+                    {category.name}
+                  </Text>
+                  {selectedCategoryId === category.category_id && (
+                    <Check size={20} color="#2563EB" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            <View style={styles.shareActions}>
+              <TouchableOpacity
+                style={styles.shareCancel}
+                onPress={() => {
+                  setShowShareModal(false);
+                  setSelectedCategoryId('');
+                }}
+              >
+                <Text style={styles.shareCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.shareButton, sharing && styles.shareButtonDisabled]}
+                onPress={handleShare}
+                disabled={sharing}
+              >
+                {sharing ? (
+                  <LoadingSpinner size="small" />
+                ) : (
+                  <Text style={styles.shareButtonText}>Share as Template</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
       
       {/* Date Picker Modal */}
       {showDatePicker && (
@@ -1315,5 +1451,94 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
+  },
+  // Share modal styles
+  shareModalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  shareDescription: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  shareLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  categoryList: {
+    maxHeight: 300,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  categoryOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  categoryOptionSelected: {
+    backgroundColor: '#EFF6FF',
+  },
+  categoryOptionText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  categoryOptionTextSelected: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
+  categorySelectButton: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 24,
+  },
+  categorySelectText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  shareActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 'auto',
+  },
+  shareButton: {
+    flex: 1,
+    backgroundColor: '#2563EB',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  shareButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  shareButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  shareCancel: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  shareCancelText: {
+    color: '#6B7280',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

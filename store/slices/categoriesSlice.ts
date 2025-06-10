@@ -16,16 +16,16 @@ const initialState: CategoriesState = {
 
 export const fetchCategories = createAsyncThunk(
   'categories/fetchCategories',
-  async (userId: string) => {
-    const response = await categoryService.getUserCategories(userId);
+  async () => {
+    const response = await categoryService.getAllCategories();
     return response;
   }
 );
 
 export const createCategory = createAsyncThunk(
   'categories/createCategory',
-  async ({ name, userId }: { name: string; userId: string }) => {
-    const response = await categoryService.createCategory(name, userId);
+  async (name: string) => {
+    const response = await categoryService.createCategory(name);
     return response;
   }
 );

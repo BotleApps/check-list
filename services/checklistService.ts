@@ -468,6 +468,93 @@ class ChecklistService {
     console.log('UpdateChecklist final response:', data);
     return data;
   }
+
+  async shareChecklist(
+    checklistId: string,
+    categoryId?: string
+  ): Promise<{ template_id: string; name: string }> {
+    console.log('ShareChecklist service called with:', { checklistId, categoryId });
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    // First, get the checklist header and items
+    const { data: checklist, error: checklistError } = await supabase
+      .from('checklist_headers')
+      .select('*')
+      .eq('checklist_id', checklistId)
+      .single();
+
+    if (checklistError) {
+      throw new Error(checklistError.message);
+    }
+
+    const { data: items, error: itemsError } = await supabase
+      .from('checklist_items')
+      .select('*')
+      .eq('checklist_id', checklistId)
+      .order('order_index', { ascending: true });
+
+    if (itemsError) {
+      throw new Error(itemsError.message);
+    }
+
+    // Create the template header (without tags, but with category)
+    const templateData = {
+      user_id: user.id,
+      name: checklist.name,
+      category_id: categoryId || null
+    };
+
+    const { data: template, error: templateError } = await supabase
+      .from('checklist_template_headers')
+      .insert(templateData)
+      .select()
+      .single();
+
+    if (templateError) {
+      throw new Error(templateError.message);
+    }
+
+    // Create the template items
+    if (items && items.length > 0) {
+      const templateItems = items.map((item, index) => ({
+        template_id: template.template_id,
+        text: item.text,
+        status: 'pending', // Reset status for template
+        due_days: item.due_days,
+        notes: item.notes,
+        order_index: index
+      }));
+
+      const { error: itemsInsertError } = await supabase
+        .from('checklist_template_items')
+        .insert(templateItems);
+
+      if (itemsInsertError) {
+        // Cleanup: delete the template header if items failed
+        await supabase
+          .from('checklist_template_headers')
+          .delete()
+          .eq('template_id', template.template_id);
+        
+        throw new Error(itemsInsertError.message);
+      }
+    }
+
+    console.log('ShareChecklist success:', { 
+      template_id: template.template_id, 
+      name: template.name 
+    });
+
+    return {
+      template_id: template.template_id,
+      name: template.name
+    };
+  }
 }
 
 export const checklistService = new ChecklistService();

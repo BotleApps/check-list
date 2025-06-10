@@ -138,6 +138,14 @@ export const deleteChecklist = createAsyncThunk(
   }
 );
 
+export const shareChecklist = createAsyncThunk(
+  'checklists/shareChecklist',
+  async ({ checklistId, categoryId }: { checklistId: string; categoryId?: string }) => {
+    const result = await checklistService.shareChecklist(checklistId, categoryId);
+    return result;
+  }
+);
+
 const checklistsSlice = createSlice({
   name: 'checklists',
   initialState,
@@ -322,6 +330,10 @@ const checklistsSlice = createSlice({
           state.currentChecklist = null;
           state.currentItems = [];
         }
+      })
+      .addCase(shareChecklist.fulfilled, (state, action) => {
+        // Sharing doesn't change the current state, just success notification will be handled in UI
+        console.log('Checklist shared successfully:', action.payload);
       });
   },
 });

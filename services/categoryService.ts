@@ -2,11 +2,10 @@ import { CategoryMaster } from '../types/database';
 import { supabase } from '../lib/supabase';
 
 class CategoryService {
-  async getUserCategories(userId: string): Promise<CategoryMaster[]> {
+  async getAllCategories(): Promise<CategoryMaster[]> {
     const { data, error } = await supabase
-      .from('category_master')
+      .from('categories_master')
       .select('*')
-      .eq('user_id', userId)
       .order('name', { ascending: true });
 
     if (error) {
@@ -16,14 +15,13 @@ class CategoryService {
     return data || [];
   }
 
-  async createCategory(userId: string, name: string): Promise<CategoryMaster> {
+  async createCategory(name: string): Promise<CategoryMaster> {
     const newCategory = {
-      user_id: userId,
       name,
     };
 
     const { data, error } = await supabase
-      .from('category_master')
+      .from('categories_master')
       .insert(newCategory)
       .select()
       .single();
@@ -37,7 +35,7 @@ class CategoryService {
 
   async updateCategory(categoryId: string, name: string): Promise<CategoryMaster> {
     const { data, error } = await supabase
-      .from('category_master')
+      .from('categories_master')
       .update({ name })
       .eq('category_id', categoryId)
       .select()
@@ -52,7 +50,7 @@ class CategoryService {
 
   async deleteCategory(categoryId: string): Promise<void> {
     const { error } = await supabase
-      .from('category_master')
+      .from('categories_master')
       .delete()
       .eq('category_id', categoryId);
 

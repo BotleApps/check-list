@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   RefreshControl,
+  FlatList,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -17,12 +18,16 @@ import { ChecklistCard } from '../../components/ChecklistCard';
 import { BucketCard } from '../../components/BucketCard';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { Plus } from 'lucide-react-native';
+import { Plus, ChevronDown, ArrowUpDown } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [sortBy, setSortBy] = useState<'folder' | 'created' | 'target' | 'modified'>('folder');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [loadedItems, setLoadedItems] = useState(20); // For lazy loading
 
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
   const { checklists, loading: checklistsLoading, error: checklistsError } = useSelector(
@@ -84,7 +89,137 @@ export default function HomeScreen() {
     return checklists.filter(c => c.bucket_id === bucketId).length;
   };
 
-  const recentChecklists = checklists.slice(0, 5);
+  // Helper function to format date for grouping
+  const formatDateGroupKey = (dateString: string | null | undefined, fallbackText: string) => {
+    if (!dateString) return fallbackText;
+    
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Reset time to compare only dates
+    const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+    
+    if (dateOnly.getTime() === todayOnly.getTime()) {
+      return 'Today';
+    } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    }
+  };
+
+  // Get group key based on sort type
+  const getGroupKey = (checklist: any) => {
+    switch (sortBy) {
+      case 'folder':
+        return getBucketName(checklist.bucket_id) || 'No Folder';
+      case 'created':
+        return formatDateGroupKey(checklist.created_at, 'No Date');
+      case 'target':
+        return formatDateGroupKey(checklist.due_date, 'No Due Date');
+      case 'modified':
+        return formatDateGroupKey(checklist.updated_at, 'No Date');
+      default:
+        return 'Others';
+    }
+  };
+
+  // Sorting and grouping logic
+  const sortedAndGroupedChecklists = useMemo(() => {
+    // Sort checklists
+    const sorted = [...checklists].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'folder':
+          const bucketA = getBucketName(a.bucket_id) || 'No Folder';
+          const bucketB = getBucketName(b.bucket_id) || 'No Folder';
+          comparison = bucketA.localeCompare(bucketB);
+          break;
+        case 'created':
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'target':
+          const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
+          const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
+          comparison = dateA - dateB;
+          break;
+        case 'modified':
+          comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+          break;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    // Group by the selected sort field
+    const grouped = sorted.reduce((acc, checklist) => {
+      const groupKey = getGroupKey(checklist);
+      if (!acc[groupKey]) {
+        acc[groupKey] = [];
+      }
+      acc[groupKey].push(checklist);
+      return acc;
+    }, {} as Record<string, typeof checklists>);
+
+    // Sort the groups themselves
+    const sortedGroupEntries = Object.entries(grouped).sort(([keyA], [keyB]) => {
+      // Handle "No" prefixed groups - they should come last
+      const isNoGroupA = keyA.startsWith('No ');
+      const isNoGroupB = keyB.startsWith('No ');
+      
+      if (isNoGroupA && !isNoGroupB) return 1;  // A goes after B
+      if (!isNoGroupA && isNoGroupB) return -1; // A goes before B
+      if (isNoGroupA && isNoGroupB) return keyA.localeCompare(keyB); // Both "No" groups, sort alphabetically
+      
+      // For date-based sorting, handle special cases
+      if (sortBy !== 'folder') {
+        if (keyA === 'Today') return -1;
+        if (keyB === 'Today') return 1;
+        if (keyA === 'Yesterday') return keyB === 'Today' ? 1 : -1;
+        if (keyB === 'Yesterday') return keyA === 'Today' ? -1 : 1;
+        
+        // For other dates, try to parse and compare
+        const dateA = new Date(keyA);
+        const dateB = new Date(keyB);
+        if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+          return sortDirection === 'asc' ? 
+            dateA.getTime() - dateB.getTime() : 
+            dateB.getTime() - dateA.getTime();
+        }
+      }
+      
+      // Default alphabetical sorting
+      return sortDirection === 'asc' ? 
+        keyA.localeCompare(keyB) : 
+        keyB.localeCompare(keyA);
+    });
+
+    return Object.fromEntries(sortedGroupEntries);
+  }, [checklists, buckets, sortBy, sortDirection]);
+
+  const toggleSort = (newSortBy: typeof sortBy) => {
+    if (sortBy === newSortBy) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortDirection('asc');
+    }
+    setShowSortMenu(false);
+  };
+
+  const loadMore = () => {
+    setLoadedItems(prev => prev + 20);
+  };
+
   const recentBuckets = buckets.slice(0, 3);
 
   if (!isAuthenticated) {
@@ -113,62 +248,88 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header - removed greeting and create button */}
+        {/* Header with App Name */}
         <View style={styles.header}>
-          {/* Header content removed as requested */}
+          <Text style={styles.appTitle}>Checklist</Text>
+          
+          {/* Sort Controls */}
+          <View style={styles.sortContainer}>
+            <TouchableOpacity
+              style={styles.sortButton}
+              onPress={() => setShowSortMenu(!showSortMenu)}
+            >
+              <ArrowUpDown size={20} color="#6B7280" />
+              <Text style={styles.sortButtonText}>
+                Sort by {sortBy === 'folder' ? 'Folder' : sortBy === 'created' ? 'Created' : sortBy === 'target' ? 'Due Date' : 'Modified'}
+                {sortDirection === 'asc' ? ' ↑' : ' ↓'}
+              </Text>
+            </TouchableOpacity>
+            
+            {showSortMenu && (
+              <View style={styles.sortMenu}>
+                {[
+                  { key: 'folder', label: 'Folder Name' },
+                  { key: 'created', label: 'Created Date' },
+                  { key: 'target', label: 'Due Date' },
+                  { key: 'modified', label: 'Modified Date' }
+                ].map(option => (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={styles.sortOption}
+                    onPress={() => toggleSort(option.key as typeof sortBy)}
+                  >
+                    <Text style={[
+                      styles.sortOptionText,
+                      sortBy === option.key && styles.sortOptionTextActive
+                    ]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
 
-        {/*Recebt Checklists */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Checklists</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/buckets')}>
-              <Text style={styles.seeAllText}>See all</Text>
+        {/* Grouped Checklists */}
+        {checklists.length > 0 ? (
+          Object.entries(sortedAndGroupedChecklists).map(([groupName, groupChecklists]) => (
+            <View key={groupName} style={styles.section}>
+              <View style={styles.groupHeader}>
+                <Text style={styles.groupTitle}>{groupName}</Text>
+                <Text style={styles.groupCount}>({groupChecklists.length})</Text>
+              </View>
+              
+              {groupChecklists.slice(0, loadedItems).map(checklist => (
+                <ChecklistCard
+                  key={checklist.checklist_id}
+                  checklist={checklist}
+                  progress={getChecklistProgress(checklist.checklist_id)}
+                  itemCount={getChecklistItemCount(checklist.checklist_id)}
+                  completedCount={getChecklistCompletedCount(checklist.checklist_id)}
+                  bucketName={getBucketName(checklist.bucket_id)}
+                  onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
+                />
+              ))}
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No checklists yet</Text>
+            <TouchableOpacity
+              style={styles.createFirstButton}
+              onPress={() => router.push('/checklist-edit/new')}
+            >
+              <Text style={styles.createFirstButtonText}>Create your first checklist</Text>
             </TouchableOpacity>
           </View>
-          {recentChecklists.length > 0 ? (
-            recentChecklists.map(checklist => (
-              <ChecklistCard
-                key={checklist.checklist_id}
-                checklist={checklist}
-                progress={getChecklistProgress(checklist.checklist_id)}
-                itemCount={getChecklistItemCount(checklist.checklist_id)}
-                completedCount={getChecklistCompletedCount(checklist.checklist_id)}
-                bucketName={getBucketName(checklist.bucket_id)}
-                onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No checklists yet</Text>
-              <TouchableOpacity
-                style={styles.createFirstButton}
-                onPress={() => router.push('/checklist-edit/new')}
-              >
-                <Text style={styles.createFirstButtonText}>Create your first checklist</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        )}
 
-        {/* Popular Buckets */}
-        {recentBuckets.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Buckets</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/buckets')}>
-                <Text style={styles.seeAllText}>See all</Text>
-              </TouchableOpacity>
-            </View>
-            {recentBuckets.map(bucket => (
-              <BucketCard
-                key={bucket.bucket_id}
-                bucket={bucket}
-                checklistCount={getBucketChecklistCount(bucket.bucket_id)}
-                onPress={() => router.push(`/(tabs)/buckets?bucket=${bucket.bucket_id}`)}
-              />
-            ))}
-          </View>
+        {/* Load More Button */}
+        {checklists.length > loadedItems && (
+          <TouchableOpacity style={styles.loadMoreButton} onPress={loadMore}>
+            <Text style={styles.loadMoreText}>Load More</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
       
@@ -196,27 +357,100 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    minHeight: 20, // Minimal header space
   },
-  section: {
-    marginTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
+  appTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+  sortContainer: {
+    position: 'relative',
   },
-  seeAllText: {
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 8,
+  },
+  sortButtonText: {
     fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  sortMenu: {
+    position: 'absolute',
+    top: 40,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
+    minWidth: 150,
+  },
+  sortOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sortOptionText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  sortOptionTextActive: {
     color: '#2563EB',
     fontWeight: '600',
+  },
+  section: {
+    marginTop: 16,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  groupTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  groupCount: {
+    fontSize: 14,
+    color: '#64748B',
+    marginLeft: 8,
+  },
+  folderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  folderTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  folderCount: {
+    fontSize: 14,
+    color: '#64748B',
+    marginLeft: 8,
   },
   emptyState: {
     alignItems: 'center',
@@ -237,6 +471,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  loadMoreButton: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginVertical: 16,
+    alignItems: 'center',
+  },
+  loadMoreText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   floatingButton: {
     position: 'absolute',
