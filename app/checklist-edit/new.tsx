@@ -244,7 +244,7 @@ export default function NewChecklistScreen() {
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (selectedDate) {
       setTargetDate(selectedDate);
-      setShowDatePicker(false); // Auto-close the modal when date is selected
+      // Don't auto-close - let user click Done
     }
   };
 
@@ -278,7 +278,7 @@ export default function NewChecklistScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft size={24} color="#007AFF" />
+            <X size={24} color="#007AFF" />
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.doneButton} 
@@ -434,23 +434,23 @@ export default function NewChecklistScreen() {
               onPress={() => setShowTagModal(true)}
             >
               <Tag size={20} color="#007AFF" />
-              <Text style={styles.tagsButtonText}>
-                {selectedTags.length > 0 ? 'Add more tags...' : 'Add tags'}
-              </Text>
-            </TouchableOpacity>
-            
-            {selectedTags.length > 0 && (
-              <View style={styles.selectedTags}>
-                {selectedTags.map((tag, index) => (
-                  <View key={index} style={styles.tagChip}>
-                    <Text style={styles.tagChipText}>{tag}</Text>
-                    <TouchableOpacity onPress={() => toggleTag(tag)}>
-                      <X size={16} color="#007AFF" />
-                    </TouchableOpacity>
+              {selectedTags.length > 0 ? (
+                <View style={styles.tagsContent}>
+                  <View style={styles.selectedTagsInline}>
+                    {selectedTags.map((tag, index) => (
+                      <View key={index} style={styles.tagChipInline}>
+                        <Text style={styles.tagChipTextInline}>{tag}</Text>
+                        <TouchableOpacity onPress={() => toggleTag(tag)}>
+                          <X size={14} color="#007AFF" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
-            )}
+                </View>
+              ) : (
+                <Text style={styles.tagsButtonText}>Add tags</Text>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Add some bottom padding for better scrolling */}
@@ -467,7 +467,7 @@ export default function NewChecklistScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Date</Text>
               <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                <X size={24} color="#007AFF" />
+                <Text style={styles.doneButtonText}>Done</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.datePickerContainer}>
@@ -493,7 +493,7 @@ export default function NewChecklistScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Folder</Text>
               <TouchableOpacity onPress={() => setShowBucketModal(false)}>
-                <X size={24} color="#007AFF" />
+                <Text style={styles.doneButtonText}>Done</Text>
               </TouchableOpacity>
             </View>
             <FlatList
@@ -535,7 +535,7 @@ export default function NewChecklistScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Tags</Text>
               <TouchableOpacity onPress={() => setShowTagModal(false)}>
-                <X size={24} color="#007AFF" />
+                <Text style={styles.doneButtonText}>Done</Text>
               </TouchableOpacity>
             </View>
             <FlatList
@@ -735,6 +735,29 @@ const styles = StyleSheet.create({
   datePicker: {
     height: 200,
   },
+  tagsContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  selectedTagsInline: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  tagChipInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E3F2FD',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  tagChipTextInline: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
   selectionSummary: {
     backgroundColor: '#F8F9FA',
     marginHorizontal: 20,
@@ -758,7 +781,7 @@ const styles = StyleSheet.create({
   section: {
     backgroundColor: '#FFFFFF',
     marginBottom: 8,
-    paddingVertical: 16,
+    paddingVertical: 12,
     paddingHorizontal: 20,
   },
   sectionLabel: {
@@ -831,7 +854,7 @@ const styles = StyleSheet.create({
   },
   tagsButton: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -840,6 +863,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E5EA',
     marginBottom: 12,
+    minHeight: 48,
   },
   tagsButtonText: {
     fontSize: 16,
