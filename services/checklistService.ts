@@ -13,7 +13,30 @@ class ChecklistService {
       throw new Error(error.message);
     }
 
-    return data || [];
+    if (!data) return [];
+
+    // Convert tag IDs back to tag names for display
+    const checklists = await Promise.all(
+      data.map(async (checklist) => {
+        if (checklist.tags && checklist.tags.length > 0) {
+          const { data: tagData } = await supabase
+            .from('tag_master')
+            .select('name')
+            .in('tag_id', checklist.tags);
+          
+          return {
+            ...checklist,
+            tags: tagData?.map(tag => tag.name) || []
+          };
+        }
+        return {
+          ...checklist,
+          tags: []
+        };
+      })
+    );
+
+    return checklists;
   }
 
   async getChecklistWithItems(checklistId: string): Promise<{
@@ -31,6 +54,25 @@ class ChecklistService {
       throw new Error(checklistError.message);
     }
 
+    // Convert tag IDs to tag names for display
+    let checklistWithTagNames = checklist;
+    if (checklist.tags && checklist.tags.length > 0) {
+      const { data: tagData } = await supabase
+        .from('tag_master')
+        .select('name')
+        .in('tag_id', checklist.tags);
+      
+      checklistWithTagNames = {
+        ...checklist,
+        tags: tagData?.map(tag => tag.name) || []
+      };
+    } else {
+      checklistWithTagNames = {
+        ...checklist,
+        tags: []
+      };
+    }
+
     // Get the checklist items
     const { data: items, error: itemsError } = await supabase
       .from('checklist_items')
@@ -43,7 +85,7 @@ class ChecklistService {
     }
 
     return {
-      checklist,
+      checklist: checklistWithTagNames,
       items: items || [],
     };
   }
@@ -57,15 +99,49 @@ class ChecklistService {
     fromTemplateId?: string,
     targetDate?: string
   ): Promise<ChecklistHeader> {
+    console.log('Creating checklist with tags:', tags);
+    
+    // Convert tag names to tag IDs if tags are provided
+    let tagIds: string[] = [];
+    if (tags && tags.length > 0) {
+      console.log('Converting tag names to IDs...');
+      
+      // Get all existing tags that match the provided names
+      const { data: existingTags, error: tagsError } = await supabase
+        .from('tag_master')
+        .select('tag_id, name')
+        .in('name', tags);
+
+      if (tagsError) {
+        console.error('Error fetching tags:', tagsError);
+        throw new Error(`Failed to fetch tags: ${tagsError.message}`);
+      }
+
+      console.log('Found existing tags:', existingTags);
+      tagIds = existingTags?.map(tag => tag.tag_id) || [];
+      
+      // Check if all tags were found
+      const foundTagNames = existingTags?.map(tag => tag.name) || [];
+      const missingTags = tags.filter(tagName => !foundTagNames.includes(tagName));
+      
+      if (missingTags.length > 0) {
+        console.warn('Some tags were not found:', missingTags);
+        // For now, we'll just ignore missing tags
+        // In the future, we could create them automatically
+      }
+    }
+
     const newChecklist = {
       user_id: userId,
       name,
       bucket_id: bucketId,
       category_id: categoryId,
-      target_date: targetDate,
-      tags,
+      due_date: targetDate,
+      tags: tagIds, // Use tag IDs instead of names
       from_template_id: fromTemplateId,
     };
+
+    console.log('Inserting checklist with tag IDs:', newChecklist);
 
     const { data, error } = await supabase
       .from('checklist_headers')
@@ -74,9 +150,11 @@ class ChecklistService {
       .single();
 
     if (error) {
+      console.error('Error inserting checklist:', error);
       throw new Error(error.message);
     }
 
+    console.log('Checklist created successfully:', data);
     return data;
   }
 

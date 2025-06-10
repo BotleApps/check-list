@@ -411,11 +411,11 @@ export default function ChecklistDetailsScreen() {
               </View>
             )}
             
-            {checklist.target_date && (
+            {checklist.due_date && (
               <View style={styles.metadataItem}>
                 <Calendar size={16} color="#6B7280" />
                 <Text style={styles.metadataText}>
-                  Due {formatDate(checklist.target_date)}
+                  Due {formatDate(checklist.due_date)}
                 </Text>
               </View>
             )}

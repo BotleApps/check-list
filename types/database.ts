@@ -33,9 +33,15 @@ export interface ChecklistHeader {
   user_id: string;
   name: string;
   description?: string;
-  target_date?: string;
+  due_date?: string;
   bucket_id?: string;
-  tags: string[];
+  template_id?: string;
+  category_id?: string;
+  status?: string;
+  completed_at?: string;
+  progress_percentage?: number;
+  tags: string[]; // Array of tag IDs
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }

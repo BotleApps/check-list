@@ -7,6 +7,7 @@ interface ChecklistCardProps {
   checklist: ChecklistHeader;
   progress: number;
   itemCount: number;
+  completedCount: number;
   bucketName?: string;
   onPress: () => void;
 }
@@ -15,71 +16,61 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
   checklist,
   progress,
   itemCount,
+  completedCount,
   bucketName,
   onPress,
 }) => {
   const formatDate = (dateString?: string) => {
     if (!dateString) return null;
     const date = new Date(dateString);
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-US', { 
+      month: 'numeric', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
   };
 
-  const isOverdue = checklist.target_date && new Date(checklist.target_date) < new Date();
+  const isOverdue = checklist.due_date && new Date(checklist.due_date) < new Date();
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
-      <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={2}>
+      {/* First row: Title and completion count */}
+      <View style={styles.titleRow}>
+        <Text style={styles.title} numberOfLines={1}>
           {checklist.name}
         </Text>
-        {checklist.target_date && (
-          <View style={[styles.dateContainer, isOverdue && styles.overdueDate]}>
-            <Calendar size={14} color={isOverdue ? '#DC2626' : '#6B7280'} />
-            <Text style={[styles.dateText, isOverdue && styles.overdueText]}>
-              {formatDate(checklist.target_date)}
-            </Text>
-          </View>
-        )}
+        <Text style={styles.completionCount}>
+          ({completedCount}/{itemCount})
+        </Text>
       </View>
 
-      <View style={styles.infoSection}>
-        <View style={styles.progressSection}>
-          <Text style={styles.progressPercentage}>{Math.round(progress)}%</Text>
-          <Text style={styles.itemCount}>{itemCount} items</Text>
-        </View>
-
-        <View style={styles.metadata}>
+      {/* Second row: Folder name (left) and date (right) */}
+      <View style={styles.metadataRow}>
+        <View style={styles.leftMetadata}>
           {bucketName && (
-            <View style={styles.metadataItem}>
+            <View style={styles.folderContainer}>
               <FolderOpen size={14} color="#6B7280" />
-              <Text style={styles.metadataText}>{bucketName}</Text>
+              <Text style={styles.folderText}>{bucketName}</Text>
             </View>
           )}
-          
-          {checklist.target_date && (
-            <View style={[styles.metadataItem, isOverdue && styles.overdueMetadata]}>
-              <Calendar size={14} color={isOverdue ? '#DC2626' : '#6B7280'} />
-              <Text style={[styles.metadataText, isOverdue && styles.overdueText]}>
-                {formatDate(checklist.target_date)}
-              </Text>
-            </View>
+        </View>
+        <View style={styles.rightMetadata}>
+          {checklist.due_date && (
+            <Text style={[styles.dateText, isOverdue && styles.overdueText]}>
+              {formatDate(checklist.due_date)}
+            </Text>
           )}
         </View>
       </View>
 
+      {/* Third row: Tags */}
       {checklist.tags.length > 0 && (
-        <View style={styles.tagsSection}>
-          <Tag size={14} color="#6B7280" />
-          <View style={styles.tags}>
-            {checklist.tags.slice(0, 3).map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-            {checklist.tags.length > 3 && (
-              <Text style={styles.moreTagsText}>+{checklist.tags.length - 3}</Text>
-            )}
-          </View>
+        <View style={styles.tagsRow}>
+          {checklist.tags.map((tag, index) => (
+            <View key={index} style={styles.tag}>
+              <Text style={styles.tagText}>{tag}</Text>
+            </View>
+          ))}
         </View>
       )}
     </TouchableOpacity>
@@ -102,11 +93,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  header: {
+  titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 8,
   },
   title: {
     fontSize: 16,
@@ -115,88 +106,54 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
-  dateContainer: {
+  completionCount: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  leftMetadata: {
+    flex: 1,
+  },
+  rightMetadata: {
+    alignItems: 'flex-end',
+  },
+  folderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  folderText: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   dateText: {
     fontSize: 12,
     color: '#6B7280',
     fontWeight: '500',
   },
-  overdueDate: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
   overdueText: {
     color: '#DC2626',
   },
-  infoSection: {
-    marginBottom: 12,
-  },
-  progressSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressPercentage: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563EB',
-  },
-  itemCount: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  metadata: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  metadataItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metadataText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  overdueMetadata: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  tagsSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  tags: {
+  tagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    flex: 1,
   },
   tag: {
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
     borderRadius: 12,
   },
   tagText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#374151',
-    fontWeight: '500',
-  },
-  moreTagsText: {
-    fontSize: 10,
-    color: '#6B7280',
     fontWeight: '500',
   },
 });

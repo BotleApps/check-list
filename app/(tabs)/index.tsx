@@ -66,6 +66,14 @@ export default function HomeScreen() {
     return Math.floor(Math.random() * 10) + 1;
   };
 
+  const getChecklistCompletedCount = (checklistId: string) => {
+    // TODO: Get actual completed count from database when available
+    // For now, calculate based on progress and item count
+    const progress = getChecklistProgress(checklistId);
+    const itemCount = getChecklistItemCount(checklistId);
+    return Math.floor((progress / 100) * itemCount);
+  };
+
   const getBucketName = (bucketId: string | null | undefined) => {
     if (!bucketId) return undefined;
     const bucket = buckets.find(b => b.bucket_id === bucketId);
@@ -134,6 +142,7 @@ export default function HomeScreen() {
                 checklist={checklist}
                 progress={getChecklistProgress(checklist.checklist_id)}
                 itemCount={getChecklistItemCount(checklist.checklist_id)}
+                completedCount={getChecklistCompletedCount(checklist.checklist_id)}
                 bucketName={getBucketName(checklist.bucket_id)}
                 onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
               />

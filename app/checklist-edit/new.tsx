@@ -235,7 +235,7 @@ export default function NewChecklistScreen() {
         name: title.trim(),
         user_id: user.user_id,
         bucket_id: selectedBucketId || undefined,
-        target_date: targetDate?.toISOString() || undefined,
+        due_date: targetDate?.toISOString() || undefined,
         tags: selectedTags,
         items: validItems.map((item, index) => ({
           text: item.trim(),
