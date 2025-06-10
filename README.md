@@ -1,13 +1,14 @@
 # CheckList App ✅
 
-A modern, intuitive checklist application built with **React Native/Expo** and **Supabase**. Create, manage, and organize your tasks with a beautiful iOS Notes-inspired interface.
+A modern, feature-rich checklist application built with **React Native/Expo** and **Supabase**. Create, manage, and organize your tasks with a beautiful, intuitive interface featuring advanced sorting, grouping, validation, and sharing capabilities.
 
-## ✨ Features
+## ✨ Key Features
 
 ### 🎯 **Modern User Experience**
-- **iOS Notes-style interface** with clean, intuitive design
-- **Interactive checklist creation** with real-time multiline display
-- **Smart input handling** - Enter key creates new items
+- **Clean, intuitive design** with iOS Notes-inspired interface
+- **Dynamic grouping and sorting** - Group by folder, date, or custom criteria
+- **Smart home screen** with floating action button and app branding
+- **Real-time validation** with character counts and error feedback
 - **Responsive design** optimized for web and mobile
 
 ### 🔐 **Complete Authentication System**
@@ -16,17 +17,42 @@ A modern, intuitive checklist application built with **React Native/Expo** and *
 - **Password reset** functionality
 - **Secure session management**
 
-### 📱 **Checklist Management**
-- **Create and edit** checklists with ease
-- **Organize with buckets** for better categorization
-- **Template system** for reusable checklists
+### 📱 **Advanced Checklist Management**
+- **Create and edit** checklists with comprehensive validation
+- **Organize with folders** for better categorization
+- **Advanced tagging system** with limits and validation
+- **Due date tracking** with smart date grouping
 - **Progress tracking** with visual indicators
+- **Item limits and validation** to prevent data bloat
 
-### 🚀 **Deployment Ready**
-- **Netlify deployment** configured
-- **React 19 compatibility** with legacy peer deps
-- **Environment configuration** for multiple environments
-- **Optimized build process**
+### 🗂️ **Smart Organization & Sorting**
+- **Dynamic grouping** by folder, created date, due date, or modified date
+- **Intelligent sorting** with ascending/descending options
+- **Date-based grouping** (Today, Yesterday, specific dates)
+- **Lazy loading** for performance with large datasets
+- **"No folder/date" groups** automatically placed at the end
+
+### 🤝 **Sharing & Templates**
+- **Share checklists as templates** with category selection
+- **Template system** for reusable checklists
+- **Category management** for template organization
+- **Duplicate functionality** for quick checklist copying
+
+### 🛡️ **Comprehensive Validation System**
+- **Input validation** with real-time feedback
+- **Character limits** and counters for all text fields
+- **Item limits** per checklist (max 100 items)
+- **Folder limits** per user (max 50 folders)
+- **Tag limits** per checklist (max 10) and per user (max 100)
+- **Visual error indicators** with helpful error messages
+
+### 🎨 **User Interface Enhancements**
+- **Header edit mode** with explicit save/cancel actions
+- **Modal-based selection** for folders, tags, and categories
+- **Character count displays** with color-coded warnings
+- **Validation error feedback** with clear messaging  
+- **Floating action buttons** for quick access
+- **Icon-based actions** for share, delete, and duplicate functions
 
 ## 🛠 Tech Stack
 
@@ -36,7 +62,7 @@ A modern, intuitive checklist application built with **React Native/Expo** and *
 - **Database**: Supabase (PostgreSQL)
 - **Styling**: React Native StyleSheet
 - **Icons**: Lucide React Native
-- **Deployment**: Netlify
+- **Deployment**: Netlify (Web), Expo (Mobile)
 - **Development**: Expo CLI, Metro bundler
 
 ## 🚀 Quick Start
@@ -55,18 +81,7 @@ A modern, intuitive checklist application built with **React Native/Expo** and *
    npm install --legacy-peer-deps
    ```
 
-2. **Start development server**:
-   ```bash
-   npm run dev
-   ```
-
-3. **Open in browser**:
-   - Web: http://localhost:8081
-   - Mobile: Scan QR code with Expo Go app
-
-### 🌐 Production Deployment
-
-1. **Set up Supabase**:
+2. **Set up environment**:
    ```bash
    # Copy environment template
    cp .env.example .env
@@ -76,276 +91,160 @@ A modern, intuitive checklist application built with **React Native/Expo** and *
    EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    ```
 
-2. **Deploy to Netlify**:
-   ```bash
-   # Build for production
-   npm run build:web
-   
-   # Deploy (or connect GitHub repo to Netlify)
-   ./deploy.sh
-   ```
-
-See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for detailed deployment instructions.
-3. Create a `.env` file in the root directory and add your Supabase credentials:
-   ```env
-   VITE_SUPABASE_URL=your-supabase-url
-   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-   ```
-4. Start the development server:
+3. **Start development server**:
    ```bash
    npm run dev
    ```
 
-### Supabase Setup
-1. Create a Supabase project at [supabase.com](https://supabase.com).
-2. Enable the `uuid-ossp` extension in the Supabase SQL Editor:
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+4. **Open in browser**:
+   - Web: http://localhost:8081
+   - Mobile: Scan QR code with Expo Go app
+
+### 🌐 Production Deployment
+
+1. **Build for production**:
+   ```bash
+   npm run build:web
    ```
-3. Run the SQL schema to create tables (see [schema.sql](schema.sql)):
-   ```sql
-   -- Copy and paste the schema from schema.sql
+
+2. **Deploy to Netlify**:
+   ```bash
+   ./deploy.sh
    ```
-4. Enable Row-Level Security (RLS) policies for secure access:
-   ```sql
-   ALTER TABLE Buckets ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY user_owns_bucket ON Buckets FOR ALL USING (user_id = auth.uid() OR user_id IS NULL);
-   -- Add similar policies for other tables
+
+See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for detailed deployment instructions.
+
+## 📊 Database Schema
+
+The CheckList App uses a robust PostgreSQL database with the following structure:
+
+### Core Tables
+- **`auth.users`** - User authentication (managed by Supabase)
+- **`buckets`** - User folders for organizing checklists  
+- **`tags_master`** - Global tag system for labeling
+- **`categories_master`** - Categories for organizing templates
+- **`checklist_headers`** - Checklist metadata and settings
+- **`checklist_items`** - Individual checklist tasks
+- **`checklist_shares`** - Sharing system for collaboration
+- **`checklist_template_headers`** - Reusable template definitions
+- **`checklist_template_items`** - Template task specifications
+
+### Key Features
+- **Row Level Security (RLS)** for data isolation
+- **UUID-based primary keys** for all entities
+- **Comprehensive validation** at database and application levels
+- **Optimized indexes** for query performance
+- **Foreign key constraints** for data integrity
+
+For complete database setup instructions, schema definitions, and relationship diagrams, see [`DATABASE-SETUP.md`](./DATABASE-SETUP.md).
+
+## 📚 Usage Guide
+
+### Getting Started
+1. **Sign up** with your email address
+2. **Verify your email** through the confirmation link
+3. **Create your first checklist** using the floating action button
+
+### Organizing Your Checklists
+- **Create folders** to group related checklists
+- **Add tags** to label and categorize tasks
+- **Set due dates** for time-sensitive items
+- **Use templates** for recurring checklists
+
+### Advanced Features
+- **Group and sort** checklists by folder, date, or status
+- **Share checklists** with others for collaboration
+- **Create templates** from existing checklists
+- **Track progress** with visual completion indicators
+
+## 🧪 Development
+
+### Project Structure
+```
+├── app/                    # Expo Router pages
+│   ├── (tabs)/            # Tab navigation screens
+│   ├── auth/              # Authentication screens  
+│   ├── checklist/         # Checklist detail screens
+│   └── checklist-edit/    # Checklist creation/editing
+├── components/            # Reusable UI components
+├── hooks/                 # Custom React hooks
+├── lib/                   # Utility functions and validations
+├── services/              # API service layer
+├── store/                 # Redux store and slices
+├── types/                 # TypeScript type definitions
+└── supabase/             # Database migrations and config
+```
+
+### Key Architecture Decisions
+- **Expo Router** for file-based navigation
+- **Redux Toolkit** for predictable state management
+- **Service layer** for API abstraction
+- **Real-time validation** for better UX
+- **Optimistic updates** for responsive interactions
+
+### Running Tests
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+### Code Quality
+```bash
+# Lint code
+npm run lint
+
+# Format code
+npm run format
+
+# Type check
+npm run type-check
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please follow these steps:
+
+1. **Fork the repository**
+2. **Create a feature branch**:
+   ```bash
+   git checkout -b feature/your-feature-name
    ```
-5. Configure Supabase Auth for user management (e.g., email or OAuth).
+3. **Make your changes** with appropriate tests
+4. **Commit your changes**:
+   ```bash
+   git commit -m "feat: add your feature description"
+   ```
+5. **Push to your branch**:
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+6. **Open a Pull Request**
 
-## Usage
-1. **Create a Checklist**:
-   - Sign in with Supabase Auth.
-   - Enter a checklist name, select a bucket, and add tags.
-   - Add items with text, due dates, status, and notes.
-2. **Track Progress**:
-   - Toggle item status (pending, in progress, completed, canceled).
-   - View progress in the UI (e.g., completion percentage).
-3. **Share Checklists**:
-   - Generate a shareable link with view or edit permissions.
-   - Share with other users or via public links.
-4. **Use Templates**:
-   - Create reusable templates in a category (e.g., “Personal”).
-   - Instantiate checklists from templates, setting target dates.
-5. **Organize**:
-   - Assign checklists to buckets (e.g., “Shopping”).
-   - Filter checklists by tags or buckets.
+### Development Guidelines
+- Follow TypeScript best practices
+- Add tests for new features
+- Update documentation as needed
+- Follow the existing code style
+- Ensure all tests pass before submitting
 
-## Data Model
-The app uses a PostgreSQL database managed by Supabase with the following tables:
-- **Buckets**: User-specific buckets (`bucket_id`, `user_id`, `bucket_name`, `created_at`).
-- **Tags_Master**: Reusable tags (`tag_id`, `name`, `created_at`).
-- **Categories_Master**: Template categories (`category_id`, `name`, `user_id`, `created_at`).
-- **Checklist_Headers**: Checklist metadata (`checklist_id`, `user_id`, `name`, `target_date`, `bucket_id`, `tags`, `created_at`, `updated_at`).
-- **Checklist_Items**: Checklist items (`item_id`, `checklist_id`, `text`, `due_date`, `status`, `due_days`, `notes`, `created_at`, `updated_at`).
-- **Checklist_Shares**: Shared checklists (`share_id`, `checklist_id`, `shared_with_user_id`, `share_token`, `permission`, `created_at`).
-- **Checklist_Template_Headers**: Template metadata (`template_id`, `user_id`, `name`, `category_id`, `tags`, `created_at`, `updated_at`).
-- **Checklist_Template_Items**: Template items (`item_id`, `template_id`, `text`, `status`, `due_days`, `notes`).
+## 📄 License
 
+This project is licensed under the **MIT License**. See [`LICENSE`](./LICENSE) for details.
 
-Entities and Tables
-Users: Supabase’s auth.users (no custom table).
-Buckets: Store user-specific buckets for organizing checklists.
-Tags Master: Store reusable tags.
-Categories Master: Store categories for templates.
-Checklist Headers: Store checklists, now referencing Buckets for bucket_id.
-Checklist Items: Store checklist items (unchanged).
-Checklist Shares: Manage sharing (unchanged).
-Checklist Template Headers: Store templates with category_id (unchanged).
-Checklist Template Items: Store template items (unchanged).
-Table Definitions
-Users (Supabase’s auth.users)
-Purpose: Managed by Supabase for authentication.
-Key Columns:
-id (UUID, Primary Key): Unique user identifier.
-email (String): User’s email.
-created_at (Timestamp): Account creation time.
-Notes: Referenced via auth.users.id.
-Buckets Table (New)
-Purpose: Store user-specific buckets for organizing checklists.
-Columns:
-bucket_id (UUID, Primary Key): Unique identifier.
-user_id (UUID, Foreign Key, references auth.users.id, nullable): Owner (null for global buckets, if desired).
-bucket_name (String, Unique per user): Name of the bucket (e.g., “Shopping”, “Work”).
-created_at (Timestamp): Creation timestamp.
-Example:
-text
+## 🔗 Links
 
-Collapse
+- [Live Demo](https://your-demo-url.netlify.app)
+- [Database Schema](./DATABASE-SETUP.md)
+- [Deployment Guide](./DEPLOYMENT.md)
+- [Testing Guide](./TESTING-GUIDE.md)
+- [API Utilities](./API_UTILITIES_README.md)
 
-Wrap
+---
 
-Copy
-bucket_id | user_id | bucket_name | created_at
-----------+---------+-------------+--------------------
-uuid1     | user1   | Shopping    | 2025-06-08 11:00:00
-uuid2     | user1   | Work        | 2025-06-08 11:01:00
-Tags Master Table (Unchanged)
-Purpose: Store unique tags.
-Columns:
-tag_id (UUID, Primary Key): Unique identifier.
-name (String, Unique): Tag name (e.g., “urgent”).
-created_at (Timestamp): Creation timestamp.
-Example:
-text
-
-Collapse
-
-Wrap
-
-Copy
-tag_id  | name   | created_at
---------+--------+-------------------
-uuid3   | urgent | 2025-06-08 11:02:00
-Categories Master Table (Unchanged)
-Purpose: Store categories for templates.
-Columns:
-category_id (UUID, Primary Key): Unique identifier.
-name (String, Unique): Category name (e.g., “Personal”).
-user_id (UUID, Foreign Key, references auth.users.id, nullable): Owner (null for global).
-created_at (Timestamp): Creation timestamp.
-Example:
-text
-
-Collapse
-
-Wrap
-
-Copy
-category_id | name     | user_id | created_at
-------------+----------+---------+-------------------
-uuid4       | Personal | null    | 2025-06-08 11:03:00
-Checklist Headers Table (Modified)
-Purpose: Store checklist metadata, now with bucket_id instead of bucket.
-Columns:
-checklist_id (UUID, Primary Key): Unique identifier.
-user_id (UUID, Foreign Key, references auth.users.id): Owner.
-name (String): Checklist name (e.g., “Grocery List”).
-target_date (Date, nullable): Target completion date.
-bucket_id (UUID, Foreign Key, references Buckets.bucket_id, nullable): Bucket for organization.
-tags (UUID[], nullable): Array of tag IDs from Tags Master.
-created_at (Timestamp): Creation timestamp.
-updated_at (Timestamp): Last updated timestamp.
-Example:
-text
-
-Collapse
-
-Wrap
-
-Copy
-checklist_id | user_id | name          | target_date | bucket_id | tags          | created_at          | updated_at
--------------+---------+---------------+-------------+-----------+---------------+--------------------+--------------------
-uuid5        | user1   | Grocery List  | 2025-06-15  | uuid1     | {uuid3}       | 2025-06-08 11:05:00 | 2025-06-08 11:06:00
-Checklist Items Table (Unchanged)
-Purpose: Store checklist items.
-Columns:
-item_id (UUID, Primary Key): Unique identifier.
-checklist_id (UUID, Foreign Key, references Checklist_Headers.checklist_id): Parent checklist.
-text (String): Item description.
-due_date (Date, nullable): Item due date.
-status (Enum: ‘pending’, ‘completed’, ‘in_progress’, ‘canceled’): Item status.
-due_days (Integer, nullable): Days before target date.
-notes (Text, nullable): Additional notes.
-created_at (Timestamp): Creation timestamp.
-updated_at (Timestamp): Last updated timestamp.
-Example:
-text
-
-Collapse
-
-Wrap
-
-Copy
-item_id | checklist_id | text       | due_date   | status    | due_days | notes             | created_at          | updated_at
---------+-------------+------------+------------+-----------+----------+-------------------+--------------------+--------------------
-uuid6   | uuid5       | Buy milk   | 2025-06-14 | pending   | 1        | Check for 2% milk | 2025-06-08 11:07:00 | 2025-06-08 11:07:00
-Checklist Shares Table (Unchanged)
-Purpose: Manage shared checklists.
-Columns:
-share_id (UUID, Primary Key): Unique identifier.
-checklist_id (UUID, Foreign Key, references Checklist_Headers.checklist_id): Shared checklist.
-shared_with_user_id (UUID, Foreign Key, references auth.users.id, nullable): Shared user.
-share_token (String, Unique): Token for URL access.
-permission (Enum: ‘view’, ‘edit’): Access level.
-created_at (Timestamp): Creation timestamp.
-Example:
-text
-
-Collapse
-
-Wrap
-
-Copy
-share_id | checklist_id | shared_with_user_id | share_token | permission | created_at
----------+-------------+--------------------+-------------+------------+--------------------
-uuid7   | uuid5       | user2              | abc123      | view       | 2025-06-08 11:08:00
-Checklist Template Headers Table (Unchanged)
-Purpose: Store reusable templates with category_id.
-Columns:
-template_id (UUID, Primary Key): Unique identifier.
-user_id (UUID, Foreign Key, references auth.users.id): Creator.
-name (String): Template name.
-category_id (UUID, Foreign Key, references Categories_Master.category_id, nullable): Category.
-tags (UUID[], nullable): Array of tag IDs.
-created_at (Timestamp): Creation timestamp.
-updated_at (Timestamp): Last updated timestamp.
-Example:
-text
-
-Collapse
-
-Wrap
-
-Copy
-template_id | user_id | name            | category_id | tags          | created_at          | updated_at
-------------+---------+-----------------+-------------+---------------+--------------------+--------------------
-uuid8       | user1   | Weekly Shopping | uuid4       | {uuid3}       | 2025-06-08 11:09:00 | 2025-06-08 11:09:00
-Checklist Template Items Table (Unchanged)
-Purpose: Store template items.
-Columns:
-item_id (UUID, Primary Key): Unique identifier.
-template_id (UUID, Foreign Key, references Checklist_Template_Headers.template_id): Parent template.
-text (String): Item description.
-status (Enum: ‘pending’, ‘completed’, ‘in_progress’, ‘canceled’): Default status.
-due_days (Integer, nullable): Days before target date.
-notes (Text, nullable): Additional notes.
-Example:
-text
-
-Collapse
-
-Wrap
-
-Copy
-item_id | template_id | text       | status  | due_days | notes             |
---------+------------+------------+---------+----------+-------------------+
-uuid9   | uuid8      | Buy milk   | pending | 1        | Check for 2% milk |
-Relationships
-Users (auth.users) → Buckets: One-to-Many (one user owns many buckets).
-Users → Checklist Headers: One-to-Many (one user owns many checklists).
-Users → Checklist Template Headers: One-to-Many (one user creates many templates).
-Users → Categories Master: One-to-Many (one user creates user-specific categories).
-Buckets → Checklist Headers: One-to-Many (one bucket contains many checklists).
-Checklist Headers → Checklist Items: One-to-Many (one checklist has many items).
-Checklist Template Headers → Checklist Template Items: One-to-Many (one template has many items).
-Checklist Headers → Checklist Shares: One-to-Many (one checklist can be shared multiple times).
-Tags Master → Checklist Headers/Tags: Many-to-Many (via tags UUID array).
-Tags Master → Checklist Template Headers/Tags: Many-to-Many (via tags UUID array).
-Categories Master → Checklist Template Headers: One-to-Many (one category applies to many templates).
-Users → Checklist Shares: Many-to-Many (users share checklists with others).
-
-See [schema.sql](schema.sql) for the full schema.
-
-## Contributing
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/your-feature`).
-3. Commit changes (`git commit -m "Add your feature"`).
-4. Push to the branch (`git push origin feature/your-feature`).
-5. Open a Pull Request.
-
-Please follow the [Code of Conduct](CODE_OF_CONDUCT.md) and ensure tests pass (`npm test`).
-
-## License
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+**Built with ❤️ using React Native, Expo, and Supabase**

@@ -21,6 +21,16 @@ import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { fetchTags } from '../../store/slices/tagsSlice';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
+import { 
+  validateChecklistTitle, 
+  validateItemText, 
+  canAddMoreItems,
+  canAddMoreChecklists,
+  VALIDATION_LIMITS,
+  VALIDATION_MESSAGES,
+  getCharacterCountText,
+  shouldHighlightCharacterCount
+} from '../../lib/validations';
 import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck, X, Plus } from 'lucide-react-native';
 
 export default function NewChecklistScreen() {
@@ -44,6 +54,10 @@ export default function NewChecklistScreen() {
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [newItemText, setNewItemText] = useState('');
   const [addingNewItem, setAddingNewItem] = useState(false);
+  
+  // Validation states
+  const [titleValidationError, setTitleValidationError] = useState<string | null>(null);
+  const [itemValidationErrors, setItemValidationErrors] = useState<(string | null)[]>([null]);
 
   // Refs for managing focus
   const titleInputRef = useRef<TextInput>(null);
@@ -211,19 +225,52 @@ export default function NewChecklistScreen() {
       return;
     }
 
-    if (!title.trim()) {
-      console.log('No title provided');
-      Alert.alert('Error', 'Please enter a title for your checklist');
+    // Validate title
+    const titleError = validateChecklistTitle(title);
+    if (titleError) {
+      setTitleValidationError(titleError);
+      Alert.alert('Validation Error', titleError);
       return;
     }
+    setTitleValidationError(null);
 
-    // Clean up empty items before saving
-    const validItems = items.filter(item => item.trim() !== '');
-    const validStates = itemStates.filter((_, index) => items[index].trim() !== '');
+    // Clean up empty items and validate
+    const validItems: string[] = [];
+    const validStates: boolean[] = [];
+    const errors: (string | null)[] = [];
+    
+    items.forEach((item, index) => {
+      if (item.trim() !== '') {
+        const itemError = validateItemText(item);
+        if (itemError) {
+          errors[index] = itemError;
+        } else {
+          validItems.push(item.trim());
+          validStates.push(itemStates[index] || false);
+          errors[index] = null;
+        }
+      } else {
+        errors[index] = null;
+      }
+    });
+    
+    setItemValidationErrors(errors);
+    
+    // Check if there are any validation errors
+    if (errors.some(error => error !== null)) {
+      Alert.alert('Validation Error', 'Please fix the errors in your items');
+      return;
+    }
     
     if (validItems.length === 0) {
       console.log('No valid items');
       Alert.alert('Error', 'Please add at least one item to your checklist');
+      return;
+    }
+
+    // Check item limit
+    if (!canAddMoreItems(validItems.length - 1)) { // -1 because we're adding multiple items
+      Alert.alert('Limit Reached', VALIDATION_MESSAGES.MAX_ITEMS_REACHED);
       return;
     }
 

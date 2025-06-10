@@ -29,9 +29,19 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
 import { 
+  validateChecklistTitle, 
+  validateItemText, 
+  canAddMoreItems,
+  VALIDATION_LIMITS,
+  VALIDATION_MESSAGES,
+  getCharacterCountText,
+  shouldHighlightCharacterCount
+} from '../../lib/validations';
+import { 
   ArrowLeft, 
   Share2, 
-  MoreVertical, 
+  Copy,
+  Trash2,
   Plus,
   Calendar,
   Tag,
@@ -67,6 +77,10 @@ export default function ChecklistDetailsScreen() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [sharing, setSharing] = useState(false);
+  
+  // Validation states
+  const [titleValidationError, setTitleValidationError] = useState<string | null>(null);
+  const [itemValidationError, setItemValidationError] = useState<string | null>(null);
   
   const [savingItem, setSavingItem] = useState<string | null>(null);
   const [addingNewItem, setAddingNewItem] = useState(false);
@@ -166,9 +180,25 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleSaveNewItem = async () => {
-    if (!newItemText.trim() || !id || addingNewItem) return;
+    if (!id || addingNewItem) return;
     
+    // Validate item text
+    const itemError = validateItemText(newItemText);
+    if (itemError) {
+      setItemValidationError(itemError);
+      Alert.alert('Validation Error', itemError);
+      return;
+    }
+    
+    // Check if we can add more items
+    if (!canAddMoreItems(items.length)) {
+      Alert.alert('Limit Reached', VALIDATION_MESSAGES.MAX_ITEMS_REACHED);
+      return;
+    }
+    
+    setItemValidationError(null);
     setAddingNewItem(true);
+    
     try {
       const maxOrder = items.length > 0 ? Math.max(...items.map(item => item.order_index)) : 0;
       
@@ -206,11 +236,20 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleSaveEditItem = async () => {
-    if (!editingItemText.trim() || !editingItemId || savingItem === editingItemId) return;
+    if (!editingItemId || savingItem === editingItemId) return;
+    
+    // Validate item text
+    const itemError = validateItemText(editingItemText);
+    if (itemError) {
+      setItemValidationError(itemError);
+      Alert.alert('Validation Error', itemError);
+      return;
+    }
     
     const item = items.find(i => i.item_id === editingItemId);
     if (!item) return;
     
+    setItemValidationError(null);
     const newText = editingItemText.trim();
     const originalText = item.text;
     
@@ -272,10 +311,17 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleSaveHeader = async () => {
-    if (!checklist || !editingTitleText.trim()) {
-      Alert.alert('Error', 'Title cannot be empty');
+    if (!checklist) return;
+    
+    // Validate title
+    const titleError = validateChecklistTitle(editingTitleText);
+    if (titleError) {
+      setTitleValidationError(titleError);
+      Alert.alert('Validation Error', titleError);
       return;
     }
+    
+    setTitleValidationError(null);
     
     const originalData = {
       name: checklist.name,
@@ -383,58 +429,41 @@ export default function ChecklistDetailsScreen() {
     return (completedItems / items.length) * 100;
   };
 
-  const handleMoreActions = () => {
+  const handleShareAction = () => {
+    setShowShareModal(true);
+  };
+
+  const handleDuplicateAction = () => {
+    // TODO: Implement duplicate functionality
+    Alert.alert('Feature Coming Soon', 'Duplicate functionality will be available soon');
+  };
+
+  const handleDeleteAction = () => {
     Alert.alert(
-      'Checklist Actions',
-      'Choose an action',
+      'Delete Checklist',
+      'Are you sure you want to delete this checklist? This action cannot be undone.',
       [
-        {
-          text: 'Share Checklist',
-          onPress: () => {
-            setShowShareModal(true);
-          }
-        },
-        {
-          text: 'Duplicate',
-          onPress: () => {
-            // TODO: Implement duplicate functionality
-            Alert.alert('Feature Coming Soon', 'Duplicate functionality will be available soon');
-          }
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Delete Checklist',
-              'Are you sure you want to delete this checklist? This action cannot be undone.',
-              [
-                { text: 'Cancel', style: 'cancel' },
+          onPress: async () => {
+            if (!checklist) return;
+            
+            try {
+              await dispatch(deleteChecklist(checklist.checklist_id)).unwrap();
+              Alert.alert('Success', 'Checklist deleted successfully', [
                 {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: async () => {
-                    if (!checklist) return;
-                    
-                    try {
-                      await dispatch(deleteChecklist(checklist.checklist_id)).unwrap();
-                      Alert.alert('Success', 'Checklist deleted successfully', [
-                        {
-                          text: 'OK',
-                          onPress: () => router.back()
-                        }
-                      ]);
-                    } catch (error) {
-                      console.error('Error deleting checklist:', error);
-                      Alert.alert('Error', 'Failed to delete checklist. Please try again.');
-                    }
-                  }
+                  text: 'OK',
+                  onPress: () => router.back()
                 }
-              ]
-            );
+              ]);
+            } catch (error) {
+              console.error('Error deleting checklist:', error);
+              Alert.alert('Error', 'Failed to delete checklist. Please try again.');
+            }
           }
-        },
-        { text: 'Cancel', style: 'cancel' }
+        }
       ]
     );
   };
@@ -593,13 +622,22 @@ export default function ChecklistDetailsScreen() {
         </TouchableOpacity>
         <View style={styles.headerActions}>
           <TouchableOpacity 
-            onPress={() => Alert.alert('Feature Coming Soon', 'Share functionality will be available soon')}
+            onPress={handleShareAction}
             style={styles.actionButton}
           >
             <Share2 size={20} color="#6B7280" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleMoreActions} style={styles.actionButton}>
-            <MoreVertical size={20} color="#6B7280" />
+          <TouchableOpacity 
+            onPress={handleDuplicateAction}
+            style={styles.actionButton}
+          >
+            <Copy size={20} color="#6B7280" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={handleDeleteAction}
+            style={[styles.actionButton, styles.deleteActionButton]}
+          >
+            <Trash2 size={20} color="#DC2626" />
           </TouchableOpacity>
         </View>
       </View>
@@ -615,16 +653,44 @@ export default function ChecklistDetailsScreen() {
           {/* Title Row */}
           <View style={styles.titleRow}>
             {editingHeader ? (
-              <TextInput
-                ref={editTitleInputRef}
-                style={styles.titleInput}
-                value={editingTitleText}
-                onChangeText={setEditingTitleText}
-                placeholder="Enter title..."
-                returnKeyType="done"
-                multiline={false}
-                autoFocus={true}
-              />
+              <View style={styles.titleEditContainer}>
+                <TextInput
+                  ref={editTitleInputRef}
+                  style={[
+                    styles.titleInput,
+                    titleValidationError && styles.inputError
+                  ]}
+                  value={editingTitleText}
+                  onChangeText={(text) => {
+                    setEditingTitleText(text);
+                    if (titleValidationError) {
+                      setTitleValidationError(null);
+                    }
+                  }}
+                  placeholder="Enter title..."
+                  returnKeyType="done"
+                  multiline={false}
+                  autoFocus={true}
+                  maxLength={VALIDATION_LIMITS.CHECKLIST_TITLE_MAX_LENGTH}
+                />
+                <View style={styles.inputMeta}>
+                  <Text style={[
+                    styles.characterCount,
+                    shouldHighlightCharacterCount(
+                      editingTitleText.length, 
+                      VALIDATION_LIMITS.CHECKLIST_TITLE_MAX_LENGTH
+                    ) && styles.characterCountHighlight
+                  ]}>
+                    {getCharacterCountText(
+                      editingTitleText.length, 
+                      VALIDATION_LIMITS.CHECKLIST_TITLE_MAX_LENGTH
+                    )}
+                  </Text>
+                </View>
+                {titleValidationError && (
+                  <Text style={styles.validationError}>{titleValidationError}</Text>
+                )}
+              </View>
             ) : (
               <Text style={styles.title}>{checklist.name}</Text>
             )}
@@ -810,14 +876,23 @@ export default function ChecklistDetailsScreen() {
                         </TouchableOpacity>
                         <TextInput
                           ref={editItemInputRef}
-                          style={styles.newItemInput}
+                          style={[
+                            styles.newItemInput,
+                            itemValidationError && styles.inputError
+                          ]}
                           value={editingItemText}
-                          onChangeText={setEditingItemText}
+                          onChangeText={(text) => {
+                            setEditingItemText(text);
+                            if (itemValidationError) {
+                              setItemValidationError(null);
+                            }
+                          }}
                           onSubmitEditing={handleSaveEditItem}
                           onBlur={handleCancelEditItem}
                           returnKeyType="done"
                           blurOnSubmit={true}
                           multiline={false}
+                          maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
                         />
                       </View>
                     </View>
@@ -840,18 +915,49 @@ export default function ChecklistDetailsScreen() {
                     <View style={styles.newItemCheckbox}>
                       <View style={styles.uncheckedBox} />
                     </View>
-                    <TextInput
-                      ref={newItemInputRef}
-                      style={styles.newItemInput}
-                      placeholder="Enter task..."
-                      value={newItemText}
-                      onChangeText={setNewItemText}
-                      onSubmitEditing={handleSaveNewItem}
-                      onBlur={handleCancelNewItem}
-                      returnKeyType="done"
-                      blurOnSubmit={true}
-                      multiline={false}
-                    />
+                    <View style={styles.newItemInputContainer}>
+                      <TextInput
+                        ref={newItemInputRef}
+                        style={[
+                          styles.newItemInput,
+                          itemValidationError && styles.inputError
+                        ]}
+                        placeholder="Enter task..."
+                        value={newItemText}
+                        onChangeText={(text) => {
+                          setNewItemText(text);
+                          if (itemValidationError) {
+                            setItemValidationError(null);
+                          }
+                        }}
+                        onSubmitEditing={handleSaveNewItem}
+                        onBlur={handleCancelNewItem}
+                        returnKeyType="done"
+                        blurOnSubmit={true}
+                        multiline={false}
+                        maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
+                      />
+                      <View style={styles.inputMeta}>
+                        <Text style={styles.itemLimit}>
+                          {items.length}/{VALIDATION_LIMITS.MAX_ITEMS_PER_CHECKLIST} items
+                        </Text>
+                        <Text style={[
+                          styles.characterCount,
+                          shouldHighlightCharacterCount(
+                            newItemText.length, 
+                            VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH
+                          ) && styles.characterCountHighlight
+                        ]}>
+                          {getCharacterCountText(
+                            newItemText.length, 
+                            VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH
+                          )}
+                        </Text>
+                      </View>
+                      {itemValidationError && (
+                        <Text style={styles.validationError}>{itemValidationError}</Text>
+                      )}
+                    </View>
                   </View>
                 </View>
               )}
@@ -1047,6 +1153,9 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 8,
+  },
+  deleteActionButton: {
+    // Additional styling for delete button if needed
   },
   scrollView: {
     flex: 1,
@@ -1540,5 +1649,39 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 16,
     fontWeight: '500',
+  },
+  // Validation styles
+  titleEditContainer: {
+    flex: 1,
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 1,
+  },
+  inputMeta: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  characterCount: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  characterCountHighlight: {
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  validationError: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 4,
+  },
+  newItemInputContainer: {
+    flex: 1,
+  },
+  itemLimit: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginRight: 12,
   },
 });

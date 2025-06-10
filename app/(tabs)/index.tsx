@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   RefreshControl,
   FlatList,
+  TextInput,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -18,12 +19,13 @@ import { ChecklistCard } from '../../components/ChecklistCard';
 import { BucketCard } from '../../components/BucketCard';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { Plus, ChevronDown, ArrowUpDown } from 'lucide-react-native';
+import { Plus, ChevronDown, ArrowUpDown, Search } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'folder' | 'created' | 'target' | 'modified'>('folder');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -134,8 +136,18 @@ export default function HomeScreen() {
 
   // Sorting and grouping logic
   const sortedAndGroupedChecklists = useMemo(() => {
+    // Filter checklists based on search query
+    let filteredChecklists = checklists;
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filteredChecklists = checklists.filter(checklist => 
+        checklist.name.toLowerCase().includes(query) ||
+        getBucketName(checklist.bucket_id)?.toLowerCase().includes(query)
+      );
+    }
+
     // Sort checklists
-    const sorted = [...checklists].sort((a, b) => {
+    const sorted = [...filteredChecklists].sort((a, b) => {
       let comparison = 0;
       
       switch (sortBy) {
@@ -204,7 +216,7 @@ export default function HomeScreen() {
     });
 
     return Object.fromEntries(sortedGroupEntries);
-  }, [checklists, buckets, sortBy, sortDirection]);
+  }, [checklists, buckets, sortBy, sortDirection, searchQuery]);
 
   const toggleSort = (newSortBy: typeof sortBy) => {
     if (sortBy === newSortBy) {
@@ -252,17 +264,26 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <Text style={styles.appTitle}>Checklist</Text>
           
-          {/* Sort Controls */}
-          <View style={styles.sortContainer}>
+          {/* Search and Sort Controls */}
+          <View style={styles.searchSortContainer}>
+            <View style={styles.searchContainer}>
+              <Search size={20} color="#6B7280" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search checklists..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+            </View>
+            
             <TouchableOpacity
-              style={styles.sortButton}
+              style={styles.sortIconButton}
               onPress={() => setShowSortMenu(!showSortMenu)}
             >
               <ArrowUpDown size={20} color="#6B7280" />
-              <Text style={styles.sortButtonText}>
-                Sort by {sortBy === 'folder' ? 'Folder' : sortBy === 'created' ? 'Created' : sortBy === 'target' ? 'Due Date' : 'Modified'}
-                {sortDirection === 'asc' ? ' ↑' : ' ↓'}
-              </Text>
             </TouchableOpacity>
             
             {showSortMenu && (
@@ -283,6 +304,7 @@ export default function HomeScreen() {
                       sortBy === option.key && styles.sortOptionTextActive
                     ]}>
                       {option.label}
+                      {sortBy === option.key && (sortDirection === 'asc' ? ' ↑' : ' ↓')}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -293,26 +315,45 @@ export default function HomeScreen() {
 
         {/* Grouped Checklists */}
         {checklists.length > 0 ? (
-          Object.entries(sortedAndGroupedChecklists).map(([groupName, groupChecklists]) => (
-            <View key={groupName} style={styles.section}>
-              <View style={styles.groupHeader}>
-                <Text style={styles.groupTitle}>{groupName}</Text>
-                <Text style={styles.groupCount}>({groupChecklists.length})</Text>
+          Object.keys(sortedAndGroupedChecklists).length > 0 ? (
+            Object.entries(sortedAndGroupedChecklists).map(([groupName, groupChecklists]) => (
+              <View key={groupName} style={styles.section}>
+                <View style={styles.groupHeader}>
+                  <Text style={styles.groupTitle}>{groupName}</Text>
+                  <Text style={styles.groupCount}>({groupChecklists.length})</Text>
+                </View>
+                
+                {groupChecklists.slice(0, loadedItems).map(checklist => (
+                  <ChecklistCard
+                    key={checklist.checklist_id}
+                    checklist={checklist}
+                    progress={getChecklistProgress(checklist.checklist_id)}
+                    itemCount={getChecklistItemCount(checklist.checklist_id)}
+                    completedCount={getChecklistCompletedCount(checklist.checklist_id)}
+                    bucketName={getBucketName(checklist.bucket_id)}
+                    onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
+                  />
+                ))}
               </View>
-              
-              {groupChecklists.slice(0, loadedItems).map(checklist => (
-                <ChecklistCard
-                  key={checklist.checklist_id}
-                  checklist={checklist}
-                  progress={getChecklistProgress(checklist.checklist_id)}
-                  itemCount={getChecklistItemCount(checklist.checklist_id)}
-                  completedCount={getChecklistCompletedCount(checklist.checklist_id)}
-                  bucketName={getBucketName(checklist.bucket_id)}
-                  onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
-                />
-              ))}
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>
+                {searchQuery.trim() 
+                  ? `No checklists found for "${searchQuery}"`
+                  : 'No checklists match the current filters'
+                }
+              </Text>
+              {searchQuery.trim() && (
+                <TouchableOpacity
+                  style={styles.clearSearchButton}
+                  onPress={() => setSearchQuery('')}
+                >
+                  <Text style={styles.clearSearchButtonText}>Clear Search</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          ))
+          )
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No checklists yet</Text>
@@ -367,6 +408,36 @@ const styles = StyleSheet.create({
   sortContainer: {
     position: 'relative',
   },
+  searchSortContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    paddingVertical: 0,
+  },
+  sortIconButton: {
+    backgroundColor: '#F3F4F6',
+    padding: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -383,7 +454,7 @@ const styles = StyleSheet.create({
   },
   sortMenu: {
     position: 'absolute',
-    top: 40,
+    top: 45,
     right: 0,
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
@@ -471,6 +542,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  clearSearchButton: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  clearSearchButtonText: {
+    color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '500',
   },
   loadMoreButton: {
     backgroundColor: '#F3F4F6',

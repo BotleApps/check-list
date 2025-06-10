@@ -13,6 +13,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { createBucket } from '../store/slices/bucketsSlice';
+import { validateBucketName, canAddMoreBuckets, VALIDATION_LIMITS } from '../lib/validations';
 import { X, Check, Plus, Loader } from 'lucide-react-native';
 
 interface FolderSelectionModalProps {
@@ -37,8 +38,18 @@ export const FolderSelectionModal: React.FC<FolderSelectionModalProps> = ({
   const [creatingFolder, setCreatingFolder] = useState(false);
 
   const handleCreateFolder = async () => {
-    if (!newFolderName.trim() || !user) {
-      Alert.alert('Error', 'Please enter a folder name');
+    if (!user) return;
+
+    // Validate folder name
+    const nameError = validateBucketName(newFolderName);
+    if (nameError) {
+      Alert.alert('Validation Error', nameError);
+      return;
+    }
+
+    // Check if user can add more folders
+    if (!canAddMoreBuckets(buckets.length)) {
+      Alert.alert('Limit Reached', `You can have a maximum of ${VALIDATION_LIMITS.MAX_BUCKETS_PER_USER} folders`);
       return;
     }
 

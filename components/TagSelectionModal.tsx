@@ -13,6 +13,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { createTag } from '../store/slices/tagsSlice';
+import { validateTagName, canAddMoreTags, canAddMoreTagsToChecklist, VALIDATION_LIMITS } from '../lib/validations';
 import { X, Check, Plus, Loader } from 'lucide-react-native';
 
 interface TagSelectionModalProps {
@@ -38,8 +39,18 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
   const [creatingTag, setCreatingTag] = useState(false);
 
   const handleCreateTag = async () => {
-    if (!newTagName.trim() || !user) {
-      Alert.alert('Error', 'Please enter a tag name');
+    if (!user) return;
+
+    // Validate tag name
+    const nameError = validateTagName(newTagName);
+    if (nameError) {
+      Alert.alert('Validation Error', nameError);
+      return;
+    }
+
+    // Check if user can add more tags
+    if (!canAddMoreTags(tags.length)) {
+      Alert.alert('Limit Reached', `You can have a maximum of ${VALIDATION_LIMITS.MAX_TAGS_PER_USER} tags`);
       return;
     }
 
@@ -74,6 +85,15 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
     console.log('[TagSelectionModal] Toggling tag:', tagName);
     setLocalSelectedTags(prev => {
       const isSelected = prev.includes(tagName);
+      
+      if (!isSelected) {
+        // Check if we can add more tags to this checklist
+        if (!canAddMoreTagsToChecklist(prev.length)) {
+          Alert.alert('Limit Reached', `You can have a maximum of ${VALIDATION_LIMITS.MAX_TAGS_PER_CHECKLIST} tags per checklist`);
+          return prev;
+        }
+      }
+      
       const newSelection = isSelected
         ? prev.filter(name => name !== tagName)
         : [...prev, tagName];
