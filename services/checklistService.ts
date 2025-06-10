@@ -54,13 +54,15 @@ class ChecklistService {
     bucketId?: string,
     categoryId?: string,
     tags?: string[],
-    fromTemplateId?: string
+    fromTemplateId?: string,
+    targetDate?: string
   ): Promise<ChecklistHeader> {
     const newChecklist = {
       user_id: userId,
       name,
       bucket_id: bucketId,
       category_id: categoryId,
+      target_date: targetDate,
       tags,
       from_template_id: fromTemplateId,
     };
@@ -85,7 +87,8 @@ class ChecklistService {
     bucketId?: string,
     categoryId?: string,
     tags?: string[],
-    fromTemplateId?: string
+    fromTemplateId?: string,
+    targetDate?: string
   ): Promise<{ checklist: ChecklistHeader; items: ChecklistItem[] }> {
     // First create the checklist header
     const checklist = await this.createChecklist(
@@ -94,7 +97,8 @@ class ChecklistService {
       bucketId,
       categoryId,
       tags,
-      fromTemplateId
+      fromTemplateId,
+      targetDate
     );
 
     // Then create all the items

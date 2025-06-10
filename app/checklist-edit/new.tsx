@@ -10,14 +10,17 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  FlatList,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { createChecklistWithItems } from '../../store/slices/checklistsSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { fetchTags } from '../../store/slices/tagsSlice';
-import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck, X, Plus } from 'lucide-react-native';
 
 export default function NewChecklistScreen() {
   const router = useRouter();
@@ -31,14 +34,21 @@ export default function NewChecklistScreen() {
   const [title, setTitle] = useState('');
   const [items, setItems] = useState<string[]>(['']);
   const [itemStates, setItemStates] = useState<boolean[]>([false]);
-  const [targetDate, setTargetDate] = useState('');
+  const [targetDate, setTargetDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedBucketId, setSelectedBucketId] = useState<string>('');
+  const [showBucketModal, setShowBucketModal] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [newItemText, setNewItemText] = useState('');
+  const [addingNewItem, setAddingNewItem] = useState(false);
 
   // Refs for managing focus
   const titleInputRef = useRef<TextInput>(null);
   const itemInputRefs = useRef<(TextInput | null)[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
+  const newItemInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (user) {
@@ -156,6 +166,42 @@ export default function NewChecklistScreen() {
     }
   };
 
+  const handleAddNewItem = () => {
+    setIsAddingItem(true);
+    setNewItemText('');
+    // Focus the input after a short delay to ensure it's rendered
+    setTimeout(() => {
+      newItemInputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleSaveNewItem = async () => {
+    if (!newItemText.trim() || addingNewItem) return;
+    
+    setAddingNewItem(true);
+    try {
+      const updatedItems = [...items];
+      const updatedStates = [...itemStates];
+      
+      updatedItems.push(newItemText.trim());
+      updatedStates.push(false);
+      
+      setItems(updatedItems);
+      setItemStates(updatedStates);
+      setIsAddingItem(false);
+      setNewItemText('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add item. Please try again.');
+    } finally {
+      setAddingNewItem(false);
+    }
+  };
+
+  const handleCancelNewItem = () => {
+    setIsAddingItem(false);
+    setNewItemText('');
+  };
+
   const handleSave = async () => {
     if (!user) return;
 
@@ -178,6 +224,7 @@ export default function NewChecklistScreen() {
         name: title.trim(),
         user_id: user.user_id,
         bucket_id: selectedBucketId || undefined,
+        target_date: targetDate?.toISOString() || undefined,
         tags: selectedTags,
         items: validItems.map((item, index) => ({
           text: item.trim(),
@@ -192,6 +239,34 @@ export default function NewChecklistScreen() {
     } catch (error) {
       Alert.alert('Error', 'Failed to create checklist. Please try again.');
     }
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    if (selectedDate) {
+      setTargetDate(selectedDate);
+      setShowDatePicker(false); // Auto-close the modal when date is selected
+    }
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const toggleTag = (tagName: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tagName) 
+        ? prev.filter(t => t !== tagName)
+        : [...prev, tagName]
+    );
+  };
+
+  const getSelectedBucketName = () => {
+    const bucket = buckets.find(b => b.bucket_id === selectedBucketId);
+    return bucket?.bucket_name || 'Select Folder';
   };
 
   return (
@@ -214,7 +289,7 @@ export default function NewChecklistScreen() {
               styles.doneButtonText,
               (!title.trim() || loading) && styles.doneButtonTextDisabled
             ]}>
-              Done
+              Save
             </Text>
           </TouchableOpacity>
         </View>
@@ -229,7 +304,7 @@ export default function NewChecklistScreen() {
           <TextInput
             ref={titleInputRef}
             style={styles.titleInput}
-            placeholder="Title"
+            placeholder="Checklist Title"
             value={title}
             onChangeText={setTitle}
             placeholderTextColor="#C7C7CC"
@@ -238,93 +313,259 @@ export default function NewChecklistScreen() {
             blurOnSubmit={false}
           />
 
-          {/* Items List */}
-          <View style={styles.itemsList}>
-            {items.map((item, index) => (
-              <View key={`item-${index}`} style={styles.itemRow}>
-                <TouchableOpacity 
-                  style={styles.checkboxContainer}
-                  onPress={() => toggleItemState(index)}
-                  activeOpacity={0.7}
-                >
-                  {itemStates[index] ? (
-                    <SquareCheck size={20} color="#007AFF" />
-                  ) : (
-                    <Circle size={20} color="#C7C7CC" />
+          {/* Items Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionLabel}>Items</Text>
+              <TouchableOpacity 
+                style={styles.addItemButton}
+                onPress={handleAddNewItem}
+                disabled={isAddingItem || addingNewItem}
+              >
+                <Plus size={20} color="#007AFF" />
+                <Text style={styles.addItemText}>Add Item</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.itemsList}>
+              {items.map((item, index) => (
+                <View key={`item-${index}`} style={styles.itemRow}>
+                  <TouchableOpacity 
+                    style={styles.checkboxContainer}
+                    onPress={() => toggleItemState(index)}
+                    activeOpacity={0.7}
+                  >
+                    {itemStates[index] ? (
+                      <SquareCheck size={20} color="#007AFF" />
+                    ) : (
+                      <Circle size={20} color="#C7C7CC" />
+                    )}
+                  </TouchableOpacity>
+                  <TextInput
+                    ref={(ref) => {
+                      if (itemInputRefs.current) {
+                        itemInputRefs.current[index] = ref;
+                      }
+                    }}
+                    style={[
+                      styles.itemInput,
+                      itemStates[index] && styles.itemInputCompleted
+                    ]}
+                    placeholder={index === 0 ? "Add your first item..." : "Add item..."}
+                    value={item}
+                    onChangeText={(value) => updateItem(index, value)}
+                    placeholderTextColor="#C7C7CC"
+                    returnKeyType="next"
+                    onSubmitEditing={() => handleItemSubmit(index)}
+                    onKeyPress={({ nativeEvent }) => handleItemKeyPress(index, nativeEvent)}
+                    onBlur={() => handleItemBlur(index)}
+                    blurOnSubmit={false}
+                    multiline={true}
+                    textAlignVertical="top"
+                    scrollEnabled={false}
+                  />
+                  {items.length > 1 && (
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => removeItem(index)}
+                    >
+                      <X size={16} color="#FF3B30" />
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
-                <TextInput
-                  ref={(ref) => {
-                    if (itemInputRefs.current) {
-                      itemInputRefs.current[index] = ref;
-                    }
-                  }}
-                  style={[
-                    styles.itemInput,
-                    itemStates[index] && styles.itemInputCompleted
-                  ]}
-                  placeholder={index === 0 ? "Add your first item..." : "Add item..."}
-                  value={item}
-                  onChangeText={(value) => updateItem(index, value)}
-                  placeholderTextColor="#C7C7CC"
-                  returnKeyType="next"
-                  onSubmitEditing={() => handleItemSubmit(index)}
-                  onKeyPress={({ nativeEvent }) => handleItemKeyPress(index, nativeEvent)}
-                  onBlur={() => handleItemBlur(index)}
-                  blurOnSubmit={false}
-                  multiline={true}
-                  textAlignVertical="top"
-                  scrollEnabled={false}
-                />
+                </View>
+              ))}
+              
+              {/* New Item Input */}
+              {isAddingItem && (
+                <View style={styles.itemRow}>
+                  <View style={styles.checkboxContainer}>
+                    <Circle size={20} color="#C7C7CC" />
+                  </View>
+                  <TextInput
+                    ref={newItemInputRef}
+                    style={styles.itemInput}
+                    placeholder="Enter task..."
+                    value={newItemText}
+                    onChangeText={setNewItemText}
+                    onSubmitEditing={handleSaveNewItem}
+                    onBlur={handleCancelNewItem}
+                    returnKeyType="done"
+                    blurOnSubmit={true}
+                    multiline={false}
+                  />
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Target Date Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Target Date</Text>
+            <TouchableOpacity 
+              style={styles.dateButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Calendar size={20} color="#007AFF" />
+              <Text style={[styles.dateButtonText, targetDate && styles.dateButtonTextSelected]}>
+                {targetDate ? formatDate(targetDate) : 'Select date'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Folder Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Folder</Text>
+            <TouchableOpacity 
+              style={styles.folderButton}
+              onPress={() => setShowBucketModal(true)}
+            >
+              <Folder size={20} color="#007AFF" />
+              <Text style={[styles.folderButtonText, selectedBucketId && styles.folderButtonTextSelected]}>
+                {getSelectedBucketName()}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Tags Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Tags</Text>
+            <TouchableOpacity 
+              style={styles.tagsButton}
+              onPress={() => setShowTagModal(true)}
+            >
+              <Tag size={20} color="#007AFF" />
+              <Text style={styles.tagsButtonText}>
+                {selectedTags.length > 0 ? 'Add more tags...' : 'Add tags'}
+              </Text>
+            </TouchableOpacity>
+            
+            {selectedTags.length > 0 && (
+              <View style={styles.selectedTags}>
+                {selectedTags.map((tag, index) => (
+                  <View key={index} style={styles.tagChip}>
+                    <Text style={styles.tagChipText}>{tag}</Text>
+                    <TouchableOpacity onPress={() => toggleTag(tag)}>
+                      <X size={16} color="#007AFF" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
-            ))}
+            )}
           </View>
 
           {/* Add some bottom padding for better scrolling */}
           <View style={styles.bottomPadding} />
         </ScrollView>
 
-        {/* Bottom Bar */}
-        <View style={styles.bottomBar}>
-          <TouchableOpacity 
-            style={[
-              styles.bottomBarItem,
-              targetDate && styles.bottomBarItemActive
-            ]}
-            onPress={() => {
-              Alert.alert('Coming Soon', 'Date picker will be available in the next update!');
-            }}
-          >
-            <Calendar size={24} color={targetDate ? "#007AFF" : "#8E8E93"} />
-            {targetDate && <View style={styles.activeIndicator} />}
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.bottomBarItem,
-              selectedBucketId && styles.bottomBarItemActive
-            ]}
-            onPress={() => {
-              Alert.alert('Coming Soon', 'Bucket selector will be available in the next update!');
-            }}
-          >
-            <Folder size={24} color={selectedBucketId ? "#007AFF" : "#8E8E93"} />
-            {selectedBucketId && <View style={styles.activeIndicator} />}
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.bottomBarItem,
-              selectedTags.length > 0 && styles.bottomBarItemActive
-            ]}
-            onPress={() => {
-              Alert.alert('Coming Soon', 'Tag selector will be available in the next update!');
-            }}
-          >
-            <Tag size={24} color={selectedTags.length > 0 ? "#007AFF" : "#8E8E93"} />
-            {selectedTags.length > 0 && <View style={styles.activeIndicator} />}
-          </TouchableOpacity>
-        </View>
+        {/* Date Selection Modal */}
+        <Modal
+          visible={showDatePicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Date</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <X size={24} color="#007AFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerContainer}>
+              <DateTimePicker
+                value={targetDate || new Date()}
+                mode="date"
+                display="spinner"
+                onChange={handleDateChange}
+                minimumDate={new Date()}
+                style={styles.datePicker}
+              />
+            </View>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Bucket Selection Modal */}
+        <Modal
+          visible={showBucketModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Folder</Text>
+              <TouchableOpacity onPress={() => setShowBucketModal(false)}>
+                <X size={24} color="#007AFF" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={buckets}
+              keyExtractor={(item) => item.bucket_id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    selectedBucketId === item.bucket_id && styles.modalItemSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedBucketId(item.bucket_id);
+                    setShowBucketModal(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalItemText,
+                    selectedBucketId === item.bucket_id && styles.modalItemTextSelected
+                  ]}>
+                    {item.bucket_name}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No folders available</Text>
+              }
+            />
+          </SafeAreaView>
+        </Modal>
+
+        {/* Tag Selection Modal */}
+        <Modal
+          visible={showTagModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Tags</Text>
+              <TouchableOpacity onPress={() => setShowTagModal(false)}>
+                <X size={24} color="#007AFF" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={tags}
+              keyExtractor={(item) => item.tag_id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    selectedTags.includes(item.name) && styles.modalItemSelected
+                  ]}
+                  onPress={() => toggleTag(item.name)}
+                >
+                  <Text style={[
+                    styles.modalItemText,
+                    selectedTags.includes(item.name) && styles.modalItemTextSelected
+                  ]}>
+                    {item.name}
+                  </Text>
+                  {selectedTags.includes(item.name) && (
+                    <SquareCheck size={20} color="#007AFF" />
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No tags available</Text>
+              }
+            />
+          </SafeAreaView>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -365,7 +606,7 @@ const styles = StyleSheet.create({
   },
   titleInput: {
     paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingVertical: 16,
     fontSize: 28,
     fontWeight: '700',
     lineHeight: 34,
@@ -380,7 +621,7 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     paddingVertical: 4,
     minHeight: 36,
   },
@@ -439,5 +680,190 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 100,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#C7C7CC',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  modalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E5EA',
+  },
+  modalItemSelected: {
+    backgroundColor: '#E3F2FD',
+  },
+  modalItemText: {
+    fontSize: 16,
+    color: '#000000',
+  },
+  modalItemTextSelected: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  emptyText: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#8E8E93',
+    marginTop: 32,
+  },
+  datePickerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  datePicker: {
+    height: 200,
+  },
+  selectionSummary: {
+    backgroundColor: '#F8F9FA',
+    marginHorizontal: 20,
+    marginVertical: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 2,
+    gap: 8,
+  },
+  summaryText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  section: {
+    backgroundColor: '#FFFFFF',
+    marginBottom: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  addItemButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 6,
+  },
+  addItemText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  removeButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#8E8E93',
+  },
+  dateButtonTextSelected: {
+    color: '#000000',
+    fontWeight: '500',
+  },
+  folderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  folderButtonText: {
+    fontSize: 16,
+    color: '#8E8E93',
+  },
+  folderButtonTextSelected: {
+    color: '#000000',
+    fontWeight: '500',
+  },
+  tagsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    marginBottom: 12,
+  },
+  tagsButtonText: {
+    fontSize: 16,
+    color: '#8E8E93',
+  },
+  selectedTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#E3F2FD',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  tagChipText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
   },
 });

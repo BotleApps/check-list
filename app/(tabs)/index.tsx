@@ -47,21 +47,36 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning!';
+    if (hour < 17) return 'Good afternoon!';
+    return 'Good evening!';
+  };
+
   const getChecklistProgress = (checklistId: string) => {
-    // TODO: Calculate from actual checklist items
-    return 0;
+    // TODO: Calculate from actual checklist items when available
+    // For now, return a placeholder value
+    return Math.floor(Math.random() * 100);
   };
 
   const getChecklistItemCount = (checklistId: string) => {
-    // TODO: Get actual item count from database
-    return 0;
+    // TODO: Get actual item count from database when available
+    // For now, return a placeholder value
+    return Math.floor(Math.random() * 10) + 1;
+  };
+
+  const getBucketName = (bucketId: string | null | undefined) => {
+    if (!bucketId) return undefined;
+    const bucket = buckets.find(b => b.bucket_id === bucketId);
+    return bucket?.bucket_name;
   };
 
   const getBucketChecklistCount = (bucketId: string) => {
     return checklists.filter(c => c.bucket_id === bucketId).length;
   };
 
-  const recentChecklists = checklists.slice(0, 3);
+  const recentChecklists = checklists.slice(0, 5);
   const recentBuckets = buckets.slice(0, 3);
 
   if (!isAuthenticated) {
@@ -93,7 +108,7 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good morning!</Text>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.userName}>{user?.name}</Text>
           </View>
           <TouchableOpacity
@@ -119,6 +134,7 @@ export default function HomeScreen() {
                 checklist={checklist}
                 progress={getChecklistProgress(checklist.checklist_id)}
                 itemCount={getChecklistItemCount(checklist.checklist_id)}
+                bucketName={getBucketName(checklist.bucket_id)}
                 onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
               />
             ))

@@ -60,9 +60,17 @@ export default function ChecklistDetailsScreen() {
 
   useEffect(() => {
     if (id && user) {
+      console.log('Fetching checklist with ID:', id);
       // Clear current data first to avoid showing stale data
-      dispatch(clearCurrentData());
-      dispatch(fetchChecklistWithItems(id));
+      // dispatch(clearCurrentData());
+      dispatch(fetchChecklistWithItems(id))
+        .unwrap()
+        .then((result) => {
+          console.log('Checklist fetched successfully:', result);
+        })
+        .catch((error) => {
+          console.error('Error fetching checklist:', error);
+        });
     }
   }, [id, user, dispatch]);
 
@@ -276,6 +284,16 @@ export default function ChecklistDetailsScreen() {
         <View style={styles.centerContent}>
           <LoadingSpinner />
           <Text style={styles.loadingText}>Loading checklist...</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => {
+              if (id && user) {
+                dispatch(fetchChecklistWithItems(id));
+              }
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -638,14 +656,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#DC2626',
     textAlign: 'center',
   },
   loadingText: {
     fontSize: 16,
     color: '#6B7280',
-    textAlign: 'center',
     marginTop: 16,
+    textAlign: 'center',
   },
   loadingOverlay: {
     position: 'absolute',
@@ -731,7 +749,20 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   cancelButtonText: {
-    color: '#111827',
+    color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  retryButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '600',
   },
 });

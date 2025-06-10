@@ -53,6 +53,7 @@ export const createChecklistWithItems = createAsyncThunk(
     user_id: string;
     bucket_id?: string;
     category_id?: string;
+    target_date?: string;
     tags?: string[];
     items: Array<{ text: string; completed?: boolean; description?: string }>;
   }) => {
@@ -62,7 +63,9 @@ export const createChecklistWithItems = createAsyncThunk(
       data.items,
       data.bucket_id,
       data.category_id,
-      data.tags
+      data.tags,
+      undefined, // fromTemplateId
+      data.target_date
     );
     return response;
   }

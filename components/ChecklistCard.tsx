@@ -1,13 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ChecklistHeader } from '../types/database';
-import { ProgressBar } from './ProgressBar';
-import { Calendar, Tag } from 'lucide-react-native';
+import { Calendar, Tag, FolderOpen } from 'lucide-react-native';
 
 interface ChecklistCardProps {
   checklist: ChecklistHeader;
   progress: number;
   itemCount: number;
+  bucketName?: string;
   onPress: () => void;
 }
 
@@ -15,6 +15,7 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
   checklist,
   progress,
   itemCount,
+  bucketName,
   onPress,
 }) => {
   const formatDate = (dateString?: string) => {
@@ -41,9 +42,29 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
         )}
       </View>
 
-      <View style={styles.progressSection}>
-        <ProgressBar progress={progress} showPercentage />
-        <Text style={styles.itemCount}>{itemCount} items</Text>
+      <View style={styles.infoSection}>
+        <View style={styles.progressSection}>
+          <Text style={styles.progressPercentage}>{Math.round(progress)}%</Text>
+          <Text style={styles.itemCount}>{itemCount} items</Text>
+        </View>
+
+        <View style={styles.metadata}>
+          {bucketName && (
+            <View style={styles.metadataItem}>
+              <FolderOpen size={14} color="#6B7280" />
+              <Text style={styles.metadataText}>{bucketName}</Text>
+            </View>
+          )}
+          
+          {checklist.target_date && (
+            <View style={[styles.metadataItem, isOverdue && styles.overdueMetadata]}>
+              <Calendar size={14} color={isOverdue ? '#DC2626' : '#6B7280'} />
+              <Text style={[styles.metadataText, isOverdue && styles.overdueText]}>
+                {formatDate(checklist.target_date)}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {checklist.tags.length > 0 && (
@@ -113,13 +134,43 @@ const styles = StyleSheet.create({
   overdueText: {
     color: '#DC2626',
   },
-  progressSection: {
+  infoSection: {
     marginBottom: 12,
+  },
+  progressSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressPercentage: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
   },
   itemCount: {
     fontSize: 12,
     color: '#6B7280',
-    marginTop: 4,
+  },
+  metadata: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  metadataItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metadataText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  overdueMetadata: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   tagsSection: {
     flexDirection: 'row',
