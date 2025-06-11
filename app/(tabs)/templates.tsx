@@ -13,9 +13,11 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { fetchPublicTemplatesWithPreview } from '../../store/slices/templatesSlice';
+import { fetchPublicTemplatesWithPreview, fetchTemplateWithItems } from '../../store/slices/templatesSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
+import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { TemplateCard } from '../../components/TemplateCard';
+import { TemplateDetailModal } from '../../components/TemplateDetailModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { Plus, Search } from 'lucide-react-native';
@@ -27,18 +29,24 @@ export default function TemplatesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   const { user } = useSelector((state: RootState) => state.auth);
-  const { templatesWithPreview = [], loading: templatesLoading, error: templatesError } = useSelector(
+  const { templatesWithPreview = [], currentTemplate, currentTemplateItems, loading: templatesLoading, error: templatesError } = useSelector(
     (state: RootState) => state.templates
   );
   const { categories } = useSelector((state: RootState) => state.categories);
+  const { buckets } = useSelector((state: RootState) => state.buckets);
 
   useEffect(() => {
     // Fetch public templates with preview - no user dependency needed
     dispatch(fetchPublicTemplatesWithPreview());
     dispatch(fetchCategories());
-  }, [dispatch]);
+    if (user) {
+      dispatch(fetchBuckets(user.user_id));
+    }
+  }, [dispatch, user]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -51,6 +59,17 @@ export default function TemplatesScreen() {
     if (!categoryId) return undefined;
     return categories.find(c => c.category_id === categoryId)?.name;
   };
+
+  const handleTemplatePress = async (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    // Fetch template details
+    await dispatch(fetchTemplateWithItems(templateId));
+    setShowTemplateModal(true);
+  };
+
+  const selectedTemplate = selectedTemplateId 
+    ? templatesWithPreview.find(t => t.template_id === selectedTemplateId) 
+    : null;
 
   const filteredTemplates = templatesWithPreview.filter(template => {
     const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -162,10 +181,7 @@ export default function TemplatesScreen() {
               categoryName={getCategoryName(template.category_id)}
               itemCount={template.item_count}
               previewItems={template.preview_items}
-              onPress={() => {
-                // TODO: Implement template details modal with "Use Template" option
-                Alert.alert('Template Details', 'Template detail view with Use Template option coming soon!');
-              }}
+              onPress={() => handleTemplatePress(template.template_id)}
             />
           ))
         ) : (
@@ -190,6 +206,17 @@ export default function TemplatesScreen() {
           </View>
         )}
       </ScrollView>
+      
+      <TemplateDetailModal
+        visible={showTemplateModal}
+        template={selectedTemplate || null}
+        templateItems={currentTemplateItems || []}
+        categoryName={selectedTemplate ? getCategoryName(selectedTemplate.category_id) : undefined}
+        onClose={() => {
+          setShowTemplateModal(false);
+          setSelectedTemplateId(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
