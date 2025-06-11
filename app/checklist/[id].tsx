@@ -78,6 +78,9 @@ export default function ChecklistDetailsScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [sharing, setSharing] = useState(false);
   
+  // Date picker states
+  const [tempSelectedDate, setTempSelectedDate] = useState<Date | null>(null);
+  
   // Validation states
   const [titleValidationError, setTitleValidationError] = useState<string | null>(null);
   const [itemValidationError, setItemValidationError] = useState<string | null>(null);
@@ -509,8 +512,21 @@ export default function ChecklistDetailsScreen() {
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (selectedDate) {
-      setEditingTargetDate(selectedDate);
+      setTempSelectedDate(selectedDate);
     }
+  };
+
+  const handleDatePickerDone = () => {
+    // Use the temporary selected date, or default to today if none was explicitly selected
+    const dateToSet = tempSelectedDate || new Date();
+    setEditingTargetDate(dateToSet);
+    setShowDatePicker(false);
+    setTempSelectedDate(null); // Reset temp date
+  };
+
+  const handleDatePickerCancel = () => {
+    setShowDatePicker(false);
+    setTempSelectedDate(null); // Reset temp date without saving
   };
 
   // Handle back navigation with unsaved changes check
@@ -769,7 +785,11 @@ export default function ChecklistDetailsScreen() {
               {editingHeader ? (
                 <TouchableOpacity 
                   style={styles.editableField}
-                  onPress={() => setShowDatePicker(true)}
+                  onPress={() => {
+                    // Initialize temp date with current editing date or today
+                    setTempSelectedDate(editingTargetDate || new Date());
+                    setShowDatePicker(true);
+                  }}
                 >
                   <Calendar size={16} color="#6B7280" />
                   <Text style={styles.editableFieldText}>
@@ -1113,7 +1133,7 @@ export default function ChecklistDetailsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Due Date</Text>
               <TouchableOpacity 
-                onPress={() => setShowDatePicker(false)}
+                onPress={handleDatePickerDone}
                 style={styles.modalCloseButton}
               >
                 <Text style={styles.modalDoneText}>Done</Text>
@@ -1125,6 +1145,7 @@ export default function ChecklistDetailsScreen() {
                 style={styles.modalOption}
                 onPress={() => {
                   setEditingTargetDate(null);
+                  setTempSelectedDate(null);
                   setShowDatePicker(false);
                 }}
               >
@@ -1135,7 +1156,7 @@ export default function ChecklistDetailsScreen() {
               </TouchableOpacity>
               
               <DateTimePicker
-                value={editingTargetDate || new Date()}
+                value={tempSelectedDate || editingTargetDate || new Date()}
                 mode="date"
                 display="spinner"
                 onChange={handleDateChange}

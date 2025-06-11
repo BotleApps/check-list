@@ -59,6 +59,13 @@ export default function NewChecklistScreen() {
   const [titleValidationError, setTitleValidationError] = useState<string | null>(null);
   const [itemValidationErrors, setItemValidationErrors] = useState<(string | null)[]>([null]);
 
+  // Computed validation state for save button
+  const isSaveEnabled = React.useMemo(() => {
+    const hasValidTitle = title && title.trim().length > 0;
+    const hasValidItems = items.some(item => item && item.trim().length > 0);
+    return hasValidTitle && hasValidItems && !loading;
+  }, [title, items, loading]);
+
   // Refs for managing focus
   const titleInputRef = useRef<TextInput>(null);
   const itemInputRefs = useRef<(TextInput | null)[]>([]);
@@ -342,13 +349,16 @@ export default function NewChecklistScreen() {
             <X size={24} color="#007AFF" />
           </TouchableOpacity>
           <TouchableOpacity 
-            style={styles.doneButton} 
+            style={[
+              styles.doneButton,
+              !isSaveEnabled && styles.doneButtonDisabled
+            ]} 
             onPress={handleSave}
-            disabled={loading || !title.trim()}
+            disabled={!isSaveEnabled}
           >
             <Text style={[
               styles.doneButtonText,
-              (!title.trim() || loading) && styles.doneButtonTextDisabled
+              !isSaveEnabled && styles.doneButtonTextDisabled
             ]}>
               Save
             </Text>
@@ -536,14 +546,36 @@ export default function NewChecklistScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.datePickerContainer}>
-              <DateTimePicker
-                value={targetDate || new Date()}
-                mode="date"
-                display="spinner"
-                onChange={handleDateChange}
-                minimumDate={new Date()}
-                style={styles.datePicker}
-              />
+              {Platform.OS === 'web' ? (
+                <View style={styles.webDateInputContainer}>
+                  <input
+                    type="date"
+                    value={targetDate ? targetDate.toISOString().split('T')[0] : ''}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => {
+                      const selectedDate = e.target.value ? new Date(e.target.value) : null;
+                      setTargetDate(selectedDate);
+                    }}
+                    style={{
+                      padding: 12,
+                      borderRadius: 8,
+                      border: '1px solid #D1D5DB',
+                      fontSize: 16,
+                      width: '100%',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  />
+                </View>
+              ) : (
+                <DateTimePicker
+                  value={targetDate || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  minimumDate={new Date()}
+                  style={styles.datePicker}
+                />
+              )}
             </View>
           </SafeAreaView>
         </Modal>
@@ -587,6 +619,10 @@ const styles = StyleSheet.create({
   },
   doneButton: {
     padding: 8,
+  },
+  doneButtonDisabled: {
+    padding: 8,
+    opacity: 0.5,
   },
   doneButtonText: {
     fontSize: 17,
@@ -730,6 +766,10 @@ const styles = StyleSheet.create({
   },
   datePicker: {
     height: 200,
+  },
+  webDateInputContainer: {
+    padding: 20,
+    alignItems: 'center',
   },
   tagsContent: {
     flex: 1,

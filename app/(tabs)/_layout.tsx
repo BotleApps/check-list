@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { Home, FolderOpen, FileText, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
@@ -23,8 +24,9 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopColor: '#E5E7EB',
           paddingTop: 8,
-          paddingBottom: Math.max(insets.bottom, 8),
-          height: 64 + Math.max(insets.bottom - 8, 0),
+          paddingBottom: Platform.OS === 'web' ? 12 : Math.max(insets.bottom, 8),
+          height: Platform.OS === 'web' ? 68 : 64 + Math.max(insets.bottom - 8, 0),
+          minHeight: Platform.OS === 'web' ? 68 : undefined,
         },
         tabBarLabelStyle: {
           fontSize: 12,
