@@ -151,6 +151,47 @@ class AuthService {
     }
   }
 
+  async updateUserProfile(userId: string, updates: { name?: string }): Promise<User> {
+    try {
+      // Ensure the session is properly established
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        throw new Error(`Session error: ${sessionError.message}`);
+      }
+      
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      // Verify the user can only update their own profile
+      if (session.user.id !== userId) {
+        throw new Error('Unauthorized: Cannot update other user profiles');
+      }
+
+      // Update the user profile in the database
+      const { data, error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (!data) {
+        throw new Error('No user data returned after update');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
+    }
+  }
+
   async getUserProfile(userId: string, email: string): Promise<User> {
     try {
       // Ensure the session is properly established

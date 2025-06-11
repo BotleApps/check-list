@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
-import { Home, FolderOpen, FileText, User } from 'lucide-react-native';
+import { Home, FolderOpen, Compass, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
 
@@ -24,9 +24,9 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopColor: '#E5E7EB',
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'web' ? 12 : Math.max(insets.bottom, 8),
-          height: Platform.OS === 'web' ? 68 : 64 + Math.max(insets.bottom - 8, 0),
-          minHeight: Platform.OS === 'web' ? 68 : undefined,
+          paddingBottom: Platform.OS === 'web' ? 16 : Math.max(insets.bottom, 8),
+          height: Platform.OS === 'web' ? 72 : 64 + Math.max(insets.bottom - 8, 0),
+          minHeight: Platform.OS === 'web' ? 72 : undefined,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -56,9 +56,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="templates"
         options={{
-          title: 'Templates',
+          title: 'Discover',
           tabBarIcon: ({ size, color }) => (
-            <FileText size={size} color={color} />
+            <Compass size={size} color={color} />
           ),
         }}
       />

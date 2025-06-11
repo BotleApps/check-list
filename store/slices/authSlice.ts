@@ -60,6 +60,14 @@ export const resendConfirmation = createAsyncThunk(
   }
 );
 
+export const updateUserProfile = createAsyncThunk(
+  'auth/updateProfile',
+  async ({ userId, updates }: { userId: string; updates: { name?: string } }) => {
+    const updatedUser = await authService.updateUserProfile(userId, updates);
+    return updatedUser;
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -179,6 +187,20 @@ const authSlice = createSlice({
       .addCase(resendConfirmation.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Resend confirmation failed';
+      })
+      .addCase(updateUserProfile.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload) {
+          state.user = { ...state.user, ...action.payload };
+        }
+      })
+      .addCase(updateUserProfile.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Profile update failed';
       });
   },
 });

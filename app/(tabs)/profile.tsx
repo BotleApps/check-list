@@ -8,13 +8,16 @@ import {
   SafeAreaView,
   TextInput,
   Alert,
+  Modal,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { logoutUser } from '../../store/slices/authSlice';
+import { logoutUser, updateUserProfile } from '../../store/slices/authSlice';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { InfoModal } from '../../components/InfoModal';
+import { Toast } from '../../components/Toast';
+import { ProfileEditModal } from '../../components/ProfileEditModal';
 import { 
   User, 
   Settings, 
@@ -25,8 +28,6 @@ import {
   Mail,
   Calendar,
   Edit3,
-  Check,
-  X,
 } from 'lucide-react-native';
 
 export default function ProfileScreen() {
@@ -42,8 +43,12 @@ export default function ProfileScreen() {
   });
   
   // Profile editing state
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -61,19 +66,36 @@ export default function ProfileScreen() {
   };
 
   const handleEditName = () => {
-    setEditedName(user?.name || user?.email || '');
-    setIsEditingName(true);
+    setShowEditModal(true);
   };
 
-  const handleSaveName = () => {
-    // TODO: Implement name update API call
-    Alert.alert('Coming Soon', 'Profile editing will be available in the next update');
-    setIsEditingName(false);
+  const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+  };
+
+  const handleSaveProfile = async (newName: string) => {
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    try {
+      await dispatch(updateUserProfile({
+        userId: user.user_id,
+        updates: { name: newName }
+      })).unwrap();
+      
+      showToastMessage('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      showToastMessage('Failed to update profile. Please try again.', 'error');
+      throw error;
+    }
   };
 
   const handleCancelEdit = () => {
-    setIsEditingName(false);
-    setEditedName('');
+    setShowEditModal(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -123,41 +145,15 @@ export default function ProfileScreen() {
             <User size={48} color="#FFFFFF" />
           </View>
           <View style={styles.userInfo}>
-            {isEditingName ? (
-              <View style={styles.nameEditContainer}>
-                <TextInput
-                  style={styles.nameInput}
-                  value={editedName}
-                  onChangeText={setEditedName}
-                  placeholder="Enter your name"
-                  autoFocus
-                />
-                <View style={styles.nameEditActions}>
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={handleSaveName}
-                  >
-                    <Check size={16} color="#FFFFFF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={handleCancelEdit}
-                  >
-                    <X size={16} color="#6B7280" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.nameContainer}>
-                <Text style={styles.userName}>{user.name}</Text>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={handleEditName}
-                >
-                  <Edit3 size={16} color="#6B7280" />
-                </TouchableOpacity>
-              </View>
-            )}
+            <View style={styles.nameContainer}>
+              <Text style={styles.userName}>{user.name}</Text>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={handleEditName}
+              >
+                <Edit3 size={16} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
             <View style={styles.userDetail}>
               <Mail size={14} color="#6B7280" />
               <Text style={styles.userDetailText}>{user.email}</Text>
@@ -220,6 +216,21 @@ export default function ProfileScreen() {
         title={infoModalContent.title}
         message={infoModalContent.message}
         onClose={() => setShowInfoModal(false)}
+      />
+      
+      <ProfileEditModal
+        visible={showEditModal}
+        currentName={user.name || ''}
+        userEmail={user.email}
+        onSave={handleSaveProfile}
+        onCancel={handleCancelEdit}
+      />
+      
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
       />
     </SafeAreaView>
   );
@@ -285,43 +296,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  nameEditContainer: {
-    marginBottom: 8,
-  },
-  nameInput: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 8,
-  },
-  nameEditActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   editButton: {
     padding: 4,
     marginLeft: 8,
-  },
-  saveButton: {
-    backgroundColor: '#2563EB',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#F3F4F6',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   userDetail: {
     flexDirection: 'row',
