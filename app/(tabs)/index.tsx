@@ -301,65 +301,69 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with App Name */}
+      <View style={styles.header}>
+        <Text style={styles.appTitle}>Checklist</Text>
+        
+        {/* Search and Sort Controls */}
+        <View style={styles.searchSortContainer}>
+          <View style={styles.searchContainer}>
+            <Search size={20} color="#6B7280" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search checklists..."
+              placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+          </View>
+          
+          <TouchableOpacity
+            style={styles.sortIconButton}
+            onPress={() => setShowSortMenu(!showSortMenu)}
+          >
+            <ArrowUpDown size={20} color="#6B7280" />
+          </TouchableOpacity>
+          
+          {showSortMenu && (
+            <View style={styles.sortMenu}>
+              {[
+                { key: 'folder', label: 'Folder Name' },
+                { key: 'created', label: 'Created Date' },
+                { key: 'target', label: 'Due Date' },
+                { key: 'modified', label: 'Modified Date' }
+              ].map(option => (
+                <TouchableOpacity
+                  key={option.key}
+                  style={styles.sortOption}
+                  onPress={() => toggleSort(option.key as typeof sortBy)}
+                >
+                  <Text style={[
+                    styles.sortOptionText,
+                    sortBy === option.key && styles.sortOptionTextActive
+                  ]}>
+                    {option.label}
+                  </Text>
+                  {sortBy === option.key && (
+                    <Text style={styles.sortDirection}>
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header with App Name */}
-        <View style={styles.header}>
-          <Text style={styles.appTitle}>Checklist</Text>
-          
-          {/* Search and Sort Controls */}
-          <View style={styles.searchSortContainer}>
-            <View style={styles.searchContainer}>
-              <Search size={20} color="#6B7280" style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search checklists..."
-                placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
-            </View>
-            
-            <TouchableOpacity
-              style={styles.sortIconButton}
-              onPress={() => setShowSortMenu(!showSortMenu)}
-            >
-              <ArrowUpDown size={20} color="#6B7280" />
-            </TouchableOpacity>
-            
-            {showSortMenu && (
-              <View style={styles.sortMenu}>
-                {[
-                  { key: 'folder', label: 'Folder Name' },
-                  { key: 'created', label: 'Created Date' },
-                  { key: 'target', label: 'Due Date' },
-                  { key: 'modified', label: 'Modified Date' }
-                ].map(option => (
-                  <TouchableOpacity
-                    key={option.key}
-                    style={styles.sortOption}
-                    onPress={() => toggleSort(option.key as typeof sortBy)}
-                  >
-                    <Text style={[
-                      styles.sortOptionText,
-                      sortBy === option.key && styles.sortOptionTextActive
-                    ]}>
-                      {option.label}
-                      {sortBy === option.key && (sortDirection === 'asc' ? ' ↑' : ' ↓')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        </View>
-
         {/* Grouped Checklists */}
         {(() => {
           const hasChecklists = checklists.length > 0;
@@ -544,6 +548,12 @@ const styles = StyleSheet.create({
   sortOptionTextActive: {
     color: '#2563EB',
     fontWeight: '600',
+  },
+  sortDirection: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '600',
+    marginLeft: 8,
   },
   section: {
     marginTop: 16,

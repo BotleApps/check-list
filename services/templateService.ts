@@ -292,8 +292,8 @@ class TemplateService {
       name: `${template.name} (from template)`,
       bucket_id: bucketId || null,
       tags: tags || [],
-      target_date: null, // User can set this later if needed
-      is_completed: false,
+      due_date: null, // User can set this later if needed
+      status: 'active',
     };
 
     const { data: newChecklist, error: checklistError } = await supabase
@@ -313,8 +313,6 @@ class TemplateService {
         text: item.text,
         description: item.description,
         is_completed: false,
-        due_days: null, // Template items don't have due_days
-        notes: null,
         order_index: item.order_index || index,
       }));
 

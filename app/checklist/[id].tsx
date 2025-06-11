@@ -28,6 +28,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
+import { Toast } from '../../components/Toast';
 import { 
   validateChecklistTitle, 
   validateItemText, 
@@ -77,6 +78,11 @@ export default function ChecklistDetailsScreen() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [sharing, setSharing] = useState(false);
+  
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
   
   // Date picker states
   const [tempSelectedDate, setTempSelectedDate] = useState<Date | null>(null);
@@ -479,6 +485,12 @@ export default function ChecklistDetailsScreen() {
     );
   };
 
+  const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+  };
+
   const handleShare = async () => {
     if (!checklist) return;
     
@@ -489,22 +501,12 @@ export default function ChecklistDetailsScreen() {
         categoryId: selectedCategoryId || undefined
       })).unwrap();
       
-      Alert.alert(
-        'Success!', 
-        `Checklist "${result.name}" has been shared as a public template.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setShowShareModal(false);
-              setSelectedCategoryId('');
-            }
-          }
-        ]
-      );
+      showToastMessage(`Checklist "${result.name}" has been shared as a public template!`);
+      setShowShareModal(false);
+      setSelectedCategoryId('');
     } catch (error) {
       console.error('Error sharing checklist:', error);
-      Alert.alert('Error', 'Failed to share checklist. Please try again.');
+      showToastMessage('Failed to share checklist. Please try again.', 'error');
     } finally {
       setSharing(false);
     }
@@ -1166,6 +1168,13 @@ export default function ChecklistDetailsScreen() {
           </SafeAreaView>
         </Modal>
       )}
+      
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

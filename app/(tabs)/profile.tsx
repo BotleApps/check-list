@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
@@ -16,13 +18,15 @@ import { InfoModal } from '../../components/InfoModal';
 import { 
   User, 
   Settings, 
-  Bell, 
   Shield, 
   HelpCircle, 
   LogOut,
   ChevronRight,
   Mail,
   Calendar,
+  Edit3,
+  Check,
+  X,
 } from 'lucide-react-native';
 
 export default function ProfileScreen() {
@@ -36,6 +40,10 @@ export default function ProfileScreen() {
     title: '',
     message: '',
   });
+  
+  // Profile editing state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -52,6 +60,22 @@ export default function ProfileScreen() {
     setShowInfoModal(true);
   };
 
+  const handleEditName = () => {
+    setEditedName(user?.name || user?.email || '');
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    // TODO: Implement name update API call
+    Alert.alert('Coming Soon', 'Profile editing will be available in the next update');
+    setIsEditingName(false);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -65,37 +89,19 @@ export default function ProfileScreen() {
       icon: Settings,
       title: 'Settings',
       subtitle: 'App preferences and configuration',
-      onPress: () => {
-        // TODO: Implement settings screen
-        showComingSoon('Coming Soon', 'Settings screen will be available in the next update');
-      },
-    },
-    {
-      icon: Bell,
-      title: 'Notifications',
-      subtitle: 'Manage your notification preferences',
-      onPress: () => {
-        // TODO: Implement notifications settings
-        showComingSoon('Coming Soon', 'Notification settings will be available in the next update');
-      },
+      onPress: () => router.push('/settings'),
     },
     {
       icon: Shield,
       title: 'Privacy & Security',
       subtitle: 'Manage your privacy settings',
-      onPress: () => {
-        // TODO: Implement privacy settings
-        showComingSoon('Coming Soon', 'Privacy settings will be available in the next update');
-      },
+      onPress: () => router.push('/privacy-security'),
     },
     {
       icon: HelpCircle,
       title: 'Help & Support',
       subtitle: 'Get help and contact support',
-      onPress: () => {
-        // TODO: Implement help screen
-        showComingSoon('Coming Soon', 'Help & Support will be available in the next update');
-      },
+      onPress: () => router.push('/help-support'),
     },
   ];
 
@@ -117,7 +123,41 @@ export default function ProfileScreen() {
             <User size={48} color="#FFFFFF" />
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user.name}</Text>
+            {isEditingName ? (
+              <View style={styles.nameEditContainer}>
+                <TextInput
+                  style={styles.nameInput}
+                  value={editedName}
+                  onChangeText={setEditedName}
+                  placeholder="Enter your name"
+                  autoFocus
+                />
+                <View style={styles.nameEditActions}>
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={handleSaveName}
+                  >
+                    <Check size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={handleCancelEdit}
+                  >
+                    <X size={16} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.nameContainer}>
+                <Text style={styles.userName}>{user.name}</Text>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={handleEditName}
+                >
+                  <Edit3 size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            )}
             <View style={styles.userDetail}>
               <Mail size={14} color="#6B7280" />
               <Text style={styles.userDetailText}>{user.email}</Text>
@@ -239,6 +279,49 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
     marginBottom: 8,
+  },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  nameEditContainer: {
+    marginBottom: 8,
+  },
+  nameInput: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  nameEditActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  saveButton: {
+    backgroundColor: '#2563EB',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#F3F4F6',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   userDetail: {
     flexDirection: 'row',
