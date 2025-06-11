@@ -618,7 +618,7 @@ export default function ChecklistDetailsScreen() {
           <View style={styles.loadingOverlay}>
             <View style={styles.loadingIndicator}>
               <LoadingSpinner />
-              <Text style={styles.overlayText}>Updating...</Text>
+              <Text style={styles.overlayText}>Loading...</Text>
             </View>
           </View>
         )}

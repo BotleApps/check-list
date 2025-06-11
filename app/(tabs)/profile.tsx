@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
-  Alert,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
 import { logoutUser } from '../../store/slices/authSlice';
+import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { InfoModal } from '../../components/InfoModal';
 import { 
   User, 
   Settings, 
@@ -28,26 +29,27 @@ export default function ProfileScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
   const { user } = useSelector((state: RootState) => state.auth);
+  
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [infoModalContent, setInfoModalContent] = useState({
+    title: '',
+    message: '',
+  });
 
   const handleLogout = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: () => {
-            dispatch(logoutUser());
-            router.replace('/auth/login');
-          },
-        },
-      ]
-    );
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
+    dispatch(logoutUser());
+    router.replace('/auth/login');
+  };
+
+  const showComingSoon = (title: string, message: string) => {
+    setInfoModalContent({ title, message });
+    setShowInfoModal(true);
   };
 
   const formatDate = (dateString: string) => {
@@ -65,7 +67,7 @@ export default function ProfileScreen() {
       subtitle: 'App preferences and configuration',
       onPress: () => {
         // TODO: Implement settings screen
-        Alert.alert('Coming Soon', 'Settings screen will be available in the next update');
+        showComingSoon('Coming Soon', 'Settings screen will be available in the next update');
       },
     },
     {
@@ -74,7 +76,7 @@ export default function ProfileScreen() {
       subtitle: 'Manage your notification preferences',
       onPress: () => {
         // TODO: Implement notifications settings
-        Alert.alert('Coming Soon', 'Notification settings will be available in the next update');
+        showComingSoon('Coming Soon', 'Notification settings will be available in the next update');
       },
     },
     {
@@ -83,7 +85,7 @@ export default function ProfileScreen() {
       subtitle: 'Manage your privacy settings',
       onPress: () => {
         // TODO: Implement privacy settings
-        Alert.alert('Coming Soon', 'Privacy settings will be available in the next update');
+        showComingSoon('Coming Soon', 'Privacy settings will be available in the next update');
       },
     },
     {
@@ -92,7 +94,7 @@ export default function ProfileScreen() {
       subtitle: 'Get help and contact support',
       onPress: () => {
         // TODO: Implement help screen
-        Alert.alert('Coming Soon', 'Help & Support will be available in the next update');
+        showComingSoon('Coming Soon', 'Help & Support will be available in the next update');
       },
     },
   ];
@@ -160,6 +162,25 @@ export default function ProfileScreen() {
           <Text style={styles.versionText}>Checklist App v1.0.0</Text>
         </View>
       </ScrollView>
+      
+      {/* Custom Modals */}
+      <ConfirmationModal
+        visible={showLogoutModal}
+        title="Sign Out"
+        message="Are you sure you want to sign out?"
+        confirmText="Sign Out"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
+      
+      <InfoModal
+        visible={showInfoModal}
+        title={infoModalContent.title}
+        message={infoModalContent.message}
+        onClose={() => setShowInfoModal(false)}
+      />
     </SafeAreaView>
   );
 }
