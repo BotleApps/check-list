@@ -1174,7 +1174,7 @@ export default function ChecklistDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
@@ -1201,6 +1201,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    backgroundColor: '#F9FAFB',
   },
   checklistInfo: {
     backgroundColor: '#FFFFFF',

@@ -276,6 +276,68 @@ class TemplateService {
       throw new Error(error.message);
     }
   }
+
+  async createChecklistFromTemplate(
+    templateId: string,
+    userId: string,
+    bucketId?: string,
+    tags?: string[]
+  ): Promise<{ checklist_id: string; name: string }> {
+    // Get the template with all its items
+    const { template, items } = await this.getTemplateWithItems(templateId);
+
+    // Create the checklist header
+    const checklistData = {
+      user_id: userId,
+      name: `${template.name} (from template)`,
+      bucket_id: bucketId || null,
+      tags: tags || [],
+      target_date: null, // User can set this later if needed
+      is_completed: false,
+    };
+
+    const { data: newChecklist, error: checklistError } = await supabase
+      .from('checklist_headers')
+      .insert(checklistData)
+      .select()
+      .single();
+
+    if (checklistError) {
+      throw new Error(checklistError.message);
+    }
+
+    // Create the checklist items from template items
+    if (items && items.length > 0) {
+      const checklistItems = items.map((item, index) => ({
+        checklist_id: newChecklist.checklist_id,
+        text: item.text,
+        description: item.description,
+        is_completed: false,
+        due_days: null, // Template items don't have due_days
+        notes: null,
+        order_index: item.order_index || index,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('checklist_items')
+        .insert(checklistItems);
+
+      if (itemsError) {
+        // Cleanup: delete the checklist header if items failed
+        await supabase
+          .from('checklist_headers')
+          .delete()
+          .eq('checklist_id', newChecklist.checklist_id);
+        
+        throw new Error(itemsError.message);
+      }
+    }
+
+    return {
+      checklist_id: newChecklist.checklist_id,
+      name: newChecklist.name,
+    };
+  }
 }
 
 export const templateService = new TemplateService();

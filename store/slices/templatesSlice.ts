@@ -68,6 +68,29 @@ export const fetchPublicTemplatesWithPreview = createAsyncThunk(
   }
 );
 
+export const createChecklistFromTemplate = createAsyncThunk(
+  'templates/createChecklistFromTemplate',
+  async ({ 
+    templateId, 
+    userId, 
+    bucketId, 
+    tags 
+  }: { 
+    templateId: string; 
+    userId: string; 
+    bucketId?: string; 
+    tags?: string[] 
+  }) => {
+    const response = await templateService.createChecklistFromTemplate(
+      templateId,
+      userId,
+      bucketId,
+      tags
+    );
+    return response;
+  }
+);
+
 const templatesSlice = createSlice({
   name: 'templates',
   initialState,

@@ -31,6 +31,7 @@ interface TemplateDetailModalProps {
   templateItems: ChecklistTemplateItem[];
   categoryName?: string;
   onClose: () => void;
+  onUseTemplate: (bucketId?: string, tags?: string[]) => Promise<void>;
 }
 
 export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
@@ -39,6 +40,7 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   templateItems,
   categoryName,
   onClose,
+  onUseTemplate,
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
@@ -56,41 +58,9 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
     
     setIsCreating(true);
     try {
-      const checklistData = {
-        name: `${template.name} (Copy)`,
-        user_id: user.user_id,
-        bucket_id: selectedFolderId || undefined,
-        items: templateItems.map(item => ({
-          text: item.text,
-          is_completed: false,
-          is_required: item.is_required,
-          description: item.description,
-          order_index: item.order_index,
-        })),
-      };
-
-      // Note: We'll need to implement createChecklistFromTemplate action
-      // For now, we'll just show success
-      Alert.alert(
-        'Success!',
-        'Checklist created from template successfully!',
-        [
-          {
-            text: 'View Checklist',
-            onPress: () => {
-              onClose();
-              router.push('/');
-            },
-          },
-          {
-            text: 'OK',
-            onPress: onClose,
-          },
-        ]
-      );
+      await onUseTemplate(selectedFolderId || undefined, []);
     } catch (error) {
       console.error('Error creating checklist from template:', error);
-      Alert.alert('Error', 'Failed to create checklist from template. Please try again.');
     } finally {
       setIsCreating(false);
     }

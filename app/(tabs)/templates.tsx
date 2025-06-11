@@ -13,14 +13,15 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { fetchPublicTemplatesWithPreview, fetchTemplateWithItems } from '../../store/slices/templatesSlice';
+import { fetchPublicTemplatesWithPreview, fetchTemplateWithItems, createChecklistFromTemplate } from '../../store/slices/templatesSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { TemplateCard } from '../../components/TemplateCard';
 import { TemplateDetailModal } from '../../components/TemplateDetailModal';
+import { Toast } from '../../components/Toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { Plus, Search } from 'lucide-react-native';
+import { Search } from 'lucide-react-native';
 
 export default function TemplatesScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -31,6 +32,11 @@ export default function TemplatesScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   const { user } = useSelector((state: RootState) => state.auth);
   const { templatesWithPreview = [], currentTemplate, currentTemplateItems, loading: templatesLoading, error: templatesError } = useSelector(
@@ -67,6 +73,38 @@ export default function TemplatesScreen() {
     setShowTemplateModal(true);
   };
 
+  const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+  };
+
+  const handleUseTemplate = async (bucketId?: string, tags: string[] = []) => {
+    if (!user || !selectedTemplateId) return;
+
+    try {
+      const result = await dispatch(createChecklistFromTemplate({
+        templateId: selectedTemplateId,
+        userId: user.user_id,
+        bucketId,
+        tags,
+      })).unwrap();
+
+      // Close modal
+      setShowTemplateModal(false);
+      setSelectedTemplateId(null);
+
+      // Show success toast
+      showToastMessage(`Created "${result.name}" from template!`);
+
+      // Navigate to the new checklist
+      router.push(`/checklist/${result.checklist_id}`);
+    } catch (error) {
+      console.error('Error using template:', error);
+      showToastMessage('Failed to create checklist from template', 'error');
+    }
+  };
+
   const selectedTemplate = selectedTemplateId 
     ? templatesWithPreview.find(t => t.template_id === selectedTemplateId) 
     : null;
@@ -97,27 +135,19 @@ export default function TemplatesScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Templates</Text>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => {
-            // TODO: Implement template creation route
-            Alert.alert('Coming Soon', 'Template creation will be available soon');
-          }}
-        >
-          <Plus size={24} color="#FFFFFF" />
-        </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Search size={20} color="#6B7280" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search templates..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+      <View style={styles.contentContainer}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search size={20} color="#6B7280" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search templates..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
 
       {/* Category Filter */}
       {categories.length > 0 && (
@@ -206,6 +236,7 @@ export default function TemplatesScreen() {
           </View>
         )}
       </ScrollView>
+      </View>
       
       <TemplateDetailModal
         visible={showTemplateModal}
@@ -216,6 +247,14 @@ export default function TemplatesScreen() {
           setShowTemplateModal(false);
           setSelectedTemplateId(null);
         }}
+        onUseTemplate={handleUseTemplate}
+      />
+
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
       />
     </SafeAreaView>
   );
@@ -224,12 +263,13 @@ export default function TemplatesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  contentContainer: {
+    flex: 1,
     backgroundColor: '#F9FAFB',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
@@ -239,14 +279,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
-  },
-  createButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -267,18 +299,23 @@ const styles = StyleSheet.create({
   },
   categoryFilter: {
     marginBottom: 16,
+    maxHeight: 50,
   },
   categoryFilterContent: {
     paddingHorizontal: 16,
-    gap: 8,
+    paddingVertical: 8,
   },
   categoryChip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderRadius: 16,
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    minHeight: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryChipActive: {
     backgroundColor: '#2563EB',
@@ -288,6 +325,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#6B7280',
+    textAlign: 'center',
   },
   categoryChipTextActive: {
     color: '#FFFFFF',

@@ -277,6 +277,10 @@ export default function BucketsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  contentContainer: {
+    flex: 1,
     backgroundColor: '#F9FAFB',
   },
   header: {

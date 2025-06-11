@@ -548,21 +548,21 @@ export default function NewChecklistScreen() {
             <View style={styles.datePickerContainer}>
               {Platform.OS === 'web' ? (
                 <View style={styles.webDateInputContainer}>
-                  <input
-                    type="date"
+                  <TextInput
+                    style={styles.webDateInput}
+                    placeholder="YYYY-MM-DD"
                     value={targetDate ? targetDate.toISOString().split('T')[0] : ''}
-                    min={new Date().toISOString().split('T')[0]}
-                    onChange={(e) => {
-                      const selectedDate = e.target.value ? new Date(e.target.value) : null;
-                      setTargetDate(selectedDate);
-                    }}
-                    style={{
-                      padding: 12,
-                      borderRadius: 8,
-                      border: '1px solid #D1D5DB',
-                      fontSize: 16,
-                      width: '100%',
-                      backgroundColor: '#FFFFFF',
+                    onChangeText={(text) => {
+                      // Validate date format
+                      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+                      if (dateRegex.test(text)) {
+                        const selectedDate = new Date(text);
+                        if (!isNaN(selectedDate.getTime())) {
+                          setTargetDate(selectedDate);
+                        }
+                      } else if (text === '') {
+                        setTargetDate(null);
+                      }
                     }}
                   />
                 </View>
@@ -770,6 +770,16 @@ const styles = StyleSheet.create({
   webDateInputContainer: {
     padding: 20,
     alignItems: 'center',
+  },
+  webDateInput: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    fontSize: 16,
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    textAlign: 'center',
   },
   tagsContent: {
     flex: 1,

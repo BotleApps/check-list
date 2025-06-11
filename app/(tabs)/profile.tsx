@@ -188,10 +188,11 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
+    backgroundColor: '#F9FAFB',
   },
   header: {
     padding: 16,
