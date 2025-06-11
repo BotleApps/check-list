@@ -17,7 +17,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata, deleteChecklist, shareChecklist } from '../../store/slices/checklistsSlice';
+import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata, deleteChecklist, shareChecklist, createChecklistWithItems } from '../../store/slices/checklistsSlice';
 import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
 import { fetchTags, createTag } from '../../store/slices/tagsSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
@@ -29,6 +29,7 @@ import { ErrorMessage } from '../../components/ErrorMessage';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
 import { Toast } from '../../components/Toast';
+import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { 
   validateChecklistTitle, 
   validateItemText, 
@@ -78,6 +79,17 @@ export default function ChecklistDetailsScreen() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [sharing, setSharing] = useState(false);
+  
+  // Delete confirmation state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Duplicate confirmation state
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  
+  // Unsaved changes modal state
+  const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
   
   // Toast state
   const [showToast, setShowToast] = useState(false);
@@ -181,7 +193,7 @@ export default function ChecklistDetailsScreen() {
         isCompleted: currentCompleted,
         completedAt: item.completed_at
       }));
-      Alert.alert('Error', 'Failed to update item status');
+      showToastMessage('Failed to update item status', 'error');
     } finally {
       setSavingItem(null);
     }
@@ -203,13 +215,13 @@ export default function ChecklistDetailsScreen() {
     const itemError = validateItemText(newItemText);
     if (itemError) {
       setItemValidationError(itemError);
-      Alert.alert('Validation Error', itemError);
+      showToastMessage(itemError, 'error');
       return;
     }
     
     // Check if we can add more items
     if (!canAddMoreItems(items.length)) {
-      Alert.alert('Limit Reached', VALIDATION_MESSAGES.MAX_ITEMS_REACHED);
+      showToastMessage(VALIDATION_MESSAGES.MAX_ITEMS_REACHED, 'error');
       return;
     }
     
@@ -232,7 +244,7 @@ export default function ChecklistDetailsScreen() {
       setIsAddingItem(false);
       setNewItemText('');
     } catch (error) {
-      Alert.alert('Error', 'Failed to add item. Please try again.');
+      showToastMessage('Failed to add item. Please try again.', 'error');
     } finally {
       setAddingNewItem(false);
     }
@@ -259,7 +271,7 @@ export default function ChecklistDetailsScreen() {
     const itemError = validateItemText(editingItemText);
     if (itemError) {
       setItemValidationError(itemError);
-      Alert.alert('Validation Error', itemError);
+      showToastMessage(itemError, 'error');
       return;
     }
     
@@ -291,7 +303,7 @@ export default function ChecklistDetailsScreen() {
         itemId: editingItemId,
         text: originalText
       }));
-      Alert.alert('Error', 'Failed to update item. Please try again.');
+      showToastMessage('Failed to update item. Please try again.', 'error');
     } finally {
       setSavingItem(null);
     }
@@ -334,7 +346,7 @@ export default function ChecklistDetailsScreen() {
     const titleError = validateChecklistTitle(editingTitleText);
     if (titleError) {
       setTitleValidationError(titleError);
-      Alert.alert('Validation Error', titleError);
+      showToastMessage(titleError, 'error');
       return;
     }
     
@@ -391,7 +403,7 @@ export default function ChecklistDetailsScreen() {
         due_date: originalData.due_date,
         tags: originalData.tags
       }));
-      Alert.alert('Error', 'Failed to update checklist. Please try again.');
+      showToastMessage('Failed to update checklist. Please try again.', 'error');
     } finally {
       setSavingHeader(false);
     }
@@ -451,38 +463,65 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleDuplicateAction = () => {
-    // TODO: Implement duplicate functionality
-    Alert.alert('Feature Coming Soon', 'Duplicate functionality will be available soon');
+    setShowDuplicateModal(true);
+  };
+
+  const confirmDuplicate = async () => {
+    if (!checklist || !user || duplicating) return;
+    
+    setDuplicating(true);
+    try {
+      // Create a duplicate of the current checklist
+      const duplicateData = {
+        name: `${checklist.name} (Copy)`,
+        user_id: user.user_id,
+        bucket_id: checklist.bucket_id,
+        due_date: checklist.due_date,
+        tags: [...checklist.tags],
+        items: items.map(item => ({
+          text: item.text,
+          completed: false, // Reset completion status for duplicates
+        })),
+      };
+
+      const result = await dispatch(createChecklistWithItems(duplicateData)).unwrap();
+      showToastMessage('Checklist duplicated successfully!');
+      
+      // Navigate to the newly created checklist after a short delay
+      setTimeout(() => {
+        router.push(`/checklist/${result.checklist.checklist_id}`);
+      }, 1000);
+    } catch (error) {
+      console.error('Error duplicating checklist:', error);
+      showToastMessage('Failed to duplicate checklist. Please try again.', 'error');
+    } finally {
+      setDuplicating(false);
+      setShowDuplicateModal(false);
+    }
   };
 
   const handleDeleteAction = () => {
-    Alert.alert(
-      'Delete Checklist',
-      'Are you sure you want to delete this checklist? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!checklist) return;
-            
-            try {
-              await dispatch(deleteChecklist(checklist.checklist_id)).unwrap();
-              Alert.alert('Success', 'Checklist deleted successfully', [
-                {
-                  text: 'OK',
-                  onPress: () => router.back()
-                }
-              ]);
-            } catch (error) {
-              console.error('Error deleting checklist:', error);
-              Alert.alert('Error', 'Failed to delete checklist. Please try again.');
-            }
-          }
-        }
-      ]
-    );
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!checklist || deleting) return;
+    
+    setDeleting(true);
+    try {
+      await dispatch(deleteChecklist(checklist.checklist_id)).unwrap();
+      showToastMessage('Checklist deleted successfully!');
+      // Navigate back after a short delay to show the success message
+      setTimeout(() => {
+        router.back();
+      }, 1500);
+    } catch (error) {
+      console.error('Error deleting checklist:', error);
+      showToastMessage('Failed to delete checklist. Please try again.', 'error');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
   };
 
   const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
@@ -534,34 +573,22 @@ export default function ChecklistDetailsScreen() {
   // Handle back navigation with unsaved changes check
   const handleBackPress = () => {
     if (editingHeader) {
-      Alert.alert(
-        'Unsaved Changes',
-        'You have unsaved changes. What would you like to do?',
-        [
-          {
-            text: 'Save & Exit',
-            onPress: async () => {
-              await handleSaveHeader();
-              router.back();
-            },
-          },
-          {
-            text: 'Discard Changes',
-            style: 'destructive',
-            onPress: () => {
-              handleCancelEditHeader();
-              router.back();
-            },
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-        ]
-      );
+      setShowUnsavedChangesModal(true);
     } else {
       router.back();
     }
+  };
+
+  const handleSaveAndExit = async () => {
+    setShowUnsavedChangesModal(false);
+    await handleSaveHeader();
+    router.back();
+  };
+
+  const handleDiscardAndExit = () => {
+    setShowUnsavedChangesModal(false);
+    handleCancelEditHeader();
+    router.back();
   };
 
   // Handle back navigation during editing
@@ -1175,6 +1202,74 @@ export default function ChecklistDetailsScreen() {
         type={toastType}
         onHide={() => setShowToast(false)}
       />
+      
+      <ConfirmationModal
+        visible={showDeleteModal}
+        title="Delete Checklist"
+        message="Are you sure you want to delete this checklist? This action cannot be undone."
+        confirmText={deleting ? "Deleting..." : "Delete"}
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteModal(false)}
+      />
+      
+      <ConfirmationModal
+        visible={showDuplicateModal}
+        title="Duplicate Checklist"
+        message="Create a copy of this checklist? You'll be taken to the new checklist."
+        confirmText={duplicating ? "Duplicating..." : "Duplicate"}
+        cancelText="Cancel"
+        confirmStyle="default"
+        onConfirm={confirmDuplicate}
+        onCancel={() => setShowDuplicateModal(false)}
+      />
+      
+      {/* Custom Unsaved Changes Modal */}
+      <Modal
+        visible={showUnsavedChangesModal}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+      >
+        <Pressable style={styles.overlay} onPress={() => setShowUnsavedChangesModal(false)}>
+          <Pressable style={styles.unsavedModal} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.unsavedModalHeader}>
+              <Text style={styles.unsavedModalTitle}>Unsaved Changes</Text>
+              <TouchableOpacity onPress={() => setShowUnsavedChangesModal(false)} style={styles.closeButton}>
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.unsavedModalMessage}>
+              You have unsaved changes. What would you like to do?
+            </Text>
+            
+            <View style={styles.unsavedModalButtons}>
+              <TouchableOpacity
+                style={[styles.unsavedModalButton, styles.unsavedModalButtonPrimary]}
+                onPress={handleSaveAndExit}
+              >
+                <Text style={styles.unsavedModalButtonTextPrimary}>Save & Exit</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.unsavedModalButton, styles.unsavedModalButtonDestructive]}
+                onPress={handleDiscardAndExit}
+              >
+                <Text style={styles.unsavedModalButtonTextDestructive}>Discard Changes</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.unsavedModalButton, styles.unsavedModalButtonSecondary]}
+                onPress={() => setShowUnsavedChangesModal(false)}
+              >
+                <Text style={styles.unsavedModalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1735,5 +1830,81 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginRight: 12,
+  },
+  // Unsaved changes modal styles
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  unsavedModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  unsavedModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  unsavedModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  unsavedModalMessage: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  unsavedModalButtons: {
+    gap: 12,
+  },
+  unsavedModalButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  unsavedModalButtonPrimary: {
+    backgroundColor: '#2563EB',
+  },
+  unsavedModalButtonDestructive: {
+    backgroundColor: '#DC2626',
+  },
+  unsavedModalButtonSecondary: {
+    backgroundColor: '#F3F4F6',
+  },
+  unsavedModalButtonTextPrimary: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  unsavedModalButtonTextDestructive: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  unsavedModalButtonTextSecondary: {
+    color: '#6B7280',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
