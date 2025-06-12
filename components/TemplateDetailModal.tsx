@@ -23,7 +23,8 @@ import {
   Copy, 
   FolderOpen,
   LayoutTemplate,
-  AlertCircle
+  AlertCircle,
+  Share
 } from 'lucide-react-native';
 
 interface TemplateDetailModalProps {
@@ -33,6 +34,7 @@ interface TemplateDetailModalProps {
   categoryName?: string;
   onClose: () => void;
   onUseTemplate: (bucketId?: string, tags?: string[]) => Promise<void>;
+  onShare?: () => void;
 }
 
 export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
@@ -42,6 +44,7 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   categoryName,
   onClose,
   onUseTemplate,
+  onShare,
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
@@ -162,12 +165,15 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
 
           {/* Actions */}
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={onClose}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            {onShare && (
+              <TouchableOpacity
+                style={styles.shareButton}
+                onPress={onShare}
+              >
+                <Share size={16} color="#6B7280" />
+                <Text style={styles.shareButtonText}>Share</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.useButton, isCreating && styles.useButtonDisabled]}
               onPress={handleUseTemplate}
@@ -395,5 +401,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  shareButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    gap: 8,
+  },
+  shareButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
   },
 });

@@ -35,18 +35,18 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
   };
 
   return (
-    <View style={styles.card}>
-      <TouchableOpacity 
-        style={styles.cardContent} 
-        onPress={handlePress}
-        activeOpacity={0.7}
-        delayPressIn={0}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        {...(Platform.OS === 'ios' && { 
-          underlayColor: 'transparent',
-          testID: `template-card-${template.template_id}`
-        })}
-      >
+    <TouchableOpacity 
+      style={styles.card}
+      onPress={handlePress}
+      activeOpacity={0.7}
+      delayPressIn={0}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      {...(Platform.OS === 'ios' && { 
+        underlayColor: 'transparent',
+        testID: `template-card-${template.template_id}`
+      })}
+    >
+      <View style={styles.cardContent}>
         <View style={styles.iconContainer}>
           <LayoutTemplate size={24} color="#0891B2" />
         </View>
@@ -69,30 +69,30 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
               {template.description}
             </Text>
           )}
-          
-          {/* Preview Items */}
-          {previewItems.length > 0 && (
-            <View style={styles.previewSection}>
-              <Text style={styles.previewLabel}>Items ({itemCount})</Text>
-              {previewItems.slice(0, 2).map((item, index) => (
-                <View key={index} style={styles.previewItem}>
-                  <View style={[styles.previewCheckbox, item.is_required && styles.requiredCheckbox]}>
-                    {item.is_required && <Text style={styles.requiredMark}>!</Text>}
-                  </View>
-                  <Text style={styles.previewItemText} numberOfLines={1}>
-                    {item.text}
-                  </Text>
-                </View>
-              ))}
-              {itemCount > 2 && (
-                <Text style={styles.moreItemsText}>
-                  +{itemCount - 2} more items
-                </Text>
-              )}
+        </View>
+      </View>
+      
+      {/* Preview Items - Outside the icon+content row for proper alignment */}
+      {previewItems.length > 0 && (
+        <View style={styles.previewSection}>
+          <Text style={styles.previewLabel}>Items ({itemCount})</Text>
+          {previewItems.slice(0, 2).map((item, index) => (
+            <View key={index} style={styles.previewItem}>
+              <View style={[styles.previewCheckbox, item.is_required && styles.requiredCheckbox]}>
+                {item.is_required && <Text style={styles.requiredMark}>!</Text>}
+              </View>
+              <Text style={styles.previewItemText} numberOfLines={1}>
+                {item.text}
+              </Text>
             </View>
+          ))}
+          {itemCount > 2 && (
+            <Text style={styles.moreItemsText}>
+              +{itemCount - 2} more items
+            </Text>
           )}
         </View>
-      </TouchableOpacity>
+      )}
       
       {/* Bottom Section with Creator Info and Actions */}
       <View style={styles.bottomSection}>
@@ -136,7 +136,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
           )}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -160,7 +160,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     paddingBottom: 0,
-    minHeight: 80,
   },
   iconContainer: {
     width: 48,
@@ -209,7 +208,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   previewSection: {
-    marginTop: 12,
+    paddingHorizontal: 16,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',

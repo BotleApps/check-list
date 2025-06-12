@@ -22,7 +22,7 @@ import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { Toast } from '../../components/Toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { Search } from 'lucide-react-native';
+import { Search, User } from 'lucide-react-native';
 
 export default function TemplatesScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -232,73 +232,67 @@ export default function TemplatesScreen() {
           />
         </View>
 
-        {/* My Templates Toggle */}
-        <View style={styles.filterRow}>
+        {/* Filters Row: Sticky My Templates + Scrollable Categories */}
+        <View style={styles.filtersContainer}>
+          {/* My Templates Toggle - Sticky on the left */}
           <TouchableOpacity
             style={[
-              styles.myTemplatesToggle,
-              showOnlyMyTemplates && styles.myTemplatesToggleActive,
+              styles.myTemplatesIcon,
+              showOnlyMyTemplates && styles.myTemplatesIconActive,
             ]}
             onPress={() => setShowOnlyMyTemplates(!showOnlyMyTemplates)}
           >
-            <Text
-              style={[
-                styles.myTemplatesToggleText,
-                showOnlyMyTemplates && styles.myTemplatesToggleTextActive,
-              ]}
-            >
-              My Templates
-            </Text>
+            <User size={18} color={showOnlyMyTemplates ? "#FFFFFF" : "#6B7280"} />
           </TouchableOpacity>
-        </View>
 
-      {/* Category Filter */}
-      {categories.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryFilter}
-          contentContainerStyle={styles.categoryFilterContent}
-        >
-          <TouchableOpacity
-            style={[
-              styles.categoryChip,
-              !selectedCategory && styles.categoryChipActive,
-            ]}
-            onPress={() => setSelectedCategory(null)}
-          >
-            <Text
-              style={[
-                styles.categoryChipText,
-                !selectedCategory && styles.categoryChipTextActive,
-              ]}
+          {/* Category Filter - Scrollable */}
+          {categories.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.categoryFilter}
+              contentContainerStyle={styles.categoryFilterContent}
             >
-              All
-            </Text>
-          </TouchableOpacity>
-          {categories.map(category => (
-            <TouchableOpacity
-              key={category.category_id}
-              style={[
-                styles.categoryChip,
-                selectedCategory === category.category_id && styles.categoryChipActive,
-              ]}
-              onPress={() => setSelectedCategory(
-                selectedCategory === category.category_id ? null : category.category_id
-              )}
-            >
-              <Text
+              <TouchableOpacity
                 style={[
-                  styles.categoryChipText,
-                  selectedCategory === category.category_id && styles.categoryChipTextActive,
+                  styles.categoryChip,
+                  !selectedCategory && styles.categoryChipActive,
                 ]}
+                onPress={() => setSelectedCategory(null)}
               >
-                {category.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    !selectedCategory && styles.categoryChipTextActive,
+                  ]}
+                >
+                  All
+                </Text>
+              </TouchableOpacity>
+              {categories.map(category => (
+                <TouchableOpacity
+                  key={category.category_id}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategory === category.category_id && styles.categoryChipActive,
+                  ]}
+                  onPress={() => setSelectedCategory(
+                    selectedCategory === category.category_id ? null : category.category_id
+                  )}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      selectedCategory === category.category_id && styles.categoryChipTextActive,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -358,6 +352,7 @@ export default function TemplatesScreen() {
           setSelectedTemplateId(null);
         }}
         onUseTemplate={handleUseTemplate}
+        onShare={() => selectedTemplateId && handleShareTemplate(selectedTemplateId)}
       />
 
       <Toast
@@ -422,11 +417,11 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   categoryFilter: {
-    marginBottom: 16,
+    flex: 1,
     maxHeight: 50,
   },
   categoryFilterContent: {
-    paddingHorizontal: 16,
+    paddingRight: 16,
     paddingVertical: 8,
   },
   categoryChip: {
@@ -480,6 +475,28 @@ const styles = StyleSheet.create({
   filterRow: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+  },
+  filtersContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 16,
+    paddingVertical: 8,
+    marginBottom: 8,
+    gap: 12,
+  },
+  myTemplatesIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  myTemplatesIconActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
   },
   myTemplatesToggle: {
     alignSelf: 'flex-start',
