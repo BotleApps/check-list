@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { ChecklistTemplateHeader } from '../types/database';
 import { LayoutTemplate } from 'lucide-react-native';
 
@@ -18,8 +18,24 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
   previewItems = [],
   onPress,
 }) => {
+  const handlePress = () => {
+    console.log('TemplateCard pressed:', template.template_id);
+    onPress();
+  };
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
+    <TouchableOpacity 
+      style={styles.card} 
+      onPress={handlePress}
+      activeOpacity={0.7}
+      delayPressIn={0}
+      // Add these props for better iOS compatibility
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      {...(Platform.OS === 'ios' && { 
+        underlayColor: 'transparent',
+        testID: `template-card-${template.template_id}`
+      })}
+    >
       <View style={styles.iconContainer}>
         <LayoutTemplate size={24} color="#0891B2" />
       </View>
@@ -33,9 +49,6 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
           {categoryName && (
             <Text style={styles.category}>{categoryName}</Text>
           )}
-          <Text style={styles.itemCount}>
-            {itemCount} item{itemCount !== 1 ? 's' : ''}
-          </Text>
         </View>
 
         {template.description && (
@@ -47,7 +60,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
         {/* Preview Items */}
         {previewItems.length > 0 && (
           <View style={styles.previewSection}>
-            <Text style={styles.previewLabel}>Preview:</Text>
+            <Text style={styles.previewLabel}>Items ({itemCount})</Text>
             {previewItems.slice(0, 2).map((item, index) => (
               <View key={index} style={styles.previewItem}>
                 <View style={[styles.previewCheckbox, item.is_required && styles.requiredCheckbox]}>
@@ -86,6 +99,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
+    // Ensure the touch area is properly defined
+    minHeight: 80,
   },
   iconContainer: {
     width: 48,
@@ -120,10 +135,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  itemCount: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
   description: {
     fontSize: 14,
     color: '#6B7280',
@@ -141,7 +152,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6B7280',
     marginBottom: 6,
-    textTransform: 'uppercase',
   },
   previewItem: {
     flexDirection: 'row',

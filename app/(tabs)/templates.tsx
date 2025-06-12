@@ -202,6 +202,8 @@ export default function TemplatesScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={16}
       >
         {filteredTemplates.length > 0 ? (
           filteredTemplates.map(template => (

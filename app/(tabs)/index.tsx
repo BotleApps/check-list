@@ -38,7 +38,8 @@ export default function HomeScreen() {
   const { buckets, loading: bucketsLoading } = useSelector((state: RootState) => state.buckets);
 
   // Debug logs
-  console.log('🔍 HomeScreen Debug:', {
+  // Debug info - can be removed in production
+  /* console.log('🔍 HomeScreen Debug:', {
     checklistsCount: checklists.length,
     bucketsCount: buckets.length,
     loading: checklistsLoading,
@@ -46,7 +47,7 @@ export default function HomeScreen() {
     user: user?.user_id,
     sampleChecklist: checklists[0] || null,
     sampleBucket: buckets[0] || null
-  });
+  }); */
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -96,7 +97,7 @@ export default function HomeScreen() {
     if (!bucketId) return undefined;
     const bucket = buckets.find(b => b.bucket_id === bucketId);
     const name = bucket?.name;
-    console.log('🗂️ getBucketName:', { bucketId, foundBucket: !!bucket, name });
+    // console.log('🗂️ getBucketName:', { bucketId, foundBucket: !!bucket, name });
     return name;
   };
 
@@ -150,24 +151,24 @@ export default function HomeScreen() {
       default:
         groupKey = 'Others';
     }
-    console.log('🏷️ getGroupKey:', { 
-      checklistId: checklist.checklist_id, 
-      checklistName: checklist.name,
-      sortBy, 
-      groupKey,
-      bucketId: checklist.bucket_id 
-    });
+    // console.log('🏷️ getGroupKey:', { 
+    //   checklistId: checklist.checklist_id, 
+    //   checklistName: checklist.name,
+    //   sortBy, 
+    //   groupKey,
+    //   bucketId: checklist.bucket_id 
+    // });
     return groupKey;
   };
 
   // Sorting and grouping logic
   const sortedAndGroupedChecklists = useMemo(() => {
-    console.log('🔄 Starting sorting and grouping:', {
-      originalChecklists: checklists.length,
-      searchQuery: searchQuery.trim(),
-      sortBy,
-      sortDirection
-    });
+    // console.log('🔄 Starting sorting and grouping:', {
+    //   originalChecklists: checklists.length,
+    //   searchQuery: searchQuery.trim(),
+    //   sortBy,
+    //   sortDirection
+    // });
 
     // Filter checklists based on search query
     let filteredChecklists = checklists;
@@ -177,7 +178,7 @@ export default function HomeScreen() {
         checklist.name.toLowerCase().includes(query) ||
         getBucketName(checklist.bucket_id)?.toLowerCase().includes(query)
       );
-      console.log('🔍 After search filter:', filteredChecklists.length);
+      // console.log('🔍 After search filter:', filteredChecklists.length);
     }
 
     // Sort checklists
@@ -216,11 +217,11 @@ export default function HomeScreen() {
       return acc;
     }, {} as Record<string, typeof checklists>);
 
-    console.log('📊 Grouped data:', {
-      groupKeys: Object.keys(grouped),
-      groupCounts: Object.entries(grouped).map(([key, items]) => ({ key, count: items.length })),
-      totalItems: sorted.length
-    });
+    // console.log('📊 Grouped data:', {
+    //   groupKeys: Object.keys(grouped),
+    //   groupCounts: Object.entries(grouped).map(([key, items]) => ({ key, count: items.length })),
+    //   totalItems: sorted.length
+    // });
 
     // Sort the groups themselves
     const sortedGroupEntries = Object.entries(grouped).sort(([keyA], [keyB]) => {
@@ -256,11 +257,11 @@ export default function HomeScreen() {
     });
 
     const finalResult = Object.fromEntries(sortedGroupEntries);
-    console.log('✅ Final grouped result:', {
-      groupCount: Object.keys(finalResult).length,
-      groups: Object.keys(finalResult),
-      isEmpty: Object.keys(finalResult).length === 0
-    });
+    // console.log('✅ Final grouped result:', {
+    //   groupCount: Object.keys(finalResult).length,
+    //   groups: Object.keys(finalResult),
+    //   isEmpty: Object.keys(finalResult).length === 0
+    // });
 
     return finalResult;
   }, [checklists, buckets, sortBy, sortDirection, searchQuery]);
@@ -368,19 +369,19 @@ export default function HomeScreen() {
         {(() => {
           const hasChecklists = checklists.length > 0;
           const hasGroups = Object.keys(sortedAndGroupedChecklists).length > 0;
-          console.log('🎨 Render decision:', {
-            hasChecklists,
-            hasGroups,
-            willRenderGroups: hasChecklists && hasGroups,
-            willRenderSearchEmpty: hasChecklists && !hasGroups,
-            willRenderCompleteEmpty: !hasChecklists
-          });
+          // console.log('🎨 Render decision:', {
+          //   hasChecklists,
+          //   hasGroups,
+          //   willRenderGroups: hasChecklists && hasGroups,
+          //   willRenderSearchEmpty: hasChecklists && !hasGroups,
+          //   willRenderCompleteEmpty: !hasChecklists
+          // });
           return null;
         })()}
         {checklists.length > 0 ? (
           Object.keys(sortedAndGroupedChecklists).length > 0 ? (
             <>
-              {console.log('🎨 Rendering groups:', Object.keys(sortedAndGroupedChecklists))}
+              {/* {console.log('🎨 Rendering groups:', Object.keys(sortedAndGroupedChecklists))} */}
               {Object.entries(sortedAndGroupedChecklists).map(([groupName, groupChecklists]) => (
               <View key={groupName} style={styles.section}>
                 <View style={styles.groupHeader}>
