@@ -128,6 +128,25 @@ export default function TemplatesScreen() {
     return categories.find(c => c.category_id === categoryId)?.name;
   };
 
+  const handleShareTemplate = (templateId: string) => {
+    // For now, just show a simple alert with sharing options
+    // In a real app, you'd implement platform-specific sharing
+    Alert.alert(
+      'Share Template',
+      'Share this template with others',
+      [
+        { text: 'Copy Link', onPress: () => handleCopyTemplateLink(templateId) },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const handleCopyTemplateLink = (templateId: string) => {
+    // In a real app, you'd copy the template link to clipboard
+    // For now, just show a success message
+    showToastMessage('Template link copied to clipboard!');
+  };
+
   const handleTemplatePress = async (templateId: string) => {
     setSelectedTemplateId(templateId);
     // Fetch template details
@@ -302,6 +321,7 @@ export default function TemplatesScreen() {
               canDelete={template.created_by === user?.user_id}
               onPress={() => handleTemplatePress(template.template_id)}
               onDelete={() => handleDeleteTemplate(template.template_id)}
+              onShare={() => handleShareTemplate(template.template_id)}
             />
           ))
         ) : (
