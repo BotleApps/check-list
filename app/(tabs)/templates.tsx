@@ -13,11 +13,12 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { fetchPublicTemplatesWithPreview, fetchTemplateWithItems, createChecklistFromTemplate } from '../../store/slices/templatesSlice';
+import { fetchPublicTemplatesWithPreview, fetchTemplateWithItems, createChecklistFromTemplate, deleteTemplate } from '../../store/slices/templatesSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { TemplateCard } from '../../components/TemplateCard';
 import { TemplateDetailModal } from '../../components/TemplateDetailModal';
+import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { Toast } from '../../components/Toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -30,8 +31,14 @@ export default function TemplatesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showOnlyMyTemplates, setShowOnlyMyTemplates] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  
+  // Delete confirmation state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   
   // Toast state
   const [showToast, setShowToast] = useState(false);
@@ -39,9 +46,16 @@ export default function TemplatesScreen() {
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   const { user } = useSelector((state: RootState) => state.auth);
-  const { templatesWithPreview = [], currentTemplate, currentTemplateItems, loading: templatesLoading, error: templatesError } = useSelector(
-    (state: RootState) => state.templates
-  );
+  const templatesState = useSelector((state: RootState) => state.templates);
+  
+  // Ensure we always have safe defaults
+  const templatesWithPreview = Array.isArray(templatesState.templatesWithPreview) ? templatesState.templatesWithPreview : [];
+  const currentTemplate = templatesState.currentTemplate;
+  const currentTemplateItems = templatesState.currentTemplateItems || [];
+  const creatorInfo = templatesState.creatorInfo || {};
+  const templatesLoading = templatesState.loading || false;
+  const templatesError = templatesState.error;
+  
   const { categories } = useSelector((state: RootState) => state.categories);
   const { buckets } = useSelector((state: RootState) => state.buckets);
 
@@ -61,7 +75,55 @@ export default function TemplatesScreen() {
       dispatch(fetchCategories()),
     ]);
     setRefreshing(false);
-  };  const getCategoryName = (categoryId?: string) => {
+  };  const handleDeleteTemplate = async (templateId: string) => {
+    setTemplateToDelete(templateId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!user || !templateToDelete || deleting) return;
+    
+    setDeleting(true);
+    try {
+      await dispatch(deleteTemplate({ templateId: templateToDelete, userId: user.user_id })).unwrap();
+      showToastMessage('Template deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      showToastMessage('Failed to delete template. Please try again.', 'error');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+      setTemplateToDelete(null);
+    }
+  };
+
+  const getCreatorName = (userId: string) => {
+    // If it's the current user, show "Me"
+    if (userId === user?.user_id) {
+      return user.name || 'Me';
+    }
+    
+    // Get the actual user name from the creator info
+    const creator = creatorInfo[userId];
+    if (creator?.name) {
+      return creator.name;
+    }
+    
+    // Fallback to placeholder if no name available
+    return `User ${userId.slice(-4)}`;
+  };
+
+  const getCreatorAvatarUrl = (userId: string): string | undefined => {
+    // For the current user, use their avatar if available
+    if (userId === user?.user_id) {
+      return user.avatar_url;
+    }
+    
+    // Get the creator avatar from the creator info
+    return creatorInfo[userId]?.avatar_url;
+  };
+
+  const getCategoryName = (categoryId?: string) => {
     if (!categoryId) return undefined;
     return categories.find(c => c.category_id === categoryId)?.name;
   };
@@ -115,7 +177,9 @@ export default function TemplatesScreen() {
     
     const matchesCategory = !selectedCategory || template.category_id === selectedCategory;
     
-    return matchesSearch && matchesCategory;
+    const matchesOwnership = !showOnlyMyTemplates || template.created_by === user?.user_id;
+    
+    return matchesSearch && matchesCategory && matchesOwnership;
   });
 
   if (templatesLoading && templatesWithPreview.length === 0) {
@@ -147,6 +211,26 @@ export default function TemplatesScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+        </View>
+
+        {/* My Templates Toggle */}
+        <View style={styles.filterRow}>
+          <TouchableOpacity
+            style={[
+              styles.myTemplatesToggle,
+              showOnlyMyTemplates && styles.myTemplatesToggleActive,
+            ]}
+            onPress={() => setShowOnlyMyTemplates(!showOnlyMyTemplates)}
+          >
+            <Text
+              style={[
+                styles.myTemplatesToggleText,
+                showOnlyMyTemplates && styles.myTemplatesToggleTextActive,
+              ]}
+            >
+              My Templates
+            </Text>
+          </TouchableOpacity>
         </View>
 
       {/* Category Filter */}
@@ -213,7 +297,11 @@ export default function TemplatesScreen() {
               categoryName={getCategoryName(template.category_id)}
               itemCount={template.item_count}
               previewItems={template.preview_items}
+              creatorName={getCreatorName(template.created_by)}
+              creatorAvatarUrl={getCreatorAvatarUrl(template.created_by)}
+              canDelete={template.created_by === user?.user_id}
               onPress={() => handleTemplatePress(template.template_id)}
+              onDelete={() => handleDeleteTemplate(template.template_id)}
             />
           ))
         ) : (
@@ -257,6 +345,20 @@ export default function TemplatesScreen() {
         message={toastMessage}
         type={toastType}
         onHide={() => setShowToast(false)}
+      />
+      
+      <ConfirmationModal
+        visible={showDeleteModal}
+        title="Delete Template"
+        message="Are you sure you want to delete this template? This action cannot be undone."
+        confirmText={deleting ? "Deleting..." : "Delete"}
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        onConfirm={confirmDeleteTemplate}
+        onCancel={() => {
+          setShowDeleteModal(false);
+          setTemplateToDelete(null);
+        }}
       />
     </SafeAreaView>
   );
@@ -354,5 +456,30 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  filterRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  myTemplatesToggle: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  myTemplatesToggleActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  myTemplatesToggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  myTemplatesToggleTextActive: {
+    color: '#FFFFFF',
   },
 });

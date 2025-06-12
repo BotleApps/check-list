@@ -187,7 +187,24 @@ class TemplateService {
     return data;
   }
 
-  async deleteTemplate(templateId: string): Promise<void> {
+  async deleteTemplate(templateId: string, userId?: string): Promise<void> {
+    // If userId is provided, verify ownership
+    if (userId) {
+      const { data: template, error: fetchError } = await supabase
+        .from('templates')
+        .select('created_by')
+        .eq('template_id', templateId)
+        .single();
+
+      if (fetchError) {
+        throw new Error('Template not found');
+      }
+
+      if (template.created_by !== userId) {
+        throw new Error('You can only delete your own templates');
+      }
+    }
+
     // Delete the template (template_items will be cascade deleted)
     const { error } = await supabase
       .from('templates')

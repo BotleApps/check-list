@@ -151,47 +151,6 @@ class AuthService {
     }
   }
 
-  async updateUserProfile(userId: string, updates: { name?: string }): Promise<User> {
-    try {
-      // Ensure the session is properly established
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        throw new Error(`Session error: ${sessionError.message}`);
-      }
-      
-      if (!session) {
-        throw new Error('No active session');
-      }
-
-      // Verify the user can only update their own profile
-      if (session.user.id !== userId) {
-        throw new Error('Unauthorized: Cannot update other user profiles');
-      }
-
-      // Update the user profile in the database
-      const { data, error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('user_id', userId)
-        .select()
-        .single();
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (!data) {
-        throw new Error('No user data returned after update');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error updating user profile:', error);
-      throw error;
-    }
-  }
-
   async getUserProfile(userId: string, email: string): Promise<User> {
     try {
       // Ensure the session is properly established
@@ -374,6 +333,63 @@ class AuthService {
     } catch (error) {
       console.error('Error in createUserProfile:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get public user information for display purposes (name and avatar)
+   * This can be used to show creator information on templates, checklists, etc.
+   */
+  async getUserPublicInfo(userId: string): Promise<{ name?: string; avatar_url?: string } | null> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('name, avatar_url')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching user public info:', error);
+        return null;
+      }
+
+      return data || null;
+    } catch (error) {
+      console.error('Error in getUserPublicInfo:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get public user information for multiple users at once
+   */
+  async getUsersPublicInfo(userIds: string[]): Promise<Record<string, { name?: string; avatar_url?: string }>> {
+    try {
+      if (userIds.length === 0) return {};
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('user_id, name, avatar_url')
+        .in('user_id', userIds);
+
+      if (error) {
+        console.error('Error fetching users public info:', error);
+        return {};
+      }
+
+      // Convert array to object with user_id as key
+      const result: Record<string, { name?: string; avatar_url?: string }> = {};
+      data?.forEach(user => {
+        result[user.user_id] = {
+          name: user.name,
+          avatar_url: user.avatar_url
+        };
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Error in getUsersPublicInfo:', error);
+      return {};
     }
   }
 

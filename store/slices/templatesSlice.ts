@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { ChecklistTemplateHeader, ChecklistTemplateItem } from '../../types/database';
 import { templateService } from '../../services/templateService';
+import { authService } from '../../services/authService';
 
 interface TemplatesState {
   templates: ChecklistTemplateHeader[];
@@ -10,6 +11,8 @@ interface TemplatesState {
   })[];
   currentTemplate: ChecklistTemplateHeader | null;
   currentTemplateItems: ChecklistTemplateItem[];
+  // Store user information for template creators
+  creatorInfo: Record<string, { name?: string; avatar_url?: string }>;
   loading: boolean;
   error: string | null;
 }
@@ -19,6 +22,7 @@ const initialState: TemplatesState = {
   templatesWithPreview: [],
   currentTemplate: null,
   currentTemplateItems: [],
+  creatorInfo: {},
   loading: false,
   error: null,
 };
@@ -63,8 +67,15 @@ export const createTemplate = createAsyncThunk(
 export const fetchPublicTemplatesWithPreview = createAsyncThunk(
   'templates/fetchPublicTemplatesWithPreview',
   async () => {
-    const response = await templateService.getPublicTemplatesWithPreview();
-    return response;
+    const templates = await templateService.getPublicTemplatesWithPreview();
+    
+    // Extract unique creator IDs
+    const creatorIds = [...new Set(templates.map(template => template.created_by))];
+    
+    // Fetch creator information
+    const creatorInfo = await authService.getUsersPublicInfo(creatorIds);
+    
+    return { templates, creatorInfo };
   }
 );
 
@@ -88,6 +99,14 @@ export const createChecklistFromTemplate = createAsyncThunk(
       tags
     );
     return response;
+  }
+);
+
+export const deleteTemplate = createAsyncThunk(
+  'templates/deleteTemplate',
+  async ({ templateId, userId }: { templateId: string; userId: string }) => {
+    await templateService.deleteTemplate(templateId, userId);
+    return templateId;
   }
 );
 
@@ -135,14 +154,27 @@ const templatesSlice = createSlice({
       })
       .addCase(fetchPublicTemplatesWithPreview.fulfilled, (state, action) => {
         state.loading = false;
-        state.templatesWithPreview = action.payload;
+        state.templatesWithPreview = Array.isArray(action.payload.templates) ? action.payload.templates : [];
+        state.creatorInfo = { ...state.creatorInfo, ...action.payload.creatorInfo };
       })
       .addCase(fetchPublicTemplatesWithPreview.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch templates with preview';
+        // Ensure templatesWithPreview remains an array even on error
+        if (!Array.isArray(state.templatesWithPreview)) {
+          state.templatesWithPreview = [];
+        }
       })
       .addCase(createTemplate.fulfilled, (state, action) => {
-        state.templates.push(action.payload);
+        if (Array.isArray(state.templates)) {
+          state.templates.push(action.payload);
+        } else {
+          state.templates = [action.payload];
+        }
+      })
+      .addCase(deleteTemplate.fulfilled, (state, action) => {
+        state.templates = (state.templates || []).filter(t => t.template_id !== action.payload);
+        state.templatesWithPreview = (state.templatesWithPreview || []).filter(t => t.template_id !== action.payload);
       });
   },
 });

@@ -14,6 +14,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../store';
 import { FolderSelectionModal } from './FolderSelectionModal';
+import { ConfirmationModal } from './ConfirmationModal';
 import { ChecklistTemplateHeader, ChecklistTemplateItem } from '../types/database';
 import { LoadingSpinner } from './LoadingSpinner';
 import { 
@@ -48,6 +49,7 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   const { buckets } = useSelector((state: RootState) => state.buckets);
   
   const [showFolderModal, setShowFolderModal] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -56,9 +58,19 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   const handleUseTemplate = async () => {
     if (!user) return;
     
+    // Show confirmation dialog
+    setShowConfirmationModal(true);
+  };
+
+  const confirmUseTemplate = async () => {
+    if (!user) return;
+    
     setIsCreating(true);
+    setShowConfirmationModal(false);
+    
     try {
       await onUseTemplate(selectedFolderId || undefined, []);
+      // Navigation is handled in the parent component (templates.tsx)
     } catch (error) {
       console.error('Error creating checklist from template:', error);
     } finally {
@@ -179,6 +191,16 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
         selectedFolderId={selectedFolderId}
         onSelect={(folderId) => setSelectedFolderId(folderId)}
         onClose={() => setShowFolderModal(false)}
+      />
+
+      <ConfirmationModal
+        visible={showConfirmationModal}
+        title="Create Checklist from Template"
+        message={`This will create a new checklist called "${template?.name}" in your ${selectedFolderId ? getBucketName(selectedFolderId) : 'default'} folder. You can then modify it as needed.`}
+        confirmText="Create Checklist"
+        cancelText="Cancel"
+        onConfirm={confirmUseTemplate}
+        onCancel={() => setShowConfirmationModal(false)}
       />
     </>
   );
