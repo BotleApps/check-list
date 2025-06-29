@@ -6,6 +6,7 @@ import { combineReducers } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 import bucketsReducer from './slices/bucketsSlice';
 import checklistsReducer from './slices/checklistsSlice';
+import taskGroupsReducer from './slices/taskGroupsSlice';
 import templatesReducer from './slices/templatesSlice';
 import tagsReducer from './slices/tagsSlice';
 import categoriesReducer from './slices/categoriesSlice';
@@ -13,13 +14,14 @@ import categoriesReducer from './slices/categoriesSlice';
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'buckets', 'checklists', 'templates', 'tags', 'categories'],
+  whitelist: ['auth', 'buckets', 'checklists', 'taskGroups', 'templates', 'tags', 'categories'],
 };
 
 const rootReducer = combineReducers({
   auth: authReducer,
   buckets: bucketsReducer,
   checklists: checklistsReducer,
+  taskGroups: taskGroupsReducer,
   templates: templatesReducer,
   tags: tagsReducer,
   categories: categoriesReducer,

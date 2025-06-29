@@ -21,6 +21,8 @@ import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, upda
 import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
 import { fetchTags, createTag } from '../../store/slices/tagsSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
+// Task groups imports
+import { fetchTaskGroups, fetchGroupedTasks, moveTaskToGroup, createTaskGroup, updateTaskGroup, deleteTaskGroup } from '../../store/slices/taskGroupsSlice';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
@@ -28,6 +30,9 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
+// Task group components
+import { TaskGroupManager } from '../../components/TaskGroupManager';
+import { GroupedTasksList } from '../../components/GroupedTasksList';
 import { Toast } from '../../components/Toast';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { 
@@ -51,7 +56,10 @@ import {
   Check,
   Edit3,
   Save,
-  X
+  X,
+  // Task group icons
+  Layers,
+  Settings
 } from 'lucide-react-native';
 
 export default function ChecklistDetailsScreen() {
@@ -79,6 +87,11 @@ export default function ChecklistDetailsScreen() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [sharing, setSharing] = useState(false);
+  
+  // Task groups states
+  const [showTaskGroupManager, setShowTaskGroupManager] = useState(false);
+  const [useGroupedView, setUseGroupedView] = useState(false);
+  const [selectedGroupForNewTask, setSelectedGroupForNewTask] = useState<string | undefined>(undefined);
   
   // Delete confirmation state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -116,6 +129,7 @@ export default function ChecklistDetailsScreen() {
   const { buckets } = useSelector((state: RootState) => state.buckets);
   const { tags } = useSelector((state: RootState) => state.tags);
   const { categories, loading: categoriesLoading } = useSelector((state: RootState) => state.categories);
+  const { groups: taskGroups, groupedTasks, loading: taskGroupsLoading } = useSelector((state: RootState) => state.taskGroups);
 
   const checklist = currentChecklist;
   const items = currentItems;
@@ -152,6 +166,15 @@ export default function ChecklistDetailsScreen() {
         });
     }
   }, [user, dispatch]);
+
+  // Fetch task groups when checklist is loaded
+  useEffect(() => {
+    if (id && checklist) {
+      console.log('📊 Fetching task groups for checklist:', id);
+      dispatch(fetchTaskGroups(id));
+      dispatch(fetchGroupedTasks(id));
+    }
+  }, [id, checklist, dispatch]);
 
   const onRefresh = async () => {
     if (!id || !user) return;
@@ -262,6 +285,18 @@ export default function ChecklistDetailsScreen() {
     setTimeout(() => {
       editItemInputRef.current?.focus();
     }, 100);
+  };
+
+  // Task group handlers
+  const handleMoveTaskToGroup = async (taskId: string, groupId?: string) => {
+    if (!id) return;
+    try {
+      await dispatch(moveTaskToGroup({ taskId, groupId, checklistId: id }));
+      // Refresh grouped tasks after moving
+      dispatch(fetchGroupedTasks(id));
+    } catch (error) {
+      showToastMessage('Failed to move task to group', 'error');
+    }
   };
 
   const handleSaveEditItem = async () => {
@@ -894,13 +929,31 @@ export default function ChecklistDetailsScreen() {
         <View style={styles.itemsContainer}>
           <View style={styles.itemsHeader}>
             <Text style={styles.itemsTitle}>Tasks</Text>
-            <TouchableOpacity 
-              onPress={handleAddNewItem}
-              style={styles.addButton}
-              disabled={isAddingItem || addingNewItem}
-            >
-              <Plus size={20} color={(isAddingItem || addingNewItem) ? "#9CA3AF" : "#2563EB"} />
-            </TouchableOpacity>
+            <View style={styles.itemsHeaderActions}>
+              {/* View toggle button */}
+              <TouchableOpacity
+                onPress={() => setUseGroupedView(!useGroupedView)}
+                style={[styles.viewToggleButton, useGroupedView && styles.viewToggleButtonActive]}
+              >
+                <Layers size={16} color={useGroupedView ? "#FFFFFF" : "#6B7280"} />
+              </TouchableOpacity>
+              
+              {/* Group management button */}
+              <TouchableOpacity
+                onPress={() => setShowTaskGroupManager(true)}
+                style={styles.groupManageButton}
+              >
+                <Settings size={16} color="#6B7280" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                onPress={handleAddNewItem}
+                style={styles.addButton}
+                disabled={isAddingItem || addingNewItem}
+              >
+                <Plus size={20} color={(isAddingItem || addingNewItem) ? "#9CA3AF" : "#2563EB"} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {items.length === 0 && !isAddingItem ? (
@@ -912,58 +965,73 @@ export default function ChecklistDetailsScreen() {
             </View>
           ) : (
             <>
-              {[...items]
-                .sort((a, b) => a.order_index - b.order_index)
-                .map((item) => (
-                  editingItemId === item.item_id ? (
-                    // Editing mode for this item
-                    <View key={item.item_id} style={styles.newItemContainer}>
-                      <View style={styles.newItemRow}>
-                        <TouchableOpacity
-                          style={styles.newItemCheckbox}
-                          onPress={() => handleItemToggle(item.item_id, item.is_completed)}
-                        >
-                          {item.is_completed ? (
-                            <View style={styles.checkedBox}>
-                              <Check size={16} color="#FFFFFF" strokeWidth={2} />
-                            </View>
-                          ) : (
-                            <View style={styles.uncheckedBox} />
-                          )}
-                        </TouchableOpacity>
-                        <TextInput
-                          ref={editItemInputRef}
-                          style={[
-                            styles.newItemInput,
-                            itemValidationError && styles.inputError
-                          ]}
-                          value={editingItemText}
-                          onChangeText={(text) => {
-                            setEditingItemText(text);
-                            if (itemValidationError) {
-                              setItemValidationError(null);
-                            }
-                          }}
-                          onSubmitEditing={handleSaveEditItem}
-                          onBlur={handleCancelEditItem}
-                          returnKeyType="done"
-                          blurOnSubmit={true}
-                          multiline={false}
-                          maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
+              {useGroupedView && checklist && groupedTasks[checklist.checklist_id] ? (
+                // Grouped View
+                <GroupedTasksList
+                  groupedTasks={groupedTasks[checklist.checklist_id]}
+                  onToggleTask={handleItemToggle}
+                  onTaskPress={handleItemPress}
+                  expandedGroups={new Set(taskGroups.map(g => g.group_id))}
+                  onToggleGroupExpansion={() => {}}
+                  savingTaskId={savingItem || undefined}
+                />
+              ) : (
+                // Regular View
+                <>
+                  {[...items]
+                    .sort((a, b) => a.order_index - b.order_index)
+                    .map((item) => (
+                      editingItemId === item.item_id ? (
+                        // Editing mode for this item
+                        <View key={item.item_id} style={styles.newItemContainer}>
+                          <View style={styles.newItemRow}>
+                            <TouchableOpacity
+                              style={styles.newItemCheckbox}
+                              onPress={() => handleItemToggle(item.item_id, item.is_completed)}
+                            >
+                              {item.is_completed ? (
+                                <View style={styles.checkedBox}>
+                                  <Check size={16} color="#FFFFFF" strokeWidth={2} />
+                                </View>
+                              ) : (
+                                <View style={styles.uncheckedBox} />
+                              )}
+                            </TouchableOpacity>
+                            <TextInput
+                              ref={editItemInputRef}
+                              style={[
+                                styles.newItemInput,
+                                itemValidationError && styles.inputError
+                              ]}
+                              value={editingItemText}
+                              onChangeText={(text) => {
+                                setEditingItemText(text);
+                                if (itemValidationError) {
+                                  setItemValidationError(null);
+                                }
+                              }}
+                              onSubmitEditing={handleSaveEditItem}
+                              onBlur={handleCancelEditItem}
+                              returnKeyType="done"
+                              blurOnSubmit={true}
+                              multiline={false}
+                              maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
+                            />
+                          </View>
+                        </View>
+                      ) : (
+                        // Normal display mode
+                        <ChecklistItem
+                          key={item.item_id}
+                          item={item}
+                          onToggle={() => handleItemToggle(item.item_id, item.is_completed)}
+                          onPress={() => handleItemPress(item)}
+                          isLoading={savingItem === item.item_id}
                         />
-                      </View>
-                    </View>
-                  ) : (
-                    // Normal display mode
-                    <ChecklistItem
-                      key={item.item_id}
-                      item={item}
-                      onToggle={() => handleItemToggle(item.item_id, item.is_completed)}
-                      onPress={() => handleItemPress(item)}
-                      isLoading={savingItem === item.item_id}
-                    />
-                  )
-                ))}
+                      )
+                    ))}
+                </>
+              )}
               
               {/* New Item Input */}
               {isAddingItem && (
@@ -1203,6 +1271,35 @@ export default function ChecklistDetailsScreen() {
         onHide={() => setShowToast(false)}
       />
       
+      {/* Task Group Manager Modal */}
+      <TaskGroupManager
+        visible={showTaskGroupManager}
+        onClose={() => setShowTaskGroupManager(false)}
+        onCreateGroup={async (name, description, targetDate, colorCode) => {
+          if (!id) return;
+          await dispatch(createTaskGroup({
+            checklistId: id,
+            name,
+            description,
+            targetDate,
+            colorCode,
+          }));
+          // Refresh grouped tasks
+          dispatch(fetchGroupedTasks(id));
+        }}
+        onUpdateGroup={async (groupId, updates) => {
+          await dispatch(updateTaskGroup({ groupId, updates }));
+          if (!id) return;
+          dispatch(fetchGroupedTasks(id));
+        }}
+        onDeleteGroup={async (groupId) => {
+          await dispatch(deleteTaskGroup(groupId));
+          if (!id) return;
+          dispatch(fetchGroupedTasks(id));
+        }}
+        checklistId={id || ''}
+      />
+      
       <ConfirmationModal
         visible={showDeleteModal}
         title="Delete Checklist"
@@ -1372,10 +1469,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    marginBottom: 16,
+  },
+  itemsHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  viewToggleButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  viewToggleButtonActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  groupManageButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   itemsTitle: {
     fontSize: 18,

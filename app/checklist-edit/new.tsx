@@ -19,6 +19,8 @@ import { RootState, AppDispatch } from '../../store';
 import { createChecklistWithItems } from '../../store/slices/checklistsSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { fetchTags } from '../../store/slices/tagsSlice';
+// Task groups import for future use
+import { fetchTaskGroups } from '../../store/slices/taskGroupsSlice';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
 import { 

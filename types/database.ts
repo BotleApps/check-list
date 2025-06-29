@@ -49,9 +49,32 @@ export interface ChecklistHeader {
   updated_at: string;
 }
 
+export interface TaskGroup {
+  group_id: string;
+  checklist_id: string;
+  name: string;
+  description?: string;
+  target_date?: string;
+  color_code: string;
+  order_index: number;
+  is_collapsed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Convenience type for grouped tasks
+export interface GroupedTasks {
+  group: TaskGroup | null; // null for ungrouped tasks
+  tasks: ChecklistItem[];
+  completedCount: number;
+  totalCount: number;
+  progressPercentage: number;
+}
+
 export interface ChecklistItem {
   item_id: string;
   checklist_id: string;
+  group_id?: string; // NEW: Optional group assignment
   text: string;
   description?: string;
   is_completed: boolean;
