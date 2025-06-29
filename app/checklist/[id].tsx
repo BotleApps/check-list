@@ -23,6 +23,7 @@ import { fetchTags, createTag } from '../../store/slices/tagsSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
 // Task groups imports
 import { fetchTaskGroups, fetchGroupedTasks, moveTaskToGroup, createTaskGroup, updateTaskGroup, deleteTaskGroup } from '../../store/slices/taskGroupsSlice';
+import { TaskGroup } from '../../types/database';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
@@ -624,6 +625,55 @@ export default function ChecklistDetailsScreen() {
     setShowUnsavedChangesModal(false);
     handleCancelEditHeader();
     router.back();
+  };
+
+  // Task Groups Handlers
+  const handleCreateGroup = async (name: string, description?: string, targetDate?: string, colorCode?: string) => {
+    if (!id) return;
+    
+    try {
+      await dispatch(createTaskGroup({
+        checklistId: id,
+        name,
+        description,
+        targetDate,
+        colorCode
+      })).unwrap();
+      
+      // Refresh grouped tasks
+      dispatch(fetchGroupedTasks(id));
+      showToastMessage('Group created successfully', 'success');
+    } catch (error) {
+      showToastMessage('Failed to create group', 'error');
+    }
+  };
+
+  const handleUpdateGroup = async (groupId: string, updates: Partial<TaskGroup>) => {
+    try {
+      await dispatch(updateTaskGroup({ groupId, updates })).unwrap();
+      
+      // Refresh grouped tasks
+      if (id) {
+        dispatch(fetchGroupedTasks(id));
+      }
+      showToastMessage('Group updated successfully', 'success');
+    } catch (error) {
+      showToastMessage('Failed to update group', 'error');
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    try {
+      await dispatch(deleteTaskGroup(groupId)).unwrap();
+      
+      // Refresh grouped tasks
+      if (id) {
+        dispatch(fetchGroupedTasks(id));
+      }
+      showToastMessage('Group deleted successfully', 'success');
+    } catch (error) {
+      showToastMessage('Failed to delete group', 'error');
+    }
   };
 
   // Handle back navigation during editing
@@ -1367,6 +1417,16 @@ export default function ChecklistDetailsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      
+      {/* Task Group Manager Modal */}
+      <TaskGroupManager
+        visible={showTaskGroupManager}
+        onClose={() => setShowTaskGroupManager(false)}
+        onCreateGroup={handleCreateGroup}
+        onUpdateGroup={handleUpdateGroup}
+        onDeleteGroup={handleDeleteGroup}
+        checklistId={id || ''}
+      />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1479,55 +1539,6 @@ const styles = StyleSheet.create({
   viewToggleButton: {
     padding: 8,
     borderRadius: 6,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  viewToggleButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  groupManageButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  itemsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  addButton: {
-    padding: 4,
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    textAlign: 'center',
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#DC2626',
-    textAlign: 'center',
-  },
-  loadingText: {
     fontSize: 16,
     color: '#6B7280',
     marginTop: 16,
@@ -2023,5 +2034,67 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 16,
     fontWeight: '500',
+  },
+  // Missing styles
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#DC2626',
+    textAlign: 'center',
+  },
+  itemsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  viewToggleButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  viewToggleButtonActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  groupManageButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  addButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
 });

@@ -14,6 +14,7 @@ CREATE TABLE public.task_groups (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
+    -- Ensure unique group names per checklist
     CONSTRAINT unique_group_name_per_checklist UNIQUE (checklist_id, name)
 );
 

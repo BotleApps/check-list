@@ -19,8 +19,9 @@ import { RootState, AppDispatch } from '../../store';
 import { createChecklistWithItems } from '../../store/slices/checklistsSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { fetchTags } from '../../store/slices/tagsSlice';
-// Task groups import for future use
-import { fetchTaskGroups } from '../../store/slices/taskGroupsSlice';
+// Task groups imports
+import { fetchTaskGroups, createTaskGroup } from '../../store/slices/taskGroupsSlice';
+import { TaskGroup } from '../../types/database';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
 import { 
@@ -33,7 +34,7 @@ import {
   getCharacterCountText,
   shouldHighlightCharacterCount
 } from '../../lib/validations';
-import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck, X, Plus } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck, X, Plus, Layers, Settings } from 'lucide-react-native';
 
 export default function NewChecklistScreen() {
   const router = useRouter();
@@ -45,34 +46,47 @@ export default function NewChecklistScreen() {
   const { loading } = useSelector((state: RootState) => state.checklists);
 
   const [title, setTitle] = useState('');
-  const [items, setItems] = useState<string[]>(['']);
-  const [itemStates, setItemStates] = useState<boolean[]>([false]);
   const [targetDate, setTargetDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedBucketId, setSelectedBucketId] = useState<string>('');
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showTagModal, setShowTagModal] = useState(false);
-  const [isAddingItem, setIsAddingItem] = useState(false);
-  const [newItemText, setNewItemText] = useState('');
-  const [addingNewItem, setAddingNewItem] = useState(false);
+  
+  // Task groups states - restructured for grouped items
+  const [groupedItems, setGroupedItems] = useState<{
+    id: string;
+    name: string;
+    colorCode: string;
+    items: string[];
+    itemStates: boolean[];
+  }[]>([
+    {
+      id: 'default',
+      name: 'Items',
+      colorCode: '#007AFF',
+      items: [''],
+      itemStates: [false]
+    }
+  ]);
+  const [isAddingGroup, setIsAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
   
   // Validation states
   const [titleValidationError, setTitleValidationError] = useState<string | null>(null);
-  const [itemValidationErrors, setItemValidationErrors] = useState<(string | null)[]>([null]);
 
   // Computed validation state for save button
   const isSaveEnabled = React.useMemo(() => {
     const hasValidTitle = title && title.trim().length > 0;
-    const hasValidItems = items.some(item => item && item.trim().length > 0);
+    const hasValidItems = groupedItems.some(group => 
+      group.items.some(item => item && item.trim().length > 0)
+    );
     return hasValidTitle && hasValidItems && !loading;
-  }, [title, items, loading]);
+  }, [title, groupedItems, loading]);
 
   // Refs for managing focus
   const titleInputRef = useRef<TextInput>(null);
-  const itemInputRefs = useRef<(TextInput | null)[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
-  const newItemInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (user) {
@@ -81,149 +95,68 @@ export default function NewChecklistScreen() {
     }
   }, [user, dispatch]);
 
-  // Ensure itemStates array always matches items array length
-  useEffect(() => {
-    if (itemStates.length !== items.length) {
-      const newStates = [...itemStates];
-      while (newStates.length < items.length) {
-        newStates.push(false);
-      }
-      while (newStates.length > items.length) {
-        newStates.pop();
-      }
-      setItemStates(newStates);
-    }
-  }, [items.length, itemStates.length]);
+  // Grouped items management functions
 
-  const updateItem = (index: number, value: string) => {
-    const updatedItems = [...items];
-    updatedItems[index] = value;
-    setItems(updatedItems);
+  // Task Groups Functions - Updated for new structure
+  const addTaskGroup = () => {
+    if (!newGroupName.trim()) return;
+    
+    const colors = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899'];
+    const colorIndex = groupedItems.length % colors.length;
+    
+    const newGroup = {
+      id: `group-${Date.now()}`,
+      name: newGroupName.trim(),
+      colorCode: colors[colorIndex],
+      items: [''],
+      itemStates: [false]
+    };
+    
+    setGroupedItems([...groupedItems, newGroup]);
+    setNewGroupName('');
+    setIsAddingGroup(false);
   };
 
-  const toggleItemState = (index: number) => {
-    const updatedStates = [...itemStates];
-    updatedStates[index] = !updatedStates[index];
-    setItemStates(updatedStates);
+  const removeTaskGroup = (groupIndex: number) => {
+    if (groupedItems.length <= 1) return; // Keep at least one group
+    
+    const updatedGroups = groupedItems.filter((_, i) => i !== groupIndex);
+    setGroupedItems(updatedGroups);
   };
 
-  const addNewItem = (afterIndex: number) => {
-    const updatedItems = [...items];
-    const updatedStates = [...itemStates];
-    
-    updatedItems.splice(afterIndex + 1, 0, '');
-    updatedStates.splice(afterIndex + 1, 0, false);
-    
-    setItems(updatedItems);
-    setItemStates(updatedStates);
-    
-    // Update refs array to match new items length
-    const newRefs = [...itemInputRefs.current];
-    newRefs.splice(afterIndex + 1, 0, null);
-    itemInputRefs.current = newRefs;
-    
-    // Focus the new item after a short delay
-    setTimeout(() => {
-      const newIndex = afterIndex + 1;
-      itemInputRefs.current[newIndex]?.focus();
-      
-      // Scroll to show the new item
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+  const updateGroupItem = (groupIndex: number, itemIndex: number, value: string) => {
+    const updatedGroups = [...groupedItems];
+    updatedGroups[groupIndex].items[itemIndex] = value;
+    setGroupedItems(updatedGroups);
   };
 
-  const removeItem = (index: number) => {
-    if (items.length <= 1) return; // Always keep at least one item
-    
-    const updatedItems = items.filter((_, i) => i !== index);
-    const updatedStates = itemStates.filter((_, i) => i !== index);
-    
-    setItems(updatedItems);
-    setItemStates(updatedStates);
-    
-    // Update refs array
-    const newRefs = itemInputRefs.current.filter((_, i) => i !== index);
-    itemInputRefs.current = newRefs;
-    
-    // Focus previous item or next item
-    setTimeout(() => {
-      const targetIndex = Math.max(0, Math.min(index - 1, updatedItems.length - 1));
-      itemInputRefs.current[targetIndex]?.focus();
-    }, 100);
+  const toggleGroupItemState = (groupIndex: number, itemIndex: number) => {
+    const updatedGroups = [...groupedItems];
+    updatedGroups[groupIndex].itemStates[itemIndex] = !updatedGroups[groupIndex].itemStates[itemIndex];
+    setGroupedItems(updatedGroups);
   };
 
-  const handleItemSubmit = (index: number) => {
-    // Always create a new item when Enter is pressed
-    addNewItem(index);
+  const addItemToGroup = (groupIndex: number, afterIndex: number) => {
+    const updatedGroups = [...groupedItems];
+    updatedGroups[groupIndex].items.splice(afterIndex + 1, 0, '');
+    updatedGroups[groupIndex].itemStates.splice(afterIndex + 1, 0, false);
+    setGroupedItems(updatedGroups);
   };
 
-  const handleItemKeyPress = (index: number, nativeEvent: any) => {
-    const { key } = nativeEvent;
+  const removeItemFromGroup = (groupIndex: number, itemIndex: number) => {
+    const updatedGroups = [...groupedItems];
+    if (updatedGroups[groupIndex].items.length <= 1) return; // Keep at least one item
     
-    if (key === 'Enter') {
-      // Create new item when Enter is pressed
-      handleItemSubmit(index);
-      return;
-    }
-    
-    if (key === 'Backspace' && items[index] === '' && items.length > 1) {
-      // Remove current empty item and focus previous
-      removeItem(index);
-    }
+    updatedGroups[groupIndex].items.splice(itemIndex, 1);
+    updatedGroups[groupIndex].itemStates.splice(itemIndex, 1);
+    setGroupedItems(updatedGroups);
   };
 
-  const handleItemBlur = (index: number) => {
-    // Remove empty items when they lose focus, but keep at least one item
-    if (items[index].trim() === '' && items.length > 1) {
-      // Check if there are other non-empty items
-      const hasOtherItems = items.some((item, i) => i !== index && item.trim() !== '');
-      if (hasOtherItems) {
-        removeItem(index);
-      }
-    }
-  };
+
 
   const handleTitleSubmit = () => {
-    // Focus first item when title is submitted
-    if (itemInputRefs.current[0]) {
-      itemInputRefs.current[0]?.focus();
-    }
-  };
-
-  const handleAddNewItem = () => {
-    setIsAddingItem(true);
-    setNewItemText('');
-    // Focus the input after a short delay to ensure it's rendered
-    setTimeout(() => {
-      newItemInputRef.current?.focus();
-    }, 100);
-  };
-
-  const handleSaveNewItem = async () => {
-    if (!newItemText.trim() || addingNewItem) return;
-    
-    setAddingNewItem(true);
-    try {
-      const updatedItems = [...items];
-      const updatedStates = [...itemStates];
-      
-      updatedItems.push(newItemText.trim());
-      updatedStates.push(false);
-      
-      setItems(updatedItems);
-      setItemStates(updatedStates);
-      setIsAddingItem(false);
-      setNewItemText('');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add item. Please try again.');
-    } finally {
-      setAddingNewItem(false);
-    }
-  };
-
-  const handleCancelNewItem = () => {
-    setIsAddingItem(false);
-    setNewItemText('');
+    // Focus first item of first group when title is submitted
+    // This is optional for grouped UI
   };
 
   const handleSave = async () => {
@@ -243,30 +176,27 @@ export default function NewChecklistScreen() {
     }
     setTitleValidationError(null);
 
-    // Clean up empty items and validate
+    // Collect all items from all groups and validate
     const validItems: string[] = [];
     const validStates: boolean[] = [];
-    const errors: (string | null)[] = [];
-    
-    items.forEach((item, index) => {
-      if (item.trim() !== '') {
-        const itemError = validateItemText(item);
-        if (itemError) {
-          errors[index] = itemError;
-        } else {
-          validItems.push(item.trim());
-          validStates.push(itemStates[index] || false);
-          errors[index] = null;
+    let hasValidationErrors = false;
+
+    groupedItems.forEach((group) => {
+      group.items.forEach((item, itemIndex) => {
+        if (item.trim() !== '') {
+          const itemError = validateItemText(item);
+          if (itemError) {
+            hasValidationErrors = true;
+          } else {
+            validItems.push(item.trim());
+            validStates.push(group.itemStates[itemIndex] || false);
+          }
         }
-      } else {
-        errors[index] = null;
-      }
+      });
     });
     
-    setItemValidationErrors(errors);
-    
     // Check if there are any validation errors
-    if (errors.some(error => error !== null)) {
+    if (hasValidationErrors) {
       Alert.alert('Validation Error', 'Please fix the errors in your items');
       return;
     }
@@ -386,90 +316,109 @@ export default function NewChecklistScreen() {
             blurOnSubmit={false}
           />
 
-          {/* Items Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionLabel}>Items</Text>
-              <TouchableOpacity 
-                style={styles.addItemButton}
-                onPress={handleAddNewItem}
-                disabled={isAddingItem || addingNewItem}
-              >
-                <Plus size={20} color="#007AFF" />
-                <Text style={styles.addItemText}>Add Item</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.itemsList}>
-              {items.map((item, index) => (
-                <View key={`item-${index}`} style={styles.itemRow}>
-                  <TouchableOpacity 
-                    style={styles.checkboxContainer}
-                    onPress={() => toggleItemState(index)}
-                    activeOpacity={0.7}
-                  >
-                    {itemStates[index] ? (
-                      <SquareCheck size={20} color="#007AFF" />
-                    ) : (
-                      <Circle size={20} color="#C7C7CC" />
-                    )}
-                  </TouchableOpacity>
-                  <TextInput
-                    ref={(ref) => {
-                      if (itemInputRefs.current) {
-                        itemInputRefs.current[index] = ref;
-                      }
-                    }}
-                    style={[
-                      styles.itemInput,
-                      itemStates[index] && styles.itemInputCompleted
-                    ]}
-                    placeholder={index === 0 ? "Add your first item..." : "Add item..."}
-                    value={item}
-                    onChangeText={(value) => updateItem(index, value)}
-                    placeholderTextColor="#C7C7CC"
-                    returnKeyType="next"
-                    onSubmitEditing={() => handleItemSubmit(index)}
-                    onKeyPress={({ nativeEvent }) => handleItemKeyPress(index, nativeEvent)}
-                    onBlur={() => handleItemBlur(index)}
-                    blurOnSubmit={false}
-                    multiline={true}
-                    textAlignVertical="top"
-                    scrollEnabled={false}
-                  />
-                  {items.length > 1 && (
+          {/* Groups with Items */}
+          {groupedItems.map((group, groupIndex) => (
+            <View key={group.id} style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.groupTitleContainer}>
+                  <View style={[styles.groupIndicator, { backgroundColor: group.colorCode }]} />
+                  <Text style={styles.sectionLabel}>{group.name}</Text>
+                  {groupedItems.length > 1 && (
                     <TouchableOpacity
-                      style={styles.removeButton}
-                      onPress={() => removeItem(index)}
+                      style={styles.removeGroupButton}
+                      onPress={() => removeTaskGroup(groupIndex)}
                     >
                       <X size={16} color="#FF3B30" />
                     </TouchableOpacity>
                   )}
                 </View>
-              ))}
+                <TouchableOpacity 
+                  style={styles.addItemButton}
+                  onPress={() => addItemToGroup(groupIndex, group.items.length - 1)}
+                >
+                  <Plus size={20} color="#007AFF" />
+                  <Text style={styles.addItemText}>Add Item</Text>
+                </TouchableOpacity>
+              </View>
               
-              {/* New Item Input */}
-              {isAddingItem && (
-                <View style={styles.itemRow}>
-                  <View style={styles.checkboxContainer}>
-                    <Circle size={20} color="#C7C7CC" />
+              <View style={styles.itemsList}>
+                {group.items.map((item, itemIndex) => (
+                  <View key={`${group.id}-item-${itemIndex}`} style={styles.itemRow}>
+                    <TouchableOpacity 
+                      style={styles.checkboxContainer}
+                      onPress={() => toggleGroupItemState(groupIndex, itemIndex)}
+                      activeOpacity={0.7}
+                    >
+                      {group.itemStates[itemIndex] ? (
+                        <SquareCheck size={20} color={group.colorCode} />
+                      ) : (
+                        <Circle size={20} color="#C7C7CC" />
+                      )}
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[
+                        styles.itemInput,
+                        group.itemStates[itemIndex] && styles.itemInputCompleted
+                      ]}
+                      placeholder={itemIndex === 0 && groupIndex === 0 ? "Add your first item..." : "Add item..."}
+                      value={item}
+                      onChangeText={(value) => updateGroupItem(groupIndex, itemIndex, value)}
+                      placeholderTextColor="#C7C7CC"
+                      returnKeyType="next"
+                      onSubmitEditing={() => addItemToGroup(groupIndex, itemIndex)}
+                      multiline={true}
+                      textAlignVertical="top"
+                      scrollEnabled={false}
+                    />
+                    {group.items.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.removeButton}
+                        onPress={() => removeItemFromGroup(groupIndex, itemIndex)}
+                      >
+                        <X size={16} color="#FF3B30" />
+                      </TouchableOpacity>
+                    )}
                   </View>
-                  <TextInput
-                    ref={newItemInputRef}
-                    style={styles.itemInput}
-                    placeholder="Enter task..."
-                    value={newItemText}
-                    onChangeText={setNewItemText}
-                    onSubmitEditing={handleSaveNewItem}
-                    onBlur={handleCancelNewItem}
-                    returnKeyType="done"
-                    blurOnSubmit={true}
-                    multiline={false}
-                  />
-                </View>
-              )}
+                ))}
+              </View>
             </View>
-          </View>
+          ))}
+          
+          {/* Add New Group Button */}
+          {!isAddingGroup ? (
+            <TouchableOpacity 
+              style={styles.addGroupSection}
+              onPress={() => setIsAddingGroup(true)}
+            >
+              <Plus size={20} color="#007AFF" />
+              <Text style={styles.addGroupSectionText}>Add Group</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.newGroupSection}>
+              <View style={styles.newGroupHeader}>
+                <View style={[styles.groupIndicator, { backgroundColor: '#6B7280' }]} />
+                <TextInput
+                  style={styles.newGroupInput}
+                  placeholder="Group name..."
+                  value={newGroupName}
+                  onChangeText={setNewGroupName}
+                  placeholderTextColor="#C7C7CC"
+                  returnKeyType="done"
+                  onSubmitEditing={addTaskGroup}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={styles.removeGroupButton}
+                  onPress={() => {
+                    setIsAddingGroup(false);
+                    setNewGroupName('');
+                  }}
+                >
+                  <X size={16} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Target Date Section */}
           <View style={styles.section}>
@@ -593,7 +542,7 @@ export default function NewChecklistScreen() {
         <TagSelectionModal
           visible={showTagModal}
           selectedTagNames={selectedTags}
-          onSelect={(tagNames) => setSelectedTags(tagNames)}
+          onSelect={setSelectedTags}
           onClose={() => setShowTagModal(false)}
         />
       </KeyboardAvoidingView>
@@ -603,38 +552,6 @@ export default function NewChecklistScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#F2F2F7',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#F2F2F7',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#C7C7CC',
-  },
-  backButton: {
-    padding: 8,
-  },
-  doneButton: {
-    padding: 8,
-  },
-  doneButtonDisabled: {
-    padding: 8,
-    opacity: 0.5,
-  },
-  doneButtonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  doneButtonTextDisabled: {
-    color: '#C7C7CC',
-  },
-  content: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
@@ -975,5 +892,151 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#007AFF',
     fontWeight: '500',
+  },
+  // Missing styles for header and content
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  backButton: {
+    padding: 8,
+  },
+  doneButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  doneButtonDisabled: {
+    backgroundColor: '#C7C7CC',
+  },
+  doneButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  doneButtonTextDisabled: {
+    color: '#FFFFFF',
+  },
+  content: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  // Groups styles
+  addGroupButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 6,
+  },
+  addGroupText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  groupsList: {
+    marginTop: 8,
+  },
+  emptyGroupsState: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    opacity: 0.6,
+  },
+  emptyGroupsText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
+  emptyGroupsSubtext: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+  },
+  groupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  newGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  groupIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  groupName: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '500',
+  },
+  newGroupInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    paddingVertical: 4,
+  },
+  removeGroupButton: {
+    padding: 4,
+  },
+  // New group section styles
+  groupTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  addGroupSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    marginBottom: 16,
+    gap: 8,
+  },
+  addGroupSectionText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  newGroupSection: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 16,
+    padding: 12,
+  },
+  newGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
 });
