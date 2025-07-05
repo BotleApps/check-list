@@ -33,7 +33,6 @@ import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
 // Task group components
 import { TaskGroupManager } from '../../components/TaskGroupManager';
-import { GroupedTasksList } from '../../components/GroupedTasksList';
 import { Toast } from '../../components/Toast';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { 
@@ -983,35 +982,6 @@ export default function ChecklistDetailsScreen() {
 
         {/* Items List */}
         <View style={styles.itemsContainer}>
-          <View style={styles.itemsHeader}>
-            <Text style={styles.itemsTitle}>Tasks</Text>
-            <View style={styles.itemsHeaderActions}>
-              {/* View toggle button */}
-              <TouchableOpacity
-                onPress={() => setUseGroupedView(!useGroupedView)}
-                style={[styles.viewToggleButton, useGroupedView && styles.viewToggleButtonActive]}
-              >
-                <Layers size={16} color={useGroupedView ? "#FFFFFF" : "#6B7280"} />
-              </TouchableOpacity>
-              
-              {/* Group management button */}
-              <TouchableOpacity
-                onPress={() => setShowTaskGroupManager(true)}
-                style={styles.groupManageButton}
-              >
-                <Settings size={16} color="#6B7280" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                onPress={handleAddNewItem}
-                style={styles.addButton}
-                disabled={isAddingItem || addingNewItem}
-              >
-                <Plus size={20} color={(isAddingItem || addingNewItem) ? "#9CA3AF" : "#2563EB"} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
           {items.length === 0 && !isAddingItem ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No tasks yet</Text>
@@ -1022,15 +992,85 @@ export default function ChecklistDetailsScreen() {
           ) : (
             <>
               {useGroupedView && checklist && groupedTasks[checklist.checklist_id] ? (
-                // Grouped View
-                <GroupedTasksList
-                  groupedTasks={groupedTasks[checklist.checklist_id]}
-                  onToggleTask={handleItemToggle}
-                  onTaskPress={handleItemPress}
-                  expandedGroups={new Set(taskGroups.map(g => g.group_id))}
-                  onToggleGroupExpansion={() => {}}
-                  savingTaskId={savingItem || undefined}
-                />
+                // Grouped View - matching create page style
+                <>
+                  {groupedTasks[checklist.checklist_id].map((groupData, groupIndex) => {
+                    const { group, tasks } = groupData;
+                    const groupId = group?.group_id || 'ungrouped';
+                    const groupName = group?.name || 'Other Tasks';
+                    const groupColor = group?.color_code || '#6B7280';
+                    
+                    return (
+                      <View 
+                        key={groupId}
+                        style={[
+                          styles.groupContainer,
+                          { borderLeftColor: groupColor }
+                        ]}
+                      >
+                        <View style={styles.groupHeader}>
+                          <Text style={styles.groupName}>{groupName}</Text>
+                          <Text style={styles.groupStats}>
+                            {tasks.filter(t => t.is_completed).length}/{tasks.length}
+                          </Text>
+                        </View>
+                        
+                        <View style={styles.groupTasks}>
+                          {tasks.map((item) => (
+                            editingItemId === item.item_id ? (
+                              // Editing mode for this item
+                              <View key={item.item_id} style={styles.newItemContainer}>
+                                <View style={styles.newItemRow}>
+                                  <TouchableOpacity
+                                    style={styles.newItemCheckbox}
+                                    onPress={() => handleItemToggle(item.item_id, item.is_completed)}
+                                  >
+                                    {item.is_completed ? (
+                                      <View style={styles.checkedBox}>
+                                        <Check size={16} color="#FFFFFF" strokeWidth={2} />
+                                      </View>
+                                    ) : (
+                                      <View style={styles.uncheckedBox} />
+                                    )}
+                                  </TouchableOpacity>
+                                  <TextInput
+                                    ref={editItemInputRef}
+                                    style={[
+                                      styles.newItemInput,
+                                      itemValidationError && styles.inputError
+                                    ]}
+                                    value={editingItemText}
+                                    onChangeText={(text) => {
+                                      setEditingItemText(text);
+                                      if (itemValidationError) {
+                                        setItemValidationError(null);
+                                      }
+                                    }}
+                                    onSubmitEditing={handleSaveEditItem}
+                                    onBlur={handleCancelEditItem}
+                                    returnKeyType="done"
+                                    blurOnSubmit={true}
+                                    multiline={false}
+                                    maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
+                                  />
+                                </View>
+                              </View>
+                            ) : (
+                              // Normal display mode
+                              <ChecklistItem
+                                key={item.item_id}
+                                item={item}
+                                onToggle={() => handleItemToggle(item.item_id, item.is_completed)}
+                                onPress={() => handleItemPress(item)}
+                                isLoading={savingItem === item.item_id}
+                              />
+                            )
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </>
               ) : (
                 // Regular View
                 <>
@@ -1534,17 +1574,6 @@ const styles = StyleSheet.create({
   itemsContainer: {
     backgroundColor: '#FFFFFF',
     margin: 0,
-  },
-  itemsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  itemsHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
 
   loadingOverlay: {
@@ -2055,36 +2084,7 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     textAlign: 'center',
   },
-  itemsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  viewToggleButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  viewToggleButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  groupManageButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  addButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
+
   emptyState: {
     padding: 40,
     alignItems: 'center',
@@ -2099,5 +2099,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  // Grouped view styles - matching create page
+  groupContainer: {
+    borderLeftWidth: 4,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  groupName: {
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600',
+    textAlign: 'left',
+  },
+  groupStats: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  groupTasks: {
+    paddingTop: 4,
   },
 });

@@ -69,7 +69,6 @@ export const GroupedTasksList: React.FC<GroupedTasksListProps> = ({
       return (
         <View style={styles.ungroupedHeader}>
           <View style={styles.ungroupedHeaderContent}>
-            <Text style={styles.ungroupedTitle}>Other Tasks</Text>
             <Text style={styles.groupStats}>
               {completedCount}/{totalCount}
             </Text>
