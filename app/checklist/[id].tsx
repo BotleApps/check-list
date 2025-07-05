@@ -25,7 +25,6 @@ import { fetchCategories } from '../../store/slices/categoriesSlice';
 import { fetchTaskGroups, fetchGroupedTasks, moveTaskToGroup, createTaskGroup, updateTaskGroup, deleteTaskGroup } from '../../store/slices/taskGroupsSlice';
 import { TaskGroup } from '../../types/database';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ChecklistItem } from '../../components/ChecklistItem';
 import { ProgressBar } from '../../components/ProgressBar';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -58,8 +57,10 @@ import {
   Save,
   X,
   // Task group icons
-  Layers,
-  Settings
+  Settings,
+  // Create page style icons
+  Circle,
+  SquareCheck
 } from 'lucide-react-native';
 
 export default function ChecklistDetailsScreen() {
@@ -90,7 +91,6 @@ export default function ChecklistDetailsScreen() {
   
   // Task groups states
   const [showTaskGroupManager, setShowTaskGroupManager] = useState(false);
-  const [useGroupedView, setUseGroupedView] = useState(true);  // Enable grouped view by default
   const [selectedGroupForNewTask, setSelectedGroupForNewTask] = useState<string | undefined>(undefined);
   
   // Delete confirmation state
@@ -176,6 +176,38 @@ export default function ChecklistDetailsScreen() {
     }
   }, [id, checklist, dispatch]);
 
+  // Debug effect to log task groups and grouped tasks data
+  useEffect(() => {
+    if (checklist && groupedTasks[checklist.checklist_id]) {
+      console.log('🔍 DEBUG: Task groups state updated:', {
+        checklistId: checklist.checklist_id,
+        taskGroups: taskGroups,
+        groupedTasks: groupedTasks[checklist.checklist_id],
+        numberOfGroups: groupedTasks[checklist.checklist_id]?.length,
+        
+        // More detailed logging
+        groupDetails: groupedTasks[checklist.checklist_id]?.map(g => ({
+          groupId: g.group?.group_id || 'ungrouped',
+          groupName: g.group?.name || 'No name',
+          hasActualGroup: g.group !== null,
+          tasksCount: g.tasks.length,
+          taskIds: g.tasks.map(t => t.item_id)
+        }))
+      });
+    }
+    
+    // Also log if there are any task groups for this checklist but they're not showing up in grouped tasks
+    if (checklist && taskGroups.length > 0) {
+      console.log('🔍 DEBUG: Task groups exist but may not have tasks assigned:', {
+        availableGroups: taskGroups.map(g => ({
+          id: g.group_id,
+          name: g.name,
+          color: g.color_code
+        }))
+      });
+    }
+  }, [checklist, taskGroups, groupedTasks]);
+
   const onRefresh = async () => {
     if (!id || !user) return;
     setRefreshing(true);
@@ -200,6 +232,11 @@ export default function ChecklistDetailsScreen() {
       completedAt
     }));
     
+    // Always refresh grouped tasks for instant UI feedback since we're always in grouped view
+    if (id) {
+      dispatch(fetchGroupedTasks(id));
+    }
+    
     setSavingItem(itemId);
     try {
       // Send to server
@@ -208,6 +245,11 @@ export default function ChecklistDetailsScreen() {
         is_completed: newCompletedState,
         completed_at: completedAt
       })).unwrap();
+      
+      // Refresh grouped tasks again after server confirms to ensure data consistency
+      if (id) {
+        dispatch(fetchGroupedTasks(id));
+      }
     } catch (error) {
       // Revert optimistic update on error
       dispatch(updateItemCompletion({
@@ -216,6 +258,12 @@ export default function ChecklistDetailsScreen() {
         isCompleted: currentCompleted,
         completedAt: item.completed_at
       }));
+      
+      // Also refresh grouped tasks on error to revert UI
+      if (id) {
+        dispatch(fetchGroupedTasks(id));
+      }
+      
       showToastMessage('Failed to update item status', 'error');
     } finally {
       setSavingItem(null);
@@ -759,10 +807,10 @@ export default function ChecklistDetailsScreen() {
         </TouchableOpacity>
         <View style={styles.headerActions}>
           <TouchableOpacity 
-            onPress={() => setUseGroupedView(!useGroupedView)}
-            style={[styles.actionButton, useGroupedView && styles.activeActionButton]}
+            onPress={() => setShowTaskGroupManager(true)}
+            style={styles.actionButton}
           >
-            <Layers size={20} color={useGroupedView ? "#007AFF" : "#6B7280"} />
+            <Settings size={20} color="#6B7280" />
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={handleShareAction}
@@ -991,79 +1039,97 @@ export default function ChecklistDetailsScreen() {
             </View>
           ) : (
             <>
-              {useGroupedView && checklist && groupedTasks[checklist.checklist_id] ? (
-                // Grouped View - matching create page style
+              {checklist && groupedTasks[checklist.checklist_id] && groupedTasks[checklist.checklist_id].length > 0 ? (
+                // Show actual groups as saved - each group displayed separately
                 <>
                   {groupedTasks[checklist.checklist_id].map((groupData, groupIndex) => {
                     const { group, tasks } = groupData;
                     const groupId = group?.group_id || 'ungrouped';
-                    const groupName = group?.name || 'Other Tasks';
+                    const groupName = group?.name || 'Ungrouped Tasks';
                     const groupColor = group?.color_code || '#6B7280';
                     
                     return (
                       <View 
                         key={groupId}
                         style={[
+                          styles.section,
                           styles.groupContainer,
                           { borderLeftColor: groupColor }
                         ]}
                       >
-                        <View style={styles.groupHeader}>
-                          <Text style={styles.groupName}>{groupName}</Text>
-                          <Text style={styles.groupStats}>
-                            {tasks.filter(t => t.is_completed).length}/{tasks.length}
-                          </Text>
+                        <View style={styles.sectionHeader}>
+                          <View style={styles.groupTitleContainer}>
+                            <Text style={styles.groupName}>{groupName}</Text>
+                            <Text style={styles.groupStats}>
+                              {tasks.filter(t => t.is_completed).length}/{tasks.length}
+                            </Text>
+                          </View>
                         </View>
                         
-                        <View style={styles.groupTasks}>
+                        <View style={styles.itemsList}>
                           {tasks.map((item) => (
                             editingItemId === item.item_id ? (
                               // Editing mode for this item
-                              <View key={item.item_id} style={styles.newItemContainer}>
-                                <View style={styles.newItemRow}>
-                                  <TouchableOpacity
-                                    style={styles.newItemCheckbox}
-                                    onPress={() => handleItemToggle(item.item_id, item.is_completed)}
-                                  >
-                                    {item.is_completed ? (
-                                      <View style={styles.checkedBox}>
-                                        <Check size={16} color="#FFFFFF" strokeWidth={2} />
-                                      </View>
-                                    ) : (
-                                      <View style={styles.uncheckedBox} />
-                                    )}
-                                  </TouchableOpacity>
-                                  <TextInput
-                                    ref={editItemInputRef}
-                                    style={[
-                                      styles.newItemInput,
-                                      itemValidationError && styles.inputError
-                                    ]}
-                                    value={editingItemText}
-                                    onChangeText={(text) => {
-                                      setEditingItemText(text);
-                                      if (itemValidationError) {
-                                        setItemValidationError(null);
-                                      }
-                                    }}
-                                    onSubmitEditing={handleSaveEditItem}
-                                    onBlur={handleCancelEditItem}
-                                    returnKeyType="done"
-                                    blurOnSubmit={true}
-                                    multiline={false}
-                                    maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
-                                  />
-                                </View>
+                              <View key={item.item_id} style={styles.itemRow}>
+                                <TouchableOpacity
+                                  style={styles.checkboxContainer}
+                                  onPress={() => handleItemToggle(item.item_id, item.is_completed)}
+                                >
+                                  {item.is_completed ? (
+                                    <SquareCheck size={20} color={groupColor} />
+                                  ) : (
+                                    <Circle size={20} color="#C7C7CC" />
+                                  )}
+                                </TouchableOpacity>
+                                <TextInput
+                                  ref={editItemInputRef}
+                                  style={[
+                                    styles.itemInput,
+                                    item.is_completed && styles.itemInputCompleted,
+                                    itemValidationError && styles.inputError
+                                  ]}
+                                  value={editingItemText}
+                                  onChangeText={(text) => {
+                                    setEditingItemText(text);
+                                    if (itemValidationError) {
+                                      setItemValidationError(null);
+                                    }
+                                  }}
+                                  onSubmitEditing={handleSaveEditItem}
+                                  onBlur={handleCancelEditItem}
+                                  returnKeyType="done"
+                                  blurOnSubmit={true}
+                                  multiline={false}
+                                  maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
+                                />
                               </View>
                             ) : (
-                              // Normal display mode
-                              <ChecklistItem
-                                key={item.item_id}
-                                item={item}
-                                onToggle={() => handleItemToggle(item.item_id, item.is_completed)}
-                                onPress={() => handleItemPress(item)}
-                                isLoading={savingItem === item.item_id}
-                              />
+                              // Normal display mode with create page styling
+                              <View key={item.item_id} style={styles.itemRow}>
+                                <TouchableOpacity 
+                                  style={styles.checkboxContainer}
+                                  onPress={() => handleItemToggle(item.item_id, item.is_completed)}
+                                  activeOpacity={0.7}
+                                >
+                                  {item.is_completed ? (
+                                    <SquareCheck size={20} color={groupColor} />
+                                  ) : (
+                                    <Circle size={20} color="#C7C7CC" />
+                                  )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.itemTextContainer}
+                                  onPress={() => handleItemPress(item)}
+                                  activeOpacity={0.7}
+                                >
+                                  <Text style={[
+                                    styles.itemText,
+                                    item.is_completed && styles.itemTextCompleted
+                                  ]}>
+                                    {item.text}
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
                             )
                           ))}
                         </View>
@@ -1072,58 +1138,73 @@ export default function ChecklistDetailsScreen() {
                   })}
                 </>
               ) : (
-                // Regular View
+                // No groups exist - show items in simple list format (non-grouped)
                 <>
                   {[...items]
                     .sort((a, b) => a.order_index - b.order_index)
                     .map((item) => (
                       editingItemId === item.item_id ? (
                         // Editing mode for this item
-                        <View key={item.item_id} style={styles.newItemContainer}>
-                          <View style={styles.newItemRow}>
-                            <TouchableOpacity
-                              style={styles.newItemCheckbox}
-                              onPress={() => handleItemToggle(item.item_id, item.is_completed)}
-                            >
-                              {item.is_completed ? (
-                                <View style={styles.checkedBox}>
-                                  <Check size={16} color="#FFFFFF" strokeWidth={2} />
-                                </View>
-                              ) : (
-                                <View style={styles.uncheckedBox} />
-                              )}
-                            </TouchableOpacity>
-                            <TextInput
-                              ref={editItemInputRef}
-                              style={[
-                                styles.newItemInput,
-                                itemValidationError && styles.inputError
-                              ]}
-                              value={editingItemText}
-                              onChangeText={(text) => {
-                                setEditingItemText(text);
-                                if (itemValidationError) {
-                                  setItemValidationError(null);
-                                }
-                              }}
-                              onSubmitEditing={handleSaveEditItem}
-                              onBlur={handleCancelEditItem}
-                              returnKeyType="done"
-                              blurOnSubmit={true}
-                              multiline={false}
-                              maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
-                            />
-                          </View>
+                        <View key={item.item_id} style={styles.itemRow}>
+                          <TouchableOpacity
+                            style={styles.checkboxContainer}
+                            onPress={() => handleItemToggle(item.item_id, item.is_completed)}
+                          >
+                            {item.is_completed ? (
+                              <SquareCheck size={20} color="#6B7280" />
+                            ) : (
+                              <Circle size={20} color="#C7C7CC" />
+                            )}
+                          </TouchableOpacity>
+                          <TextInput
+                            ref={editItemInputRef}
+                            style={[
+                              styles.itemInput,
+                              item.is_completed && styles.itemInputCompleted,
+                              itemValidationError && styles.inputError
+                            ]}
+                            value={editingItemText}
+                            onChangeText={(text) => {
+                              setEditingItemText(text);
+                              if (itemValidationError) {
+                                setItemValidationError(null);
+                              }
+                            }}
+                            onSubmitEditing={handleSaveEditItem}
+                            onBlur={handleCancelEditItem}
+                            returnKeyType="done"
+                            blurOnSubmit={true}
+                            multiline={false}
+                            maxLength={VALIDATION_LIMITS.ITEM_TEXT_MAX_LENGTH}
+                          />
                         </View>
                       ) : (
-                        // Normal display mode
-                        <ChecklistItem
-                          key={item.item_id}
-                          item={item}
-                          onToggle={() => handleItemToggle(item.item_id, item.is_completed)}
-                          onPress={() => handleItemPress(item)}
-                          isLoading={savingItem === item.item_id}
-                        />
+                        // Normal display mode - simple item styling without group container
+                        <View key={item.item_id} style={styles.itemRow}>
+                          <TouchableOpacity 
+                            style={styles.checkboxContainer}
+                            onPress={() => handleItemToggle(item.item_id, item.is_completed)}
+                            activeOpacity={0.7}
+                          >
+                            {item.is_completed ? (
+                              <SquareCheck size={20} color="#6B7280" />
+                            ) : (
+                              <Circle size={20} color="#C7C7CC" />
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.itemTextContainer}
+                            onPress={() => handleItemPress(item)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[
+                              styles.itemText,
+                              item.is_completed && styles.itemTextCompleted
+                            ]}>
+                              {item.text}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       )
                     ))}
                 </>
@@ -2067,6 +2148,87 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
+  // Create page style for grouped view
+  section: {
+    backgroundColor: '#FFFFFF',
+    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  groupContainer: {
+    borderLeftWidth: 4,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    borderLeftColor: '#007AFF', // Will be overridden by inline style
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  groupTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1,
+    minHeight: 44, // Ensure consistent height for vertical centering
+  },
+  groupName: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600',
+    textAlign: 'left',
+  },
+  groupStats: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  itemsList: {
+    paddingTop: 4,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 0,
+    paddingVertical: 4,
+    minHeight: 36,
+  },
+  checkboxContainer: {
+    marginTop: 4,
+    marginRight: 12,
+    padding: 4,
+    borderRadius: 4,
+  },
+  itemInput: {
+    flex: 1,
+    fontSize: 17,
+    color: '#000000',
+    lineHeight: 22,
+    paddingVertical: 4,
+    minHeight: 22,
+    maxHeight: 110,
+  },
+  itemInputCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#8E8E93',
+  },
+  itemTextContainer: {
+    flex: 1,
+    paddingVertical: 4,
+  },
+  itemText: {
+    fontSize: 17,
+    color: '#000000',
+    lineHeight: 22,
+  },
+  itemTextCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#8E8E93',
+  },
   // Missing styles
   centerContent: {
     flex: 1,
@@ -2099,35 +2261,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
-  },
-  // Grouped view styles - matching create page
-  groupContainer: {
-    borderLeftWidth: 4,
-    borderRadius: 8,
-    marginHorizontal: 16,
-    marginBottom: 24,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  groupHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  groupName: {
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: '600',
-    textAlign: 'left',
-  },
-  groupStats: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  groupTasks: {
-    paddingTop: 4,
   },
 });

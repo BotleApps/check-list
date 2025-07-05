@@ -15,11 +15,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { createChecklistWithItems } from '../../store/slices/checklistsSlice';
+import { createChecklistWithItems, createChecklistItem, updateChecklistItem } from '../../store/slices/checklistsSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
 import { fetchTags } from '../../store/slices/tagsSlice';
 // Task groups imports
-import { fetchTaskGroups, createTaskGroup } from '../../store/slices/taskGroupsSlice';
+import { fetchTaskGroups, createTaskGroup, moveTaskToGroup } from '../../store/slices/taskGroupsSlice';
 import { TaskGroup } from '../../types/database';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
@@ -323,22 +323,85 @@ export default function NewChecklistScreen() {
     }
 
     try {
+      // Step 1: Create the checklist first (without items)
       const checklistData = {
         name: title.trim(),
         user_id: user.user_id,
         bucket_id: selectedBucketId || undefined,
         due_date: targetDate?.toISOString() || undefined,
         tags: selectedTags,
-        items: validItems.map((item, index) => ({
-          text: item.trim(),
-          completed: validStates[index] || false,
-        })),
+        items: [], // Empty items for now
       };
 
-      console.log('Saving checklist with data:', checklistData);
-      
+      console.log('Creating checklist:', checklistData);
       const result = await dispatch(createChecklistWithItems(checklistData)).unwrap();
-      console.log('Checklist created successfully:', result);
+      const checklistId = result.checklist.checklist_id;
+      console.log('Checklist created with ID:', checklistId);
+
+      // Step 2: Create groups and assign items to them
+      for (const group of groupedItems) {
+        const validGroupItems = group.items
+          .map((item, index) => ({ text: item.trim(), completed: group.itemStates[index] || false }))
+          .filter(item => item.text !== '');
+        
+        if (validGroupItems.length > 0) {
+          console.log(`Creating group "${group.name}" with ${validGroupItems.length} items`);
+          
+          // Create the group
+          const groupResult = await dispatch(createTaskGroup({
+            checklistId,
+            name: group.name,
+            colorCode: group.colorCode,
+          })).unwrap();
+          
+          const groupId = groupResult.group_id;
+          console.log(`Group created with ID: ${groupId}`);
+          
+          // Add items to this group
+          for (let itemIndex = 0; itemIndex < validGroupItems.length; itemIndex++) {
+            const item = validGroupItems[itemIndex];
+            console.log(`Adding item "${item.text}" to group ${groupId}`);
+            
+            const itemResult = await dispatch(createChecklistItem({
+              checklist_id: checklistId,
+              text: item.text,
+              description: undefined,
+              order_index: itemIndex + 1,
+              is_completed: false,
+              is_required: false,
+              tags: [],
+              group_id: undefined, // Will be set via moveTaskToGroup
+            })).unwrap();
+            
+            // Move the item to the group
+            await dispatch(moveTaskToGroup({
+              taskId: itemResult.item_id,
+              groupId: groupId,
+              checklistId: checklistId,
+            })).unwrap();
+            
+            // Mark as completed if needed
+            if (item.completed) {
+              await dispatch(updateChecklistItem({
+                ...itemResult,
+                is_completed: true,
+                group_id: groupId,
+              })).unwrap();
+            }
+          }
+        }
+      }
+
+      console.log('All groups and items created successfully');
+      
+      // Show success toast
+      showToastMessage('Checklist created successfully!', 'success');
+      
+      // Navigate to the newly created checklist after a short delay to show the toast
+      setTimeout(() => {
+        setIsSaving(false);
+        router.replace(`/checklist/${checklistId}`);
+      }, 2000); // Increased to 2 seconds to show the toast longer
       
       // Show success toast
       showToastMessage('Checklist created successfully!', 'success');
