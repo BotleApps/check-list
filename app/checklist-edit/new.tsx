@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Modal,
@@ -24,6 +23,7 @@ import { fetchTaskGroups, createTaskGroup } from '../../store/slices/taskGroupsS
 import { TaskGroup } from '../../types/database';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
+import { Toast } from '../../components/Toast';
 import { 
   validateChecklistTitle, 
   validateItemText, 
@@ -34,7 +34,8 @@ import {
   getCharacterCountText,
   shouldHighlightCharacterCount
 } from '../../lib/validations';
-import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck, X, Plus, Layers, Settings } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Folder, Tag, Circle, SquareCheck, X, Plus, Layers, Settings, Edit, Trash, Check } from 'lucide-react-native';
+import { ConfirmationModal } from '../../components/ConfirmationModal';
 
 export default function NewChecklistScreen() {
   const router = useRouter();
@@ -72,15 +73,37 @@ export default function NewChecklistScreen() {
   const [isAddingGroup, setIsAddingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   
+  // Group editing states
+  const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
+  const [editingGroupName, setEditingGroupName] = useState('');
+  
+  // Group deletion confirmation states
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<number | null>(null);
+  
+  // Group name character limit
+  const MAX_GROUP_NAME_LENGTH = 30;
+  
+  // Toast states
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  
+  // Loading overlay state
+  const [isSaving, setIsSaving] = useState(false);
+  
   // Validation states
   const [titleValidationError, setTitleValidationError] = useState<string | null>(null);
 
   // Computed validation state for save button
-  const isSaveEnabled = React.useMemo(() => {
+  const isSaveEnabled = useMemo(() => {
     const hasValidTitle = title && title.trim().length > 0;
-    const hasValidItems = groupedItems.some(group => 
-      group.items.some(item => item && item.trim().length > 0)
-    );
+    const hasValidItems = groupedItems.some(group => {
+      // Filter out empty items (especially the placeholder empty item at the end)
+      const nonEmptyItems = group.items.filter(item => item && item.trim().length > 0);
+      return nonEmptyItems.length > 0;
+    });
+    
     return hasValidTitle && hasValidItems && !loading;
   }, [title, groupedItems, loading]);
 
@@ -99,14 +122,20 @@ export default function NewChecklistScreen() {
 
   // Task Groups Functions - Updated for new structure
   const addTaskGroup = () => {
-    if (!newGroupName.trim()) return;
+    const trimmedName = newGroupName.trim();
+    if (!trimmedName) return;
+    
+    if (trimmedName.length > MAX_GROUP_NAME_LENGTH) {
+      showToastMessage(`Group name must be ${MAX_GROUP_NAME_LENGTH} characters or less`, 'error');
+      return;
+    }
     
     const colors = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899'];
     const colorIndex = groupedItems.length % colors.length;
     
     const newGroup = {
       id: `group-${Date.now()}`,
-      name: newGroupName.trim(),
+      name: trimmedName,
       colorCode: colors[colorIndex],
       items: [''],
       itemStates: [false]
@@ -120,13 +149,76 @@ export default function NewChecklistScreen() {
   const removeTaskGroup = (groupIndex: number) => {
     if (groupedItems.length <= 1) return; // Keep at least one group
     
-    const updatedGroups = groupedItems.filter((_, i) => i !== groupIndex);
+    setGroupToDelete(groupIndex);
+    setShowDeleteConfirmation(true);
+  };
+
+  const confirmDeleteGroup = () => {
+    if (groupToDelete === null) return;
+    
+    const updatedGroups = groupedItems.filter((_, i) => i !== groupToDelete);
     setGroupedItems(updatedGroups);
+    
+    setShowDeleteConfirmation(false);
+    setGroupToDelete(null);
+  };
+
+  const cancelDeleteGroup = () => {
+    setShowDeleteConfirmation(false);
+    setGroupToDelete(null);
+  };
+
+  const startEditingGroup = (groupIndex: number) => {
+    setEditingGroupIndex(groupIndex);
+    setEditingGroupName(groupedItems[groupIndex].name);
+  };
+
+  const confirmGroupEdit = () => {
+    const trimmedName = editingGroupName.trim();
+    if (editingGroupIndex === null || !trimmedName) return;
+    
+    if (trimmedName.length > MAX_GROUP_NAME_LENGTH) {
+      showToastMessage(`Group name must be ${MAX_GROUP_NAME_LENGTH} characters or less`, 'error');
+      return;
+    }
+    
+    const updatedGroups = [...groupedItems];
+    updatedGroups[editingGroupIndex].name = trimmedName;
+    setGroupedItems(updatedGroups);
+    
+    setEditingGroupIndex(null);
+    setEditingGroupName('');
+  };
+
+  const cancelGroupEdit = () => {
+    setEditingGroupIndex(null);
+    setEditingGroupName('');
+  };
+
+  const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
   };
 
   const updateGroupItem = (groupIndex: number, itemIndex: number, value: string) => {
     const updatedGroups = [...groupedItems];
     updatedGroups[groupIndex].items[itemIndex] = value;
+    
+    // If user is typing in the last item and it's not empty, add a new empty item
+    const isLastItem = itemIndex === updatedGroups[groupIndex].items.length - 1;
+    
+    if (isLastItem && value.trim() !== '') {
+      // Check if there's already an empty item at the end (after this one)
+      const hasEmptyAtEnd = updatedGroups[groupIndex].items.length > itemIndex + 1 && 
+                           updatedGroups[groupIndex].items[updatedGroups[groupIndex].items.length - 1] === '';
+      
+      if (!hasEmptyAtEnd) {
+        updatedGroups[groupIndex].items.push('');
+        updatedGroups[groupIndex].itemStates.push(false);
+      }
+    }
+    
     setGroupedItems(updatedGroups);
   };
 
@@ -136,19 +228,29 @@ export default function NewChecklistScreen() {
     setGroupedItems(updatedGroups);
   };
 
-  const addItemToGroup = (groupIndex: number, afterIndex: number) => {
-    const updatedGroups = [...groupedItems];
-    updatedGroups[groupIndex].items.splice(afterIndex + 1, 0, '');
-    updatedGroups[groupIndex].itemStates.splice(afterIndex + 1, 0, false);
-    setGroupedItems(updatedGroups);
-  };
-
   const removeItemFromGroup = (groupIndex: number, itemIndex: number) => {
     const updatedGroups = [...groupedItems];
-    if (updatedGroups[groupIndex].items.length <= 1) return; // Keep at least one item
+    const group = updatedGroups[groupIndex];
     
-    updatedGroups[groupIndex].items.splice(itemIndex, 1);
-    updatedGroups[groupIndex].itemStates.splice(itemIndex, 1);
+    // Don't remove if this is the only item, or if it's the last item and it's empty
+    if (group.items.length <= 1) return;
+    
+    const isLastItem = itemIndex === group.items.length - 1;
+    const isItemEmpty = group.items[itemIndex].trim() === '';
+    
+    // Don't remove the last item if it's empty (keep it as placeholder)
+    if (isLastItem && isItemEmpty) return;
+    
+    group.items.splice(itemIndex, 1);
+    group.itemStates.splice(itemIndex, 1);
+    
+    // Ensure there's always an empty item at the end
+    const lastItem = group.items[group.items.length - 1];
+    if (lastItem && lastItem.trim() !== '') {
+      group.items.push('');
+      group.itemStates.push(false);
+    }
+    
     setGroupedItems(updatedGroups);
   };
 
@@ -167,11 +269,15 @@ export default function NewChecklistScreen() {
       return;
     }
 
+    // Show loading overlay immediately
+    setIsSaving(true);
+
     // Validate title
     const titleError = validateChecklistTitle(title);
     if (titleError) {
       setTitleValidationError(titleError);
-      Alert.alert('Validation Error', titleError);
+      showToastMessage(titleError, 'error');
+      setIsSaving(false);
       return;
     }
     setTitleValidationError(null);
@@ -197,19 +303,22 @@ export default function NewChecklistScreen() {
     
     // Check if there are any validation errors
     if (hasValidationErrors) {
-      Alert.alert('Validation Error', 'Please fix the errors in your items');
+      showToastMessage('Please fix the errors in your items', 'error');
+      setIsSaving(false);
       return;
     }
     
     if (validItems.length === 0) {
       console.log('No valid items');
-      Alert.alert('Error', 'Please add at least one item to your checklist');
+      showToastMessage('Please add at least one item to your checklist', 'error');
+      setIsSaving(false);
       return;
     }
 
     // Check item limit
     if (!canAddMoreItems(validItems.length - 1)) { // -1 because we're adding multiple items
-      Alert.alert('Limit Reached', VALIDATION_MESSAGES.MAX_ITEMS_REACHED);
+      showToastMessage(VALIDATION_MESSAGES.MAX_ITEMS_REACHED, 'error');
+      setIsSaving(false);
       return;
     }
 
@@ -231,13 +340,23 @@ export default function NewChecklistScreen() {
       const result = await dispatch(createChecklistWithItems(checklistData)).unwrap();
       console.log('Checklist created successfully:', result);
       
-      Alert.alert('Success', 'Checklist created successfully!', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      // Show success toast
+      showToastMessage('Checklist created successfully!', 'success');
+      
+      // Navigate to the newly created checklist after a short delay to show the toast
+      setTimeout(() => {
+        setIsSaving(false);
+        if (result && result.checklist && result.checklist.checklist_id) {
+          router.replace(`/checklist/${result.checklist.checklist_id}`);
+        } else {
+          router.replace('/');
+        }
+      }, 2000); // Increased to 2 seconds to show the toast longer
     } catch (error) {
       console.error('Error creating checklist:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      Alert.alert('Error', `Failed to create checklist: ${errorMessage}`);
+      showToastMessage(`Failed to create checklist: ${errorMessage}`, 'error');
+      setIsSaving(false);
     }
   };
 
@@ -283,16 +402,16 @@ export default function NewChecklistScreen() {
           <TouchableOpacity 
             style={[
               styles.doneButton,
-              !isSaveEnabled && styles.doneButtonDisabled
+              (!isSaveEnabled || isSaving) && styles.doneButtonDisabled
             ]} 
             onPress={handleSave}
-            disabled={!isSaveEnabled}
+            disabled={!isSaveEnabled || isSaving}
           >
             <Text style={[
               styles.doneButtonText,
-              !isSaveEnabled && styles.doneButtonTextDisabled
+              (!isSaveEnabled || isSaving) && styles.doneButtonTextDisabled
             ]}>
-              Save
+              {isSaving ? 'Saving...' : 'Save'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -318,27 +437,73 @@ export default function NewChecklistScreen() {
 
           {/* Groups with Items */}
           {groupedItems.map((group, groupIndex) => (
-            <View key={group.id} style={styles.section}>
+            <View 
+              key={group.id} 
+              style={[
+                styles.section,
+                styles.groupContainer,
+                { borderLeftColor: group.colorCode }
+              ]}
+            >
               <View style={styles.sectionHeader}>
                 <View style={styles.groupTitleContainer}>
-                  <View style={[styles.groupIndicator, { backgroundColor: group.colorCode }]} />
-                  <Text style={styles.sectionLabel}>{group.name}</Text>
-                  {groupedItems.length > 1 && (
-                    <TouchableOpacity
-                      style={styles.removeGroupButton}
-                      onPress={() => removeTaskGroup(groupIndex)}
-                    >
-                      <X size={16} color="#FF3B30" />
-                    </TouchableOpacity>
+                  {editingGroupIndex === groupIndex ? (
+                    <>
+                      <View style={styles.editGroupContainer}>
+                        <View style={styles.editInputRow}>
+                          <TextInput
+                            style={styles.editGroupInput}
+                            value={editingGroupName}
+                            onChangeText={(text) => {
+                              if (text.length <= MAX_GROUP_NAME_LENGTH) {
+                                setEditingGroupName(text);
+                              }
+                            }}
+                            placeholderTextColor="#C7C7CC"
+                            returnKeyType="done"
+                            onSubmitEditing={confirmGroupEdit}
+                            autoFocus
+                            maxLength={MAX_GROUP_NAME_LENGTH}
+                          />
+                          <View style={styles.editButtonsContainer}>
+                            <TouchableOpacity
+                              style={styles.confirmButton}
+                              onPress={confirmGroupEdit}
+                            >
+                              <Check size={16} color="#22C55E" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.cancelButton}
+                              onPress={cancelGroupEdit}
+                            >
+                              <X size={16} color="#FF3B30" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.groupName}>{group.name}</Text>
+                      <View style={styles.groupActionsContainer}>
+                        <TouchableOpacity
+                          style={styles.editGroupButton}
+                          onPress={() => startEditingGroup(groupIndex)}
+                        >
+                          <Edit size={16} color="#007AFF" />
+                        </TouchableOpacity>
+                        {groupedItems.length > 1 && (
+                          <TouchableOpacity
+                            style={styles.deleteGroupButton}
+                            onPress={() => removeTaskGroup(groupIndex)}
+                          >
+                            <Trash size={16} color="#FF3B30" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </>
                   )}
                 </View>
-                <TouchableOpacity 
-                  style={styles.addItemButton}
-                  onPress={() => addItemToGroup(groupIndex, group.items.length - 1)}
-                >
-                  <Plus size={20} color="#007AFF" />
-                  <Text style={styles.addItemText}>Add Item</Text>
-                </TouchableOpacity>
               </View>
               
               <View style={styles.itemsList}>
@@ -365,12 +530,11 @@ export default function NewChecklistScreen() {
                       onChangeText={(value) => updateGroupItem(groupIndex, itemIndex, value)}
                       placeholderTextColor="#C7C7CC"
                       returnKeyType="next"
-                      onSubmitEditing={() => addItemToGroup(groupIndex, itemIndex)}
                       multiline={true}
                       textAlignVertical="top"
                       scrollEnabled={false}
                     />
-                    {group.items.length > 1 && (
+                    {group.items.length > 1 && item.trim() !== '' && (
                       <TouchableOpacity
                         style={styles.removeButton}
                         onPress={() => removeItemFromGroup(groupIndex, itemIndex)}
@@ -394,28 +558,44 @@ export default function NewChecklistScreen() {
               <Text style={styles.addGroupSectionText}>Add Group</Text>
             </TouchableOpacity>
           ) : (
-            <View style={styles.newGroupSection}>
+            <View style={[styles.newGroupSection, { borderLeftColor: '#6B7280' }]}>
               <View style={styles.newGroupHeader}>
-                <View style={[styles.groupIndicator, { backgroundColor: '#6B7280' }]} />
-                <TextInput
-                  style={styles.newGroupInput}
-                  placeholder="Group name..."
-                  value={newGroupName}
-                  onChangeText={setNewGroupName}
-                  placeholderTextColor="#C7C7CC"
-                  returnKeyType="done"
-                  onSubmitEditing={addTaskGroup}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={styles.removeGroupButton}
-                  onPress={() => {
-                    setIsAddingGroup(false);
-                    setNewGroupName('');
-                  }}
-                >
-                  <X size={16} color="#FF3B30" />
-                </TouchableOpacity>
+                <View style={styles.newGroupInputContainer}>
+                  <View style={styles.newInputRow}>
+                    <TextInput
+                      style={styles.newGroupInput}
+                      placeholder="Group name..."
+                      value={newGroupName}
+                      onChangeText={(text) => {
+                        if (text.length <= MAX_GROUP_NAME_LENGTH) {
+                          setNewGroupName(text);
+                        }
+                      }}
+                      placeholderTextColor="#C7C7CC"
+                      returnKeyType="done"
+                      onSubmitEditing={addTaskGroup}
+                      autoFocus
+                      maxLength={MAX_GROUP_NAME_LENGTH}
+                    />
+                    <View style={styles.editButtonsContainer}>
+                      <TouchableOpacity
+                        style={styles.confirmButton}
+                        onPress={addTaskGroup}
+                      >
+                        <Check size={16} color="#22C55E" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.cancelButton}
+                        onPress={() => {
+                          setIsAddingGroup(false);
+                          setNewGroupName('');
+                        }}
+                      >
+                        <X size={16} color="#FF3B30" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
               </View>
             </View>
           )}
@@ -492,8 +672,11 @@ export default function NewChecklistScreen() {
           <SafeAreaView style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Date</Text>
-              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                <Text style={styles.doneButtonText}>Done</Text>
+              <TouchableOpacity 
+                style={styles.modalDoneButton}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.modalDoneButtonText}>Done</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.datePickerContainer}>
@@ -545,6 +728,33 @@ export default function NewChecklistScreen() {
           onSelect={setSelectedTags}
           onClose={() => setShowTagModal(false)}
         />
+
+        <ConfirmationModal
+          visible={showDeleteConfirmation}
+          title="Delete Group"
+          message={`Are you sure you want to delete the "${groupToDelete !== null ? groupedItems[groupToDelete]?.name : ''}" group? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmStyle="destructive"
+          onConfirm={confirmDeleteGroup}
+          onCancel={cancelDeleteGroup}
+        />
+
+        <Toast
+          visible={showToast}
+          message={toastMessage}
+          type={toastType}
+          onHide={() => setShowToast(false)}
+        />
+
+        {/* Loading Overlay */}
+        {isSaving && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Creating checklist...</Text>
+            </View>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -650,6 +860,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#000000',
+  },
+  modalDoneButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  modalDoneButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   modalItem: {
     flexDirection: 'row',
@@ -787,6 +1008,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
   },
+  groupContainer: {
+    borderLeftWidth: 4,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    borderLeftColor: '#007AFF', // Will be overridden by inline style
+  },
   sectionLabel: {
     fontSize: 16,
     fontWeight: '600',
@@ -798,20 +1026,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-  },
-  addItemButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: '#F0F9FF',
-    borderRadius: 6,
-  },
-  addItemText: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
   },
   removeButton: {
     padding: 8,
@@ -980,32 +1194,81 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
-  groupIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  groupName: {
-    flex: 1,
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: '500',
-  },
-  newGroupInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#111827',
-    paddingVertical: 4,
-  },
   removeGroupButton: {
     padding: 4,
+  },
+  // Group editing styles
+  editGroupContainer: {
+    flex: 1,
+  },
+  editInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editGroupInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    textAlign: 'left',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    height: 44,
+  },
+  characterCount: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  editButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  confirmButton: {
+    padding: 6,
+    backgroundColor: '#E8F5E8',
+    borderRadius: 4,
+  },
+  cancelButton: {
+    padding: 6,
+    backgroundColor: '#FFE8E8',
+    borderRadius: 4,
+  },
+  groupActionsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  editGroupButton: {
+    padding: 6,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 4,
+  },
+  deleteGroupButton: {
+    padding: 6,
+    backgroundColor: '#FFE8E8',
+    borderRadius: 4,
   },
   // New group section styles
   groupTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     flex: 1,
+    minHeight: 44, // Ensure consistent height for vertical centering
+  },
+  groupName: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600',
+    textAlign: 'left',
+    textAlignVertical: 'center',
   },
   addGroupSection: {
     flexDirection: 'row',
@@ -1031,12 +1294,66 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    borderLeftWidth: 4,
+    borderLeftColor: '#6B7280',
     marginBottom: 16,
+    marginHorizontal: 16,
     padding: 12,
   },
   newGroupHeader: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  newGroupInputContainer: {
+    flex: 1,
+  },
+  newInputRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+  },
+  newGroupInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    textAlign: 'left',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    height: 44,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    textAlign: 'center',
   },
 });

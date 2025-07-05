@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  FlatList,
 } from 'react-native';
 import {
   ChevronDown,
@@ -152,15 +151,6 @@ export const GroupedTasksList: React.FC<GroupedTasksListProps> = ({
     );
   };
 
-  const renderTaskItem = ({ item: task }: { item: ChecklistItem }) => (
-    <ChecklistItemComponent
-      item={task}
-      onToggle={() => onToggleTask(task.item_id, task.is_completed)}
-      onPress={() => onTaskPress(task)}
-      isLoading={savingTaskId === task.item_id}
-    />
-  );
-
   const renderAddTaskButton = (groupId?: string) => (
     <TouchableOpacity
       style={styles.addTaskButton}
@@ -171,7 +161,7 @@ export const GroupedTasksList: React.FC<GroupedTasksListProps> = ({
     </TouchableOpacity>
   );
 
-  const renderGroupSection = ({ item: groupData }: { item: GroupedTasks }) => {
+  const renderGroupSection = (groupData: GroupedTasks) => {
     const { group, tasks } = groupData;
     const isExpanded = isGroupExpanded(group?.group_id || null);
 
@@ -181,12 +171,15 @@ export const GroupedTasksList: React.FC<GroupedTasksListProps> = ({
         
         {isExpanded && (
           <View style={styles.groupTasks}>
-            <FlatList
-              data={tasks}
-              keyExtractor={(task) => task.item_id}
-              renderItem={renderTaskItem}
-              scrollEnabled={false}
-            />
+            {tasks.map((task) => (
+              <ChecklistItemComponent
+                key={task.item_id}
+                item={task}
+                onToggle={() => onToggleTask(task.item_id, task.is_completed)}
+                onPress={() => onTaskPress(task)}
+                isLoading={savingTaskId === task.item_id}
+              />
+            ))}
             {onCreateTask && renderAddTaskButton(group?.group_id)}
           </View>
         )}
@@ -196,20 +189,20 @@ export const GroupedTasksList: React.FC<GroupedTasksListProps> = ({
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={groupedTasks}
-        keyExtractor={(groupData, index) => {
-          if (groupData.group?.group_id) {
-            return groupData.group.group_id;
-          }
-          // For ungrouped sections, use a stable key based on the first task's checklist_id if available
-          const firstTask = groupData.tasks[0];
-          return firstTask ? `ungrouped_${firstTask.checklist_id}` : `ungrouped_${index}`;
-        }}
-        renderItem={renderGroupSection}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-      />
+      {groupedTasks.map((groupData, index) => {
+        const key = groupData.group?.group_id 
+          ? groupData.group.group_id 
+          : groupData.tasks[0] 
+            ? `ungrouped_${groupData.tasks[0].checklist_id}` 
+            : `ungrouped_${index}`;
+        
+        return (
+          <View key={key}>
+            {renderGroupSection(groupData)}
+          </View>
+        );
+      })}
+      <View style={styles.bottomPadding} />
     </View>
   );
 };
@@ -218,8 +211,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  listContent: {
-    paddingBottom: 20,
+  bottomPadding: {
+    height: 20,
   },
   groupSection: {
     marginBottom: 16,

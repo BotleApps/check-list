@@ -91,7 +91,7 @@ export default function ChecklistDetailsScreen() {
   
   // Task groups states
   const [showTaskGroupManager, setShowTaskGroupManager] = useState(false);
-  const [useGroupedView, setUseGroupedView] = useState(false);
+  const [useGroupedView, setUseGroupedView] = useState(true);  // Enable grouped view by default
   const [selectedGroupForNewTask, setSelectedGroupForNewTask] = useState<string | undefined>(undefined);
   
   // Delete confirmation state
@@ -547,9 +547,9 @@ export default function ChecklistDetailsScreen() {
     try {
       await dispatch(deleteChecklist(checklist.checklist_id)).unwrap();
       showToastMessage('Checklist deleted successfully!');
-      // Navigate back after a short delay to show the success message
+      // Navigate to home after a short delay to show the success message
       setTimeout(() => {
-        router.back();
+        router.replace('/');
       }, 1500);
     } catch (error) {
       console.error('Error deleting checklist:', error);
@@ -611,20 +611,20 @@ export default function ChecklistDetailsScreen() {
     if (editingHeader) {
       setShowUnsavedChangesModal(true);
     } else {
-      router.back();
+      router.replace('/');  // Navigate to home instead of going back to edit
     }
   };
 
   const handleSaveAndExit = async () => {
     setShowUnsavedChangesModal(false);
     await handleSaveHeader();
-    router.back();
+    router.replace('/');  // Navigate to home instead of going back
   };
 
   const handleDiscardAndExit = () => {
     setShowUnsavedChangesModal(false);
     handleCancelEditHeader();
-    router.back();
+    router.replace('/');  // Navigate to home instead of going back
   };
 
   // Task Groups Handlers
@@ -689,7 +689,7 @@ export default function ChecklistDetailsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.replace('/')} style={styles.backButton}>
             <ArrowLeft size={24} color="#111827" />
           </TouchableOpacity>
         </View>
@@ -726,7 +726,7 @@ export default function ChecklistDetailsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.replace('/')} style={styles.backButton}>
             <ArrowLeft size={24} color="#111827" />
           </TouchableOpacity>
         </View>
@@ -759,6 +759,12 @@ export default function ChecklistDetailsScreen() {
           <ArrowLeft size={24} color="#111827" />
         </TouchableOpacity>
         <View style={styles.headerActions}>
+          <TouchableOpacity 
+            onPress={() => setUseGroupedView(!useGroupedView)}
+            style={[styles.actionButton, useGroupedView && styles.activeActionButton]}
+          >
+            <Layers size={20} color={useGroupedView ? "#007AFF" : "#6B7280"} />
+          </TouchableOpacity>
           <TouchableOpacity 
             onPress={handleShareAction}
             style={styles.actionButton}
@@ -1457,6 +1463,10 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 8,
   },
+  activeActionButton: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 6,
+  },
   deleteActionButton: {
     // Additional styling for delete button if needed
   },
@@ -1536,14 +1546,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  viewToggleButton: {
-    padding: 8,
-    borderRadius: 6,
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: 16,
-    textAlign: 'center',
-  },
+
   loadingOverlay: {
     position: 'absolute',
     top: 0,
