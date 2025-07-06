@@ -56,7 +56,7 @@ export default function AICreateScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [generatedChecklist, setGeneratedChecklist] = useState<AIGeneratedChecklist | null>(null);
-  const [currentStep, setCurrentStep] = useState<'input' | 'preview' | 'edit' | 'configure' | 'creating'>('input');
+  const [currentStep, setCurrentStep] = useState<'input' | 'preview' | 'configure' | 'creating'>('input');
   const [generationProgress, setGenerationProgress] = useState<AIGenerationProgress | null>(null);
   
   // Configuration states for step 3
@@ -68,10 +68,6 @@ export default function AICreateScreen() {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
-  
-  // Edit mode states
-  const [editableChecklist, setEditableChecklist] = useState<AIGeneratedChecklist | null>(null);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   
   // Toast states
   const [showToast, setShowToast] = useState(false);
@@ -184,27 +180,23 @@ export default function AICreateScreen() {
   };
 
   const handleEditChecklist = () => {
-    if (!generatedChecklist) return;
-    
-    // Create a copy for editing
-    setEditableChecklist(JSON.parse(JSON.stringify(generatedChecklist)));
-    setCurrentStep('edit');
+    // Go back to input step to edit the prompt
+    setCurrentStep('input');
   };
 
   const handleBackToPreview = () => {
-    if (currentStep === 'edit') {
-      // Update the original checklist with edits
-      if (editableChecklist) {
-        setGeneratedChecklist(editableChecklist);
-      }
-    }
     setCurrentStep('preview');
   };
 
-  const handleRemoveItem = (groupIndex: number, itemIndex: number) => {
-    if (!editableChecklist) return;
+  const handleBackToInput = () => {
+    setCurrentStep('input');
+  };
+
+  // Handle item deletion in preview
+  const handleDeleteItem = (groupIndex: number, itemIndex: number) => {
+    if (!generatedChecklist) return;
     
-    const updatedChecklist = { ...editableChecklist };
+    const updatedChecklist = { ...generatedChecklist };
     updatedChecklist.groups[groupIndex].items.splice(itemIndex, 1);
     
     // Reorder remaining items
@@ -212,42 +204,7 @@ export default function AICreateScreen() {
       item.order = index;
     });
     
-    setEditableChecklist(updatedChecklist);
-  };
-
-  const handleEditItem = (groupIndex: number, itemIndex: number, newText: string, newDescription?: string) => {
-    if (!editableChecklist) return;
-    
-    const updatedChecklist = { ...editableChecklist };
-    updatedChecklist.groups[groupIndex].items[itemIndex] = {
-      ...updatedChecklist.groups[groupIndex].items[itemIndex],
-      text: newText,
-      description: newDescription || ''
-    };
-    
-    setEditableChecklist(updatedChecklist);
-    setEditingItemId(null);
-  };
-
-  const handleAddItem = (groupIndex: number) => {
-    if (!editableChecklist) return;
-    
-    const updatedChecklist = { ...editableChecklist };
-    const newItem = {
-      text: 'New item',
-      description: '',
-      order: updatedChecklist.groups[groupIndex].items.length
-    };
-    
-    updatedChecklist.groups[groupIndex].items.push(newItem);
-    setEditableChecklist(updatedChecklist);
-    
-    // Start editing the new item
-    setEditingItemId(`${groupIndex}-${newItem.order}`);
-  };
-
-  const handleBackToInput = () => {
-    setCurrentStep('input');
+    setGeneratedChecklist(updatedChecklist);
   };
 
   // Handle checklist creation
@@ -450,7 +407,7 @@ export default function AICreateScreen() {
           {/* Items Preview */}
           <View style={styles.itemsSection}>
             <Text style={styles.sectionTitle}>Items Preview</Text>
-            {generatedChecklist.groups.map((group) => (
+            {generatedChecklist.groups.map((group, groupIndex) => (
               <View key={group.order} style={styles.groupContainer}>
                 <TouchableOpacity
                   style={styles.groupHeader}
@@ -480,7 +437,7 @@ export default function AICreateScreen() {
                 
                 {!collapsedGroups.has(group.order) && (
                   <View style={styles.groupItems}>
-                    {group.items.map((item) => (
+                    {group.items.map((item, itemIndex) => (
                       <View key={item.order} style={styles.itemRow}>
                         <View style={styles.checkbox} />
                         <View style={styles.itemContent}>
@@ -489,6 +446,12 @@ export default function AICreateScreen() {
                             <Text style={styles.itemDescription}>{item.description}</Text>
                           )}
                         </View>
+                        <TouchableOpacity
+                          style={styles.deleteItemButton}
+                          onPress={() => handleDeleteItem(groupIndex, itemIndex)}
+                        >
+                          <X size={16} color="#EF4444" />
+                        </TouchableOpacity>
                       </View>
                     ))}
                   </View>
@@ -560,99 +523,6 @@ export default function AICreateScreen() {
     </ScrollView>
   );
 
-  // Render edit step - allows editing the AI generated checklist
-  const renderEditStep = () => (
-    <ScrollView style={styles.content}>
-      {editableChecklist && (
-        <View style={styles.previewContainer}>
-          {/* Edit Header */}
-          <View style={styles.editHeader}>
-            <Text style={styles.editTitle}>Edit Your Checklist</Text>
-            <Text style={styles.editSubtitle}>
-              Add, remove, or modify items before creating your checklist
-            </Text>
-          </View>
-
-          {/* Editable Groups and Items */}
-          <View style={styles.itemsSection}>
-            {editableChecklist.groups.map((group, groupIndex) => (
-              <View key={group.order} style={styles.editGroupContainer}>
-                <View style={styles.editGroupHeader}>
-                  <View style={[styles.groupColorIndicator, { backgroundColor: group.color }]} />
-                  <Text style={styles.groupName}>{group.name}</Text>
-                  <TouchableOpacity
-                    style={styles.addItemButton}
-                    onPress={() => handleAddItem(groupIndex)}
-                  >
-                    <Plus size={16} color="#007AFF" />
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.editItemsList}>
-                  {group.items.map((item, itemIndex) => {
-                    const itemId = `${groupIndex}-${itemIndex}`;
-                    const isEditing = editingItemId === itemId;
-                    
-                    return (
-                      <View key={itemIndex} style={styles.editItemRow}>
-                        {isEditing ? (
-                          <View style={styles.editItemInput}>
-                            <TextInput
-                              style={styles.itemTextInput}
-                              value={item.text}
-                              onChangeText={(text) => {
-                                const updatedChecklist = { ...editableChecklist };
-                                updatedChecklist.groups[groupIndex].items[itemIndex].text = text;
-                                setEditableChecklist(updatedChecklist);
-                              }}
-                              placeholder="Item text"
-                              autoFocus
-                            />
-                            <View style={styles.editItemActions}>
-                              <TouchableOpacity
-                                style={styles.saveButton}
-                                onPress={() => setEditingItemId(null)}
-                              >
-                                <Check size={16} color="#10B981" />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        ) : (
-                          <View style={styles.viewItemRow}>
-                            <View style={styles.itemContent}>
-                              <Text style={styles.itemText}>{item.text}</Text>
-                              {item.description && (
-                                <Text style={styles.itemDescription}>{item.description}</Text>
-                              )}
-                            </View>
-                            <View style={styles.itemActions}>
-                              <TouchableOpacity
-                                style={styles.editButton}
-                                onPress={() => setEditingItemId(itemId)}
-                              >
-                                <Edit3 size={16} color="#6B7280" />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={styles.deleteButton}
-                                onPress={() => handleRemoveItem(groupIndex, itemIndex)}
-                              >
-                                <Trash2 size={16} color="#EF4444" />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-    </ScrollView>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
@@ -661,7 +531,7 @@ export default function AICreateScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          {currentStep === 'configure' || currentStep === 'edit' ? (
+          {currentStep === 'configure' ? (
             <TouchableOpacity onPress={handleBackToPreview} style={styles.backButton}>
               <ChevronLeft size={24} color="#007AFF" />
             </TouchableOpacity>
@@ -676,7 +546,6 @@ export default function AICreateScreen() {
           <Text style={styles.headerTitle}>
             {currentStep === 'input' ? 'Create with AI' : 
              currentStep === 'preview' ? 'AI Generated Checklist' : 
-             currentStep === 'edit' ? 'Edit Checklist' :
              currentStep === 'configure' ? 'Configure Checklist' : 'Creating...'}
           </Text>
           <View style={styles.headerSpacer} />
@@ -685,7 +554,6 @@ export default function AICreateScreen() {
         {/* Content based on current step */}
         {currentStep === 'input' && renderInputStep()}
         {(currentStep === 'preview' || currentStep === 'creating') && renderPreviewStep()}
-        {currentStep === 'edit' && renderEditStep()}
         {currentStep === 'configure' && renderConfigureStep()}
 
         {/* Footer Actions */}
@@ -708,26 +576,16 @@ export default function AICreateScreen() {
                 onPress={handleEditChecklist}
               >
                 <Edit3 size={18} color="#007AFF" style={{ marginRight: 8 }} />
-                <Text style={[styles.createButtonText, styles.secondaryButtonText]}>Edit Items</Text>
+                <Text style={[styles.createButtonText, styles.secondaryButtonText]}>Edit Prompt</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.createButton}
                 onPress={handleUseTemplate}
               >
                 <ChevronRight size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.createButtonText}>Continue to Configure</Text>
+                <Text style={styles.createButtonText}>Continue</Text>
               </TouchableOpacity>
             </View>
-          )}
-          
-          {currentStep === 'edit' && (
-            <TouchableOpacity
-              style={styles.createButton}
-              onPress={handleBackToPreview}
-            >
-              <CheckCircle2 size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.createButtonText}>Done Editing</Text>
-            </TouchableOpacity>
           )}
           
           {currentStep === 'configure' && (
@@ -1251,6 +1109,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
     lineHeight: 20,
+  },
+  deleteItemButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#FEF2F2',
+    marginLeft: 8,
   },
   
   // Configuration step styles
