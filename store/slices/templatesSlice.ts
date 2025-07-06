@@ -102,6 +102,35 @@ export const createChecklistFromTemplate = createAsyncThunk(
   }
 );
 
+export const createTemplateFromChecklist = createAsyncThunk(
+  'templates/createTemplateFromChecklist',
+  async ({ 
+    checklistId, 
+    userId, 
+    templateName, 
+    templateDescription, 
+    categoryId, 
+    isPublic 
+  }: { 
+    checklistId: string; 
+    userId: string; 
+    templateName: string; 
+    templateDescription?: string; 
+    categoryId?: string; 
+    isPublic?: boolean; 
+  }) => {
+    const response = await templateService.createTemplateFromChecklist(
+      checklistId,
+      userId,
+      templateName,
+      templateDescription,
+      categoryId,
+      isPublic
+    );
+    return response;
+  }
+);
+
 export const deleteTemplate = createAsyncThunk(
   'templates/deleteTemplate',
   async ({ templateId, userId }: { templateId: string; userId: string }) => {
@@ -171,6 +200,22 @@ const templatesSlice = createSlice({
         } else {
           state.templates = [action.payload];
         }
+      })
+      .addCase(createTemplateFromChecklist.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createTemplateFromChecklist.fulfilled, (state, action) => {
+        state.loading = false;
+        if (Array.isArray(state.templates)) {
+          state.templates.push(action.payload);
+        } else {
+          state.templates = [action.payload];
+        }
+      })
+      .addCase(createTemplateFromChecklist.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to create template from checklist';
       })
       .addCase(deleteTemplate.fulfilled, (state, action) => {
         state.templates = (state.templates || []).filter(t => t.template_id !== action.payload);

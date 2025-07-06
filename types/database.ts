@@ -62,6 +62,17 @@ export interface TaskGroup {
   updated_at: string;
 }
 
+export interface TemplateGroup {
+  group_id: string;
+  template_id: string;
+  name: string;
+  description?: string;
+  color_code: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Convenience type for grouped tasks
 export interface GroupedTasks {
   group: TaskGroup | null; // null for ungrouped tasks
@@ -69,6 +80,12 @@ export interface GroupedTasks {
   completedCount: number;
   totalCount: number;
   progressPercentage: number;
+}
+
+// Convenience type for grouped template items
+export interface GroupedTemplateItems {
+  group: TemplateGroup | null; // null for ungrouped items
+  items: ChecklistTemplateItem[];
 }
 
 export interface ChecklistItem {
@@ -110,6 +127,7 @@ export interface ChecklistTemplateHeader {
 export interface ChecklistTemplateItem {
   item_id: string;
   template_id: string;
+  group_id?: string;
   text: string;
   description?: string;
   order_index: number;

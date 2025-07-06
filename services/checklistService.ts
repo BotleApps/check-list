@@ -1,5 +1,6 @@
 import { ChecklistHeader, ChecklistItem } from '../types/database';
 import { supabase } from '../lib/supabase';
+import { templateGroupService } from './templateGroupService';
 
 class ChecklistService {
   async getUserChecklists(userId: string): Promise<ChecklistHeader[]> {
@@ -520,10 +521,24 @@ class ChecklistService {
       throw new Error(templateError.message);
     }
 
-    // Create the template items
+    // 🔥 Copy groups from checklist to template
+    console.log('🔄 Copying groups from checklist to template...', {
+      templateId: template.template_id,
+      checklistId
+    });
+    
+    const groupIdMap = await templateGroupService.copyGroupsFromChecklist(
+      template.template_id,
+      checklistId
+    );
+    
+    console.log('✅ Group copying complete. Group ID mapping:', groupIdMap);
+
+    // Create the template items WITH group mapping
     if (items && items.length > 0) {
       const templateItems = items.map((item, index) => ({
         template_id: template.template_id,
+        group_id: item.group_id ? groupIdMap.get(item.group_id) || null : null, // 🔥 Map group IDs
         text: item.text,
         description: item.description || null,
         order_index: index,

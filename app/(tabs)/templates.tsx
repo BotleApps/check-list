@@ -8,21 +8,23 @@ import {
   SafeAreaView,
   RefreshControl,
   TextInput,
+  Modal,
   Alert,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { fetchPublicTemplatesWithPreview, fetchTemplateWithItems, createChecklistFromTemplate, deleteTemplate } from '../../store/slices/templatesSlice';
+import { fetchPublicTemplatesWithPreview, fetchTemplateWithItems, createChecklistFromTemplate, deleteTemplate, createTemplateFromChecklist } from '../../store/slices/templatesSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
 import { fetchBuckets } from '../../store/slices/bucketsSlice';
+import { fetchChecklists } from '../../store/slices/checklistsSlice';
 import { TemplateCard } from '../../components/TemplateCard';
 import { TemplateDetailModal } from '../../components/TemplateDetailModal';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { Toast } from '../../components/Toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { Search, User } from 'lucide-react-native';
+import { Search, User, Plus, LayoutTemplate } from 'lucide-react-native';
 
 export default function TemplatesScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -39,6 +41,10 @@ export default function TemplatesScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Create template state
+  const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
   
   // Toast state
   const [showToast, setShowToast] = useState(false);
@@ -58,6 +64,7 @@ export default function TemplatesScreen() {
   
   const { categories } = useSelector((state: RootState) => state.categories);
   const { buckets } = useSelector((state: RootState) => state.buckets);
+  const { checklists } = useSelector((state: RootState) => state.checklists);
 
   useEffect(() => {
     // Fetch public templates with preview - no user dependency needed
@@ -65,6 +72,7 @@ export default function TemplatesScreen() {
     dispatch(fetchCategories());
     if (user) {
       dispatch(fetchBuckets(user.user_id));
+      dispatch(fetchChecklists(user.user_id));
     }
   }, [dispatch, user]);
 
@@ -94,6 +102,46 @@ export default function TemplatesScreen() {
       setDeleting(false);
       setShowDeleteModal(false);
       setTemplateToDelete(null);
+    }
+  };
+
+  const handleCreateTemplate = () => {
+    if (!user) {
+      showToastMessage('Please log in to create templates', 'error');
+      return;
+    }
+    
+    if (!checklists || checklists.length === 0) {
+      showToastMessage('You need to have checklists to create templates from', 'error');
+      return;
+    }
+    
+    setShowCreateTemplateModal(true);
+  };
+
+  const handleCreateTemplateFromChecklist = async (checklistId: string, templateName: string) => {
+    if (!user) return;
+    
+    setCreatingTemplate(true);
+    try {
+      await dispatch(createTemplateFromChecklist({
+        checklistId,
+        userId: user.user_id,
+        templateName,
+        templateDescription: `Template created from checklist`,
+        isPublic: false
+      })).unwrap();
+      
+      showToastMessage('Template created successfully!');
+      setShowCreateTemplateModal(false);
+      
+      // Refresh templates
+      dispatch(fetchPublicTemplatesWithPreview());
+    } catch (error) {
+      console.error('Error creating template:', error);
+      showToastMessage('Failed to create template. Please try again.', 'error');
+    } finally {
+      setCreatingTemplate(false);
     }
   };
 
@@ -227,6 +275,15 @@ export default function TemplatesScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Templates</Text>
+        {user && (
+          <TouchableOpacity
+            style={styles.createButton}
+            onPress={handleCreateTemplate}
+          >
+            <Plus size={20} color="#FFFFFF" />
+            <Text style={styles.createButtonText}>Create</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.contentContainer}>
@@ -354,7 +411,6 @@ export default function TemplatesScreen() {
       <TemplateDetailModal
         visible={showTemplateModal}
         template={selectedTemplate || null}
-        templateItems={currentTemplateItems || []}
         categoryName={selectedTemplate ? getCategoryName(selectedTemplate.category_id) : undefined}
         onClose={() => {
           setShowTemplateModal(false);
@@ -384,6 +440,85 @@ export default function TemplatesScreen() {
           setTemplateToDelete(null);
         }}
       />
+
+      {/* Create Template Modal */}
+      <Modal
+        visible={showCreateTemplateModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setShowCreateTemplateModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Create Template</Text>
+            <View style={styles.modalHeaderSpacer} />
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.modalDescription}>
+              Select a checklist to create a template from. The template will copy all items and groups from your checklist.
+            </Text>
+            
+            {checklists && checklists.length > 0 ? (
+              checklists.map((checklist) => (
+                <TouchableOpacity
+                  key={checklist.checklist_id}
+                  style={styles.checklistItem}
+                  onPress={() => {
+                    Alert.prompt(
+                      'Template Name',
+                      'Enter a name for your template:',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Create',
+                          onPress: (templateName) => {
+                            if (templateName && templateName.trim()) {
+                              handleCreateTemplateFromChecklist(checklist.checklist_id, templateName.trim());
+                            }
+                          }
+                        }
+                      ],
+                      'plain-text',
+                      checklist.name + ' Template'
+                    );
+                  }}
+                  disabled={creatingTemplate}
+                >
+                  <View style={styles.checklistItemContent}>
+                    <LayoutTemplate size={20} color="#2563EB" />
+                    <View style={styles.checklistItemText}>
+                      <Text style={styles.checklistItemName}>{checklist.name}</Text>
+                      {checklist.description && (
+                        <Text style={styles.checklistItemDescription}>{checklist.description}</Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No checklists found</Text>
+                <Text style={styles.emptySubtext}>
+                  Create some checklists first to make templates from them.
+                </Text>
+              </View>
+            )}
+            
+            {creatingTemplate && (
+              <View style={styles.loadingContainer}>
+                <LoadingSpinner size="small" />
+                <Text style={styles.loadingText}>Creating template...</Text>
+              </View>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -398,6 +533,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
@@ -407,6 +545,20 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  createButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -549,5 +701,97 @@ const styles = StyleSheet.create({
   },
   myTemplatesToggleTextActive: {
     color: '#FFFFFF',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalCloseText: {
+    color: '#2563EB',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalHeaderSpacer: {
+    width: 60,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  modalDescription: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  checklistItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  checklistItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  checklistItemText: {
+    flex: 1,
+  },
+  checklistItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  checklistItemDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
   },
 });

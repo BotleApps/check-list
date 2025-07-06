@@ -7,6 +7,7 @@ import authReducer from './slices/authSlice';
 import bucketsReducer from './slices/bucketsSlice';
 import checklistsReducer from './slices/checklistsSlice';
 import taskGroupsReducer from './slices/taskGroupsSlice';
+import templateGroupsReducer from './slices/templateGroupsSlice';
 import templatesReducer from './slices/templatesSlice';
 import tagsReducer from './slices/tagsSlice';
 import categoriesReducer from './slices/categoriesSlice';
@@ -14,7 +15,7 @@ import categoriesReducer from './slices/categoriesSlice';
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'buckets', 'checklists', 'taskGroups', 'templates', 'tags', 'categories'],
+  whitelist: ['auth', 'buckets', 'checklists', 'taskGroups', 'templateGroups', 'templates', 'tags', 'categories'],
 };
 
 const rootReducer = combineReducers({
@@ -22,6 +23,7 @@ const rootReducer = combineReducers({
   buckets: bucketsReducer,
   checklists: checklistsReducer,
   taskGroups: taskGroupsReducer,
+  templateGroups: templateGroupsReducer,
   templates: templatesReducer,
   tags: tagsReducer,
   categories: categoriesReducer,

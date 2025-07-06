@@ -1,5 +1,7 @@
 import { ChecklistTemplateHeader, ChecklistTemplateItem } from '../types/database';
 import { supabase } from '../lib/supabase';
+import { templateGroupService } from './templateGroupService';
+import { taskGroupService } from './taskGroupService';
 
 class TemplateService {
   async getUserTemplates(userId: string): Promise<ChecklistTemplateHeader[]> {
@@ -294,64 +296,216 @@ class TemplateService {
     }
   }
 
+  async createTemplateFromChecklist(
+    checklistId: string,
+    userId: string,
+    templateName: string,
+    templateDescription?: string,
+    categoryId?: string,
+    isPublic: boolean = false
+  ): Promise<ChecklistTemplateHeader> {
+    try {
+      // First, get the checklist header
+      const { data: checklist, error: checklistError } = await supabase
+        .from('checklist_headers')
+        .select('*')
+        .eq('checklist_id', checklistId)
+        .single();
+
+      if (checklistError) {
+        throw new Error(`Failed to fetch checklist: ${checklistError.message}`);
+      }
+
+      // Verify ownership
+      if (checklist.user_id !== userId) {
+        throw new Error('You can only create templates from your own checklists');
+      }
+
+      // Create the template header
+      const templateData = {
+        created_by: userId,
+        name: templateName,
+        description: templateDescription,
+        category_id: categoryId,
+        is_public: isPublic,
+        is_active: true,
+      };
+
+      const { data: newTemplate, error: templateError } = await supabase
+        .from('templates')
+        .insert(templateData)
+        .select()
+        .single();
+
+      if (templateError) {
+        throw new Error(`Failed to create template: ${templateError.message}`);
+      }
+
+      // Copy groups from checklist to template
+      console.log('🔄 Copying groups from checklist to template...', {
+        templateId: newTemplate.template_id,
+        checklistId
+      });
+      
+      const groupIdMap = await templateGroupService.copyGroupsFromChecklist(
+        newTemplate.template_id,
+        checklistId
+      );
+      
+      console.log('✅ Group copying complete. Group ID mapping:', groupIdMap);
+      console.log('📊 Number of groups copied:', groupIdMap.size);
+
+      // Get the checklist items
+      const { data: checklistItems, error: itemsError } = await supabase
+        .from('checklist_items')
+        .select('*')
+        .eq('checklist_id', checklistId)
+        .order('order_index', { ascending: true });
+
+      if (itemsError) {
+        // Cleanup: delete the template if items failed
+        await supabase
+          .from('templates')
+          .delete()
+          .eq('template_id', newTemplate.template_id);
+        
+        throw new Error(`Failed to fetch checklist items: ${itemsError.message}`);
+      }
+
+      // Create template items from checklist items
+      if (checklistItems && checklistItems.length > 0) {
+        console.log('📝 Creating template items from checklist items...', {
+          itemCount: checklistItems.length,
+          checklistItems: checklistItems.map(item => ({
+            id: item.item_id,
+            text: item.text,
+            groupId: item.group_id
+          }))
+        });
+        
+        const templateItems = checklistItems.map((item) => ({
+          template_id: newTemplate.template_id,
+          group_id: item.group_id ? groupIdMap.get(item.group_id) || null : null,
+          text: item.text,
+          description: item.description,
+          order_index: item.order_index,
+          is_required: true, // Default to required for template items
+          tags: [], // Could be enhanced to copy tags from checklist items if they exist
+        }));
+
+        console.log('✨ Template items to insert:', templateItems.map(item => ({
+          text: item.text,
+          originalGroupId: checklistItems.find(ci => ci.text === item.text)?.group_id,
+          mappedGroupId: item.group_id
+        })));
+
+        const { error: templateItemsError } = await supabase
+          .from('template_items')
+          .insert(templateItems);
+
+        if (templateItemsError) {
+          console.error('❌ Failed to create template items:', templateItemsError);
+          // Cleanup: delete the template if items failed
+          await supabase
+            .from('templates')
+            .delete()
+            .eq('template_id', newTemplate.template_id);
+          
+          throw new Error(`Failed to create template items: ${templateItemsError.message}`);
+        }
+        
+        console.log('✅ Template items created successfully');
+      }
+
+      return newTemplate;
+    } catch (error) {
+      console.error('Error creating template from checklist:', error);
+      throw error;
+    }
+  }
+
   async createChecklistFromTemplate(
     templateId: string,
     userId: string,
     bucketId?: string,
     tags?: string[]
   ): Promise<{ checklist_id: string; name: string }> {
-    // Get the template with all its items
-    const { template, items } = await this.getTemplateWithItems(templateId);
+    try {
+      // Get the template with all its items
+      const { template, items } = await this.getTemplateWithItems(templateId);
 
-    // Create the checklist header
-    const checklistData = {
-      user_id: userId,
-      name: `${template.name} (from template)`,
-      bucket_id: bucketId || null,
-      tags: tags || [],
-      due_date: null, // User can set this later if needed
-      status: 'active',
-    };
+      // Create the checklist header
+      const checklistData = {
+        user_id: userId,
+        name: `${template.name} (from template)`,
+        bucket_id: bucketId || null,
+        tags: tags || [],
+        due_date: null, // User can set this later if needed
+        status: 'active',
+      };
 
-    const { data: newChecklist, error: checklistError } = await supabase
-      .from('checklist_headers')
-      .insert(checklistData)
-      .select()
-      .single();
+      const { data: newChecklist, error: checklistError } = await supabase
+        .from('checklist_headers')
+        .insert(checklistData)
+        .select()
+        .single();
 
-    if (checklistError) {
-      throw new Error(checklistError.message);
-    }
-
-    // Create the checklist items from template items
-    if (items && items.length > 0) {
-      const checklistItems = items.map((item, index) => ({
-        checklist_id: newChecklist.checklist_id,
-        text: item.text,
-        description: item.description,
-        is_completed: false,
-        order_index: item.order_index || index,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('checklist_items')
-        .insert(checklistItems);
-
-      if (itemsError) {
-        // Cleanup: delete the checklist header if items failed
-        await supabase
-          .from('checklist_headers')
-          .delete()
-          .eq('checklist_id', newChecklist.checklist_id);
-        
-        throw new Error(itemsError.message);
+      if (checklistError) {
+        throw new Error(checklistError.message);
       }
-    }
 
-    return {
-      checklist_id: newChecklist.checklist_id,
-      name: newChecklist.name,
-    };
+      // Get template groups and create corresponding task groups
+      const templateGroups = await templateGroupService.getTemplateGroups(templateId);
+      const groupIdMap = new Map<string, string>(); // template group_id -> task group_id
+
+      for (const templateGroup of templateGroups) {
+        const taskGroup = await taskGroupService.createTaskGroup(
+          newChecklist.checklist_id,
+          templateGroup.name,
+          templateGroup.description,
+          undefined, // target_date - user can set this later
+          templateGroup.color_code
+        );
+
+        if (taskGroup) {
+          groupIdMap.set(templateGroup.group_id, taskGroup.group_id);
+        }
+      }
+
+      // Create the checklist items from template items
+      if (items && items.length > 0) {
+        const checklistItems = items.map((item, index) => ({
+          checklist_id: newChecklist.checklist_id,
+          group_id: item.group_id ? groupIdMap.get(item.group_id) || null : null,
+          text: item.text,
+          description: item.description,
+          is_completed: false,
+          order_index: item.order_index || index,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('checklist_items')
+          .insert(checklistItems);
+
+        if (itemsError) {
+          // Cleanup: delete the checklist header if items failed
+          await supabase
+            .from('checklist_headers')
+            .delete()
+            .eq('checklist_id', newChecklist.checklist_id);
+          
+          throw new Error(itemsError.message);
+        }
+      }
+
+      return {
+        checklist_id: newChecklist.checklist_id,
+        name: newChecklist.name,
+      };
+    } catch (error) {
+      console.error('Error creating checklist from template:', error);
+      throw error;
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,9 @@ import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../store';
 import { FolderSelectionModal } from './FolderSelectionModal';
 import { ConfirmationModal } from './ConfirmationModal';
-import { ChecklistTemplateHeader, ChecklistTemplateItem } from '../types/database';
+import { ChecklistTemplateHeader, ChecklistTemplateItem, GroupedTemplateItems } from '../types/database';
 import { LoadingSpinner } from './LoadingSpinner';
+import { fetchGroupedTemplateItems } from '../store/slices/templateGroupsSlice';
 import { 
   X, 
   Check, 
@@ -24,13 +25,14 @@ import {
   FolderOpen,
   LayoutTemplate,
   AlertCircle,
-  Share
+  Share,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react-native';
 
 interface TemplateDetailModalProps {
   visible: boolean;
   template: ChecklistTemplateHeader | null;
-  templateItems: ChecklistTemplateItem[];
   categoryName?: string;
   onClose: () => void;
   onUseTemplate: (bucketId?: string, tags?: string[]) => Promise<void>;
@@ -40,7 +42,6 @@ interface TemplateDetailModalProps {
 export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   visible,
   template,
-  templateItems,
   categoryName,
   onClose,
   onUseTemplate,
@@ -50,11 +51,30 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   const router = useRouter();
   const { user } = useSelector((state: RootState) => state.auth);
   const { buckets } = useSelector((state: RootState) => state.buckets);
+  const { groupedItems, loading: groupsLoading } = useSelector((state: RootState) => state.templateGroups);
   
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Get grouped items for the current template
+  const currentGroupedItems = template ? groupedItems[template.template_id] || [] : [];
+
+  // Calculate total item count
+  const totalItemCount = currentGroupedItems.reduce((total, group) => total + group.items.length, 0);
+
+  // Check if this is a legacy template (all items have group: null)
+  const isLegacyTemplate = currentGroupedItems.length === 1 && 
+    currentGroupedItems[0]?.group === null && 
+    currentGroupedItems[0]?.items.length > 0;
+
+  useEffect(() => {
+    if (template && visible) {
+      dispatch(fetchGroupedTemplateItems(template.template_id));
+    }
+  }, [template, visible, dispatch]);
 
   if (!template) return null;
 
@@ -120,30 +140,85 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
                 <Text style={styles.templateDescription}>{template.description}</Text>
               )}
               <Text style={styles.itemCount}>
-                {templateItems.length} item{templateItems.length !== 1 ? 's' : ''}
+                {totalItemCount} item{totalItemCount !== 1 ? 's' : ''}
               </Text>
             </View>
 
             {/* Items Preview */}
             <View style={styles.itemsSection}>
               <Text style={styles.sectionTitle}>Items Preview</Text>
-              {templateItems.map((item, index) => (
-                <View key={item.item_id} style={styles.itemRow}>
-                  <View style={[styles.checkbox, item.is_required && styles.requiredCheckbox]}>
-                    {item.is_required && <AlertCircle size={12} color="#F59E0B" />}
-                  </View>
-                  <View style={styles.itemContent}>
-                    <Text style={styles.itemText}>{item.text}</Text>
-                    {item.description && (
-                      <Text style={styles.itemDescription}>{item.description}</Text>
+              {groupsLoading ? (
+                <LoadingSpinner size="small" />
+              ) : (
+                currentGroupedItems.map((groupedItem) => (
+                  <View key={groupedItem.group?.group_id || 'ungrouped'} style={styles.groupContainer}>
+                    {groupedItem.group && (
+                      <TouchableOpacity
+                        style={styles.groupHeader}
+                        onPress={() => {
+                          const groupId = groupedItem.group!.group_id;
+                          setCollapsedGroups(prev => {
+                            const newSet = new Set(prev);
+                            if (newSet.has(groupId)) {
+                              newSet.delete(groupId);
+                            } else {
+                              newSet.add(groupId);
+                            }
+                            return newSet;
+                          });
+                        }}
+                      >
+                        <View style={styles.groupHeaderContent}>
+                          <View style={[styles.groupColorIndicator, { backgroundColor: groupedItem.group.color_code }]} />
+                          <Text style={styles.groupName}>{groupedItem.group.name}</Text>
+                          <Text style={styles.groupItemCount}>({groupedItem.items.length})</Text>
+                        </View>
+                        {collapsedGroups.has(groupedItem.group.group_id) ? (
+                          <ChevronRight size={16} color="#6B7280" />
+                        ) : (
+                          <ChevronDown size={16} color="#6B7280" />
+                        )}
+                      </TouchableOpacity>
                     )}
-                    {item.is_required && (
-                      <Text style={styles.requiredLabel}>Required</Text>
+                    
+                    {(!groupedItem.group || !collapsedGroups.has(groupedItem.group.group_id)) && (
+                      <View style={groupedItem.group ? styles.groupItems : undefined}>
+                        {groupedItem.items.map((item) => (
+                          <View key={item.item_id} style={styles.itemRow}>
+                            <View style={[styles.checkbox, item.is_required && styles.requiredCheckbox]}>
+                              {item.is_required && <AlertCircle size={12} color="#F59E0B" />}
+                            </View>
+                            <View style={styles.itemContent}>
+                              <Text style={styles.itemText}>{item.text}</Text>
+                              {item.description && (
+                                <Text style={styles.itemDescription}>{item.description}</Text>
+                              )}
+                              {item.is_required && (
+                                <Text style={styles.requiredLabel}>Required</Text>
+                              )}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
                     )}
                   </View>
-                </View>
-              ))}
+                ))
+              )}
             </View>
+
+            {/* Legacy Template Notice */}
+            {isLegacyTemplate && (
+              <View style={styles.legacyNotice}>
+                <View style={styles.legacyNoticeHeader}>
+                  <AlertCircle size={16} color="#F59E0B" />
+                  <Text style={styles.legacyNoticeTitle}>Legacy Template</Text>
+                </View>
+                <Text style={styles.legacyNoticeText}>
+                  This template was created before group support was added. Items are displayed without organization. 
+                  When you create a checklist from this template, you can organize items into groups manually.
+                </Text>
+              </View>
+            )}
 
             {/* Folder Selection */}
             <View style={styles.optionsSection}>
@@ -419,5 +494,67 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#6B7280',
+  },
+  groupContainer: {
+    marginBottom: 16,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  groupHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  groupColorIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    flex: 1,
+  },
+  groupItemCount: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 8,
+  },
+  groupItems: {
+    paddingLeft: 20,
+  },
+  legacyNotice: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+  },
+  legacyNoticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  legacyNoticeTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#92400E',
+    marginLeft: 8,
+  },
+  legacyNoticeText: {
+    fontSize: 14,
+    color: '#92400E',
+    lineHeight: 20,
   },
 });
