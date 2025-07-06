@@ -30,8 +30,6 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
-// Task group components
-import { TaskGroupManager } from '../../components/TaskGroupManager';
 import { Toast } from '../../components/Toast';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { 
@@ -57,7 +55,6 @@ import {
   Save,
   X,
   // Task group icons
-  Settings,
   // Create page style icons
   Circle,
   SquareCheck
@@ -137,76 +134,25 @@ export default function ChecklistDetailsScreen() {
 
   useEffect(() => {
     if (id && user) {
-      console.log('Fetching checklist with ID:', id);
-      // Clear current data first to avoid showing stale data
-      // dispatch(clearCurrentData());
-      dispatch(fetchChecklistWithItems(id))
-        .unwrap()
-        .then((result) => {
-          console.log('Checklist fetched successfully:', result);
-        })
-        .catch((error) => {
-          console.error('Error fetching checklist:', error);
-        });
+      dispatch(fetchChecklistWithItems(id));
     }
   }, [id, user, dispatch]);
 
   useEffect(() => {
     if (user) {
-      console.log('📋 Fetching supporting data for user:', user.user_id);
       dispatch(fetchBuckets(user.user_id));
       dispatch(fetchTags());
-      dispatch(fetchCategories())
-        .unwrap()
-        .then((categories) => {
-          console.log('📂 Global categories fetched successfully:', categories);
-        })
-        .catch((error) => {
-          console.error('❌ Error fetching categories:', error);
-        });
+      dispatch(fetchCategories());
     }
   }, [user, dispatch]);
 
   // Fetch task groups when checklist is loaded
   useEffect(() => {
     if (id && checklist) {
-      console.log('📊 Fetching task groups for checklist:', id);
       dispatch(fetchTaskGroups(id));
       dispatch(fetchGroupedTasks(id));
     }
   }, [id, checklist, dispatch]);
-
-  // Debug effect to log task groups and grouped tasks data
-  useEffect(() => {
-    if (checklist && groupedTasks[checklist.checklist_id]) {
-      console.log('🔍 DEBUG: Task groups state updated:', {
-        checklistId: checklist.checklist_id,
-        taskGroups: taskGroups,
-        groupedTasks: groupedTasks[checklist.checklist_id],
-        numberOfGroups: groupedTasks[checklist.checklist_id]?.length,
-        
-        // More detailed logging
-        groupDetails: groupedTasks[checklist.checklist_id]?.map(g => ({
-          groupId: g.group?.group_id || 'ungrouped',
-          groupName: g.group?.name || 'No name',
-          hasActualGroup: g.group !== null,
-          tasksCount: g.tasks.length,
-          taskIds: g.tasks.map(t => t.item_id)
-        }))
-      });
-    }
-    
-    // Also log if there are any task groups for this checklist but they're not showing up in grouped tasks
-    if (checklist && taskGroups.length > 0) {
-      console.log('🔍 DEBUG: Task groups exist but may not have tasks assigned:', {
-        availableGroups: taskGroups.map(g => ({
-          id: g.group_id,
-          name: g.name,
-          color: g.color_code
-        }))
-      });
-    }
-  }, [checklist, taskGroups, groupedTasks]);
 
   const onRefresh = async () => {
     if (!id || !user) return;
@@ -401,25 +347,11 @@ export default function ChecklistDetailsScreen() {
   const handleEditHeader = () => {
     if (!checklist) return;
     
-    console.log('Starting edit mode with current checklist data:', {
-      name: checklist.name,
-      bucket_id: checklist.bucket_id,
-      due_date: checklist.due_date,
-      tags: checklist.tags
-    });
-    
     setEditingHeader(true);
     setEditingTitleText(checklist.name);
     setEditingBucketId(checklist.bucket_id || '');
     setEditingTargetDate(checklist.due_date ? new Date(checklist.due_date) : null);
     setEditingTags([...checklist.tags]);
-    
-    console.log('Edit mode initialized with:', {
-      editingTitleText: checklist.name,
-      editingBucketId: checklist.bucket_id || '',
-      editingTargetDate: checklist.due_date ? new Date(checklist.due_date) : null,
-      editingTags: [...checklist.tags]
-    });
   };
 
   const handleSaveHeader = async () => {
@@ -449,13 +381,6 @@ export default function ChecklistDetailsScreen() {
       tags: editingTags
     };
     
-    console.log('Saving header with bucket data:', {
-      originalBucketId: originalData.bucket_id,
-      editingBucketId,
-      newBucketId: newData.bucket_id,
-      bucketIdForDispatch: newData.bucket_id || undefined
-    });
-    
     // Optimistic update
     dispatch(updateChecklistMetadata({
       checklistId: checklist.checklist_id,
@@ -477,7 +402,6 @@ export default function ChecklistDetailsScreen() {
         dueDate: newData.due_date || undefined
       })).unwrap();
     } catch (error) {
-      console.error('Error saving header:', error);
       // Revert optimistic update on error
       dispatch(updateChecklistMetadata({
         checklistId: checklist.checklist_id,
@@ -493,7 +417,6 @@ export default function ChecklistDetailsScreen() {
   };
 
   const handleCancelEditHeader = () => {
-    console.log('Canceling edit mode, reverting to original values');
     setEditingHeader(false);
     setEditingTitleText('');
     setEditingBucketId('');
@@ -520,19 +443,12 @@ export default function ChecklistDetailsScreen() {
   };
 
   const getBucketName = (bucketId?: string) => {
-    console.log('getBucketName called with bucketId:', bucketId);
-    console.log('Available buckets:', buckets);
-    
     if (!bucketId) {
-      console.log('No bucketId provided, returning "No folder"');
       return 'No folder';
     }
     
     const bucket = buckets.find(b => b.bucket_id === bucketId);
-    const bucketName = bucket?.name || 'Unknown folder';
-    
-    console.log('Found bucket:', bucket, 'returning name:', bucketName);
-    return bucketName;
+    return bucket?.name || 'Unknown folder';
   };
 
   const getProgress = () => {
@@ -575,7 +491,6 @@ export default function ChecklistDetailsScreen() {
         router.push(`/checklist/${result.checklist.checklist_id}`);
       }, 1000);
     } catch (error) {
-      console.error('Error duplicating checklist:', error);
       showToastMessage('Failed to duplicate checklist. Please try again.', 'error');
     } finally {
       setDuplicating(false);
@@ -599,7 +514,6 @@ export default function ChecklistDetailsScreen() {
         router.replace('/');
       }, 1500);
     } catch (error) {
-      console.error('Error deleting checklist:', error);
       showToastMessage('Failed to delete checklist. Please try again.', 'error');
     } finally {
       setDeleting(false);
@@ -627,7 +541,6 @@ export default function ChecklistDetailsScreen() {
       setShowShareModal(false);
       setSelectedCategoryId('');
     } catch (error) {
-      console.error('Error sharing checklist:', error);
       showToastMessage('Failed to share checklist. Please try again.', 'error');
     } finally {
       setSharing(false);
@@ -806,12 +719,6 @@ export default function ChecklistDetailsScreen() {
           <ArrowLeft size={24} color="#111827" />
         </TouchableOpacity>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            onPress={() => setShowTaskGroupManager(true)}
-            style={styles.actionButton}
-          >
-            <Settings size={20} color="#6B7280" />
-          </TouchableOpacity>
           <TouchableOpacity 
             onPress={handleShareAction}
             style={styles.actionButton}
@@ -1319,14 +1226,6 @@ export default function ChecklistDetailsScreen() {
                 ⚠️ No categories available. Check console for loading errors.
               </Text>
             )}
-            {(() => {
-              console.log('📂 Categories in share modal:', { 
-                categoriesCount: categories.length, 
-                categories: categories.map(c => ({ id: c.category_id, name: c.name })),
-                loading: categoriesLoading 
-              });
-              return null;
-            })()}
             
             <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}>
               <TouchableOpacity
@@ -1448,35 +1347,6 @@ export default function ChecklistDetailsScreen() {
         onHide={() => setShowToast(false)}
       />
       
-      {/* Task Group Manager Modal */}
-      <TaskGroupManager
-        visible={showTaskGroupManager}
-        onClose={() => setShowTaskGroupManager(false)}
-        onCreateGroup={async (name, description, targetDate, colorCode) => {
-          if (!id) return;
-          await dispatch(createTaskGroup({
-            checklistId: id,
-            name,
-            description,
-            targetDate,
-            colorCode,
-          }));
-          // Refresh grouped tasks
-          dispatch(fetchGroupedTasks(id));
-        }}
-        onUpdateGroup={async (groupId, updates) => {
-          await dispatch(updateTaskGroup({ groupId, updates }));
-          if (!id) return;
-          dispatch(fetchGroupedTasks(id));
-        }}
-        onDeleteGroup={async (groupId) => {
-          await dispatch(deleteTaskGroup(groupId));
-          if (!id) return;
-          dispatch(fetchGroupedTasks(id));
-        }}
-        checklistId={id || ''}
-      />
-      
       <ConfirmationModal
         visible={showDeleteModal}
         title="Delete Checklist"
@@ -1544,16 +1414,6 @@ export default function ChecklistDetailsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-      
-      {/* Task Group Manager Modal */}
-      <TaskGroupManager
-        visible={showTaskGroupManager}
-        onClose={() => setShowTaskGroupManager(false)}
-        onCreateGroup={handleCreateGroup}
-        onUpdateGroup={handleUpdateGroup}
-        onDeleteGroup={handleDeleteGroup}
-        checklistId={id || ''}
-      />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

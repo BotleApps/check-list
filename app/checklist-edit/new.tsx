@@ -262,10 +262,7 @@ export default function NewChecklistScreen() {
   };
 
   const handleSave = async () => {
-    console.log('handleSave called with user:', user?.user_id);
-    
     if (!user) {
-      console.log('No user found');
       return;
     }
 
@@ -309,7 +306,6 @@ export default function NewChecklistScreen() {
     }
     
     if (validItems.length === 0) {
-      console.log('No valid items');
       showToastMessage('Please add at least one item to your checklist', 'error');
       setIsSaving(false);
       return;
@@ -333,10 +329,8 @@ export default function NewChecklistScreen() {
         items: [], // Empty items for now
       };
 
-      console.log('Creating checklist:', checklistData);
       const result = await dispatch(createChecklistWithItems(checklistData)).unwrap();
       const checklistId = result.checklist.checklist_id;
-      console.log('Checklist created with ID:', checklistId);
 
       // Step 2: Create groups and assign items to them
       for (const group of groupedItems) {
@@ -345,8 +339,6 @@ export default function NewChecklistScreen() {
           .filter(item => item.text !== '');
         
         if (validGroupItems.length > 0) {
-          console.log(`Creating group "${group.name}" with ${validGroupItems.length} items`);
-          
           // Create the group
           const groupResult = await dispatch(createTaskGroup({
             checklistId,
@@ -355,12 +347,10 @@ export default function NewChecklistScreen() {
           })).unwrap();
           
           const groupId = groupResult.group_id;
-          console.log(`Group created with ID: ${groupId}`);
           
           // Add items to this group
           for (let itemIndex = 0; itemIndex < validGroupItems.length; itemIndex++) {
             const item = validGroupItems[itemIndex];
-            console.log(`Adding item "${item.text}" to group ${groupId}`);
             
             const itemResult = await dispatch(createChecklistItem({
               checklist_id: checklistId,
@@ -392,8 +382,6 @@ export default function NewChecklistScreen() {
         }
       }
 
-      console.log('All groups and items created successfully');
-      
       // Show success toast
       showToastMessage('Checklist created successfully!', 'success');
       
@@ -402,21 +390,7 @@ export default function NewChecklistScreen() {
         setIsSaving(false);
         router.replace(`/checklist/${checklistId}`);
       }, 2000); // Increased to 2 seconds to show the toast longer
-      
-      // Show success toast
-      showToastMessage('Checklist created successfully!', 'success');
-      
-      // Navigate to the newly created checklist after a short delay to show the toast
-      setTimeout(() => {
-        setIsSaving(false);
-        if (result && result.checklist && result.checklist.checklist_id) {
-          router.replace(`/checklist/${result.checklist.checklist_id}`);
-        } else {
-          router.replace('/');
-        }
-      }, 2000); // Increased to 2 seconds to show the toast longer
     } catch (error) {
-      console.error('Error creating checklist:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       showToastMessage(`Failed to create checklist: ${errorMessage}`, 'error');
       setIsSaving(false);

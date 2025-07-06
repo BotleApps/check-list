@@ -3,23 +3,17 @@ import { supabase } from '../lib/supabase';
 
 class CategoryService {
   async getAllCategories(): Promise<CategoryMaster[]> {
-    console.log('🏷️ CategoryService: Fetching all global categories...');
-    
     const { data, error } = await supabase
       .from('category_master')
       .select('*')
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('❌ CategoryService: Error fetching categories:', error);
       throw new Error(error.message);
     }
-
-    console.log('✅ CategoryService: Global categories fetched successfully:', data?.length || 0);
     
     // If no categories exist, create default ones
     if (!data || data.length === 0) {
-      console.log('🌱 CategoryService: No categories found, creating defaults...');
       return await this.createDefaultCategories();
     }
 
@@ -43,21 +37,16 @@ class CategoryService {
         .select();
 
       if (error) {
-        console.error('❌ CategoryService: Error creating default categories:', error);
         throw new Error(error.message);
       }
 
-      console.log('✅ CategoryService: Default categories created successfully:', data?.length || 0);
       return data || [];
     } catch (error) {
-      console.error('❌ CategoryService: Failed to create default categories:', error);
       return [];
     }
   }
 
   async createCategory(name: string): Promise<CategoryMaster> {
-    console.log('🏷️ CategoryService: Creating global category:', name);
-    
     const newCategory = {
       name,
     };
