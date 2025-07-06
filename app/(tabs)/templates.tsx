@@ -172,6 +172,11 @@ export default function TemplatesScreen() {
   const handleUseTemplate = async (bucketId?: string, tags: string[] = []) => {
     if (!user || !selectedTemplateId) return;
 
+    console.log('🔥 templates.tsx handleUseTemplate called with:');
+    console.log('🔥 selectedTemplateId:', selectedTemplateId);
+    console.log('🔥 bucketId:', bucketId);
+    console.log('🔥 tags:', tags);
+
     try {
       const result = await dispatch(createChecklistFromTemplate({
         templateId: selectedTemplateId,

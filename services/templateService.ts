@@ -455,6 +455,9 @@ class TemplateService {
       }
 
       // Get template groups and create corresponding task groups
+      console.log('🔥 templateService.createChecklistFromTemplate - templateId:', templateId);
+      console.log('🔥 templateService.createChecklistFromTemplate - userId:', userId);
+      console.log('🔥 templateService.createChecklistFromTemplate - bucketId:', bucketId);
       const templateGroups = await templateGroupService.getTemplateGroups(templateId);
       const groupIdMap = new Map<string, string>(); // template group_id -> task group_id
 

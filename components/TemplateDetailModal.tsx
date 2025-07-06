@@ -9,25 +9,32 @@ import {
   SafeAreaView,
   Pressable,
   Alert,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../store';
-import { FolderSelectionModal } from './FolderSelectionModal';
-import { ConfirmationModal } from './ConfirmationModal';
+
 import { ChecklistTemplateHeader, ChecklistTemplateItem, GroupedTemplateItems } from '../types/database';
 import { LoadingSpinner } from './LoadingSpinner';
+import { FolderSelectionModal } from './FolderSelectionModal';
+import { TagSelectionModal } from './TagSelectionModal';
 import { fetchGroupedTemplateItems } from '../store/slices/templateGroupsSlice';
+import { fetchBuckets } from '../store/slices/bucketsSlice';
+import { fetchTags } from '../store/slices/tagsSlice';
 import { 
   X, 
   Check, 
   Copy, 
-  FolderOpen,
-  LayoutTemplate,
   AlertCircle,
   Share,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  Calendar,
+  Folder,
+  Tag,
 } from 'lucide-react-native';
 
 interface TemplateDetailModalProps {
@@ -51,11 +58,21 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   const router = useRouter();
   const { user } = useSelector((state: RootState) => state.auth);
   const { buckets } = useSelector((state: RootState) => state.buckets);
+  const { tags } = useSelector((state: RootState) => state.tags);
   const { groupedItems, loading: groupsLoading } = useSelector((state: RootState) => state.templateGroups);
   
+  // Step management
+  const [currentStep, setCurrentStep] = useState<'details' | 'configure'>('details');
+  
+  // Configuration states for step 2
+  const [selectedBucketId, setSelectedBucketId] = useState<string>('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [targetDate, setTargetDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
-  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  const [selectedFolderId, setSelectedFolderId] = useState('');
+  const [showTagModal, setShowTagModal] = useState(false);
+  
+  // Original states
   const [isCreating, setIsCreating] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -76,34 +93,89 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
     }
   }, [template, visible, dispatch]);
 
+  useEffect(() => {
+    if (user && visible) {
+      dispatch(fetchBuckets(user.user_id));
+      dispatch(fetchTags());
+    }
+  }, [user, visible, dispatch]);
+
   if (!template) return null;
 
-  const handleUseTemplate = async () => {
-    if (!user) return;
-    
-    // Show confirmation dialog
-    setShowConfirmationModal(true);
+  // Helper functions
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
-  const confirmUseTemplate = async () => {
-    if (!user) return;
-    
-    setIsCreating(true);
-    setShowConfirmationModal(false);
-    
-    try {
-      await onUseTemplate(selectedFolderId || undefined, []);
-      // Navigation is handled in the parent component (templates.tsx)
-    } catch (error) {
-      console.error('Error creating checklist from template:', error);
-    } finally {
-      setIsCreating(false);
-    }
+  const getSelectedBucketName = () => {
+    if (!selectedBucketId) return 'Select Folder';
+    const bucket = buckets.find(b => b.bucket_id === selectedBucketId);
+    return bucket?.name || 'Select Folder';
   };
 
   const getBucketName = (bucketId?: string) => {
     if (!bucketId) return 'No folder';
     return buckets.find(b => b.bucket_id === bucketId)?.name || 'Unknown folder';
+  };
+
+  const toggleTag = (tagName: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tagName) 
+        ? prev.filter(t => t !== tagName)
+        : [...prev, tagName]
+    );
+  };
+
+  const handleUseTemplate = async () => {
+    if (!user) {
+      return;
+    }
+    
+    // Move to configuration step
+    setCurrentStep('configure');
+  };
+
+  const handleClose = () => {
+    // Reset all state when closing
+    setCurrentStep('details');
+    setSelectedBucketId('');
+    setSelectedTags([]);
+    setTargetDate(null);
+    setShowDatePicker(false);
+    setShowFolderModal(false);
+    setShowTagModal(false);
+    onClose();
+  };
+
+  const handleBackToDetails = () => {
+    setCurrentStep('details');
+  };
+
+  const handleCreateChecklist = async () => {
+    if (!user) return;
+    
+    console.log('🔥 Creating checklist with:');
+    console.log('🔥 selectedBucketId:', selectedBucketId);
+    console.log('🔥 selectedTags:', selectedTags);
+    console.log('🔥 targetDate:', targetDate);
+    console.log('🔥 buckets available:', buckets.map(b => ({ id: b.bucket_id, name: b.name })));
+    
+    setIsCreating(true);
+    
+    try {
+      await onUseTemplate(selectedBucketId || undefined, selectedTags);
+      // Reset state and close modal
+      handleClose();
+    } catch (error) {
+      console.error('Failed to create checklist from template:', error);
+      Alert.alert('Error', 'Failed to create checklist. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -114,18 +186,21 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
         presentationStyle="pageSheet"
       >
         <SafeAreaView style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.templateIcon}>
-                <LayoutTemplate size={20} color="#2563EB" />
+          {currentStep === 'details' ? (
+            // Step 1: Template Details
+            <>
+              {/* Header */}
+              <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                  <View style={styles.templateIcon}>
+                    <Copy size={20} color="#2563EB" />
+                  </View>
+                  <Text style={styles.headerTitle}>Template Details</Text>
+                </View>
+                <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.headerTitle}>Template Details</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={24} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Template Info */}
@@ -219,23 +294,6 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
                 </Text>
               </View>
             )}
-
-            {/* Folder Selection */}
-            <View style={styles.optionsSection}>
-              <Text style={styles.sectionTitle}>Options</Text>
-              <TouchableOpacity
-                style={styles.optionRow}
-                onPress={() => setShowFolderModal(true)}
-              >
-                <FolderOpen size={20} color="#6B7280" />
-                <View style={styles.optionContent}>
-                  <Text style={styles.optionLabel}>Folder</Text>
-                  <Text style={styles.optionValue}>
-                    {getBucketName(selectedFolderId)}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
 
           {/* Actions */}
@@ -251,7 +309,10 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
             )}
             <TouchableOpacity
               style={[styles.useButton, isCreating && styles.useButtonDisabled]}
-              onPress={handleUseTemplate}
+              onPress={() => {
+                console.log('🔥 TouchableOpacity onPress fired!');
+                handleUseTemplate();
+              }}
               disabled={isCreating}
             >
               {isCreating ? (
@@ -259,30 +320,181 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
               ) : (
                 <>
                   <Copy size={16} color="#FFFFFF" />
-                  <Text style={styles.useButtonText}>Use Template</Text>
+                  <Text style={styles.useButtonText}>
+                    Use Template
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
           </View>
+            </>
+          ) : (
+            // Step 2: Configure Checklist
+            <>
+              {/* Header */}
+              <View style={styles.header}>
+                <TouchableOpacity onPress={handleBackToDetails} style={styles.backButton}>
+                  <ChevronLeft size={24} color="#007AFF" />
+                </TouchableOpacity>
+                <View style={styles.headerLeft}>
+                  <Text style={styles.headerTitle}>Configure Checklist</Text>
+                </View>
+                <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+                {/* Template Name Preview */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Checklist Name</Text>
+                  <Text style={styles.checklistNamePreview}>{template.name}</Text>
+                </View>
+
+                {/* Folder Selection */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Folder</Text>
+                  <TouchableOpacity 
+                    style={styles.folderButton}
+                    onPress={() => setShowFolderModal(true)}
+                  >
+                    <Folder size={20} color="#007AFF" />
+                    <Text style={[styles.folderButtonText, selectedBucketId && styles.folderButtonTextSelected]}>
+                      {getSelectedBucketName()}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Tags Selection */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Tags</Text>
+                  <TouchableOpacity 
+                    style={styles.tagsButton}
+                    onPress={() => setShowTagModal(true)}
+                  >
+                    <Tag size={20} color="#007AFF" />
+                    {selectedTags.length > 0 ? (
+                      <View style={styles.tagsContent}>
+                        <View style={styles.selectedTagsInline}>
+                          {selectedTags.map((tag, index) => (
+                            <View key={index} style={styles.tagChipInline}>
+                              <Text style={styles.tagChipTextInline}>{tag}</Text>
+                              <TouchableOpacity onPress={() => toggleTag(tag)}>
+                                <X size={14} color="#007AFF" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={styles.tagsButtonText}>Add tags</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {/* Target Date Selection */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Target Date (Optional)</Text>
+                  <TouchableOpacity 
+                    style={styles.dateButton}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Calendar size={20} color="#007AFF" />
+                    <Text style={[styles.dateButtonText, targetDate && styles.dateButtonTextSelected]}>
+                      {targetDate ? formatDate(targetDate) : 'Select date'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Template Preview */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Template Preview</Text>
+                  <Text style={styles.itemCount}>
+                    {totalItemCount} item{totalItemCount !== 1 ? 's' : ''} will be added to your checklist
+                  </Text>
+                </View>
+              </ScrollView>
+
+              {/* Create Button */}
+              <View style={styles.footer}>
+                <TouchableOpacity
+                  style={[styles.createButton, isCreating && styles.createButtonDisabled]}
+                  onPress={handleCreateChecklist}
+                  disabled={isCreating}
+                >
+                  {isCreating ? (
+                    <LoadingSpinner size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Check size={16} color="#FFFFFF" />
+                      <Text style={styles.createButtonText}>
+                        Create Checklist
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </SafeAreaView>
+
+        {/* Modals for Step 2 */}
+        {currentStep === 'configure' && (
+          <>
+            <FolderSelectionModal
+              visible={showFolderModal}
+              selectedFolderId={selectedBucketId}
+              onSelect={(folderId) => {
+                console.log('🔥 FolderSelectionModal selected folderId:', folderId);
+                setSelectedBucketId(folderId);
+              }}
+              onClose={() => setShowFolderModal(false)}
+            />
+            
+            <TagSelectionModal
+              visible={showTagModal}
+              selectedTagNames={selectedTags}
+              onSelect={setSelectedTags}
+              onClose={() => setShowTagModal(false)}
+            />
+
+            {/* Date Picker Modal */}
+            <Modal
+              visible={showDatePicker}
+              animationType="slide"
+              presentationStyle="pageSheet"
+            >
+              <SafeAreaView style={styles.modalContainer}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Date</Text>
+                  <TouchableOpacity 
+                    style={styles.modalDoneButton}
+                    onPress={() => setShowDatePicker(false)}
+                  >
+                    <Text style={styles.modalDoneButtonText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.datePickerContainer}>
+                  <DateTimePicker
+                    value={targetDate || new Date()}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(event, selectedDate) => {
+                      if (selectedDate) {
+                        setTargetDate(selectedDate);
+                      }
+                      if (Platform.OS === 'android') {
+                        setShowDatePicker(false);
+                      }
+                    }}
+                    minimumDate={new Date()}
+                  />
+                </View>
+              </SafeAreaView>
+            </Modal>
+          </>
+        )}
       </Modal>
-
-      <FolderSelectionModal
-        visible={showFolderModal}
-        selectedFolderId={selectedFolderId}
-        onSelect={(folderId) => setSelectedFolderId(folderId)}
-        onClose={() => setShowFolderModal(false)}
-      />
-
-      <ConfirmationModal
-        visible={showConfirmationModal}
-        title="Create Checklist from Template"
-        message={`This will create a new checklist called "${template?.name}" in your ${selectedFolderId ? getBucketName(selectedFolderId) : 'default'} folder. You can then modify it as needed.`}
-        confirmText="Create Checklist"
-        cancelText="Cancel"
-        onConfirm={confirmUseTemplate}
-        onCancel={() => setShowConfirmationModal(false)}
-      />
     </>
   );
 };
@@ -367,11 +579,6 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 12,
   },
-  optionsSection: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    marginBottom: 12,
-  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -415,25 +622,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#F59E0B',
     fontWeight: '500',
-  },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  optionContent: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  optionLabel: {
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: '500',
-  },
-  optionValue: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 2,
   },
   actions: {
     flexDirection: 'row',
@@ -556,5 +744,169 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#92400E',
     lineHeight: 20,
+  },
+  // New styles for configuration step
+  backButton: {
+    padding: 4,
+    marginRight: 16,
+  },
+  section: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    marginBottom: 12,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  checklistNamePreview: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#374151',
+    backgroundColor: '#F9FAFB',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  folderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 16,
+  },
+  folderButtonText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 12,
+    flex: 1,
+  },
+  folderButtonTextSelected: {
+    color: '#111827',
+    fontWeight: '500',
+  },
+  tagsButton: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 16,
+    minHeight: 56,
+  },
+  tagsButtonText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 12,
+    flex: 1,
+  },
+  tagsContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  selectedTagsInline: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tagChipInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  tagChipTextInline: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '500',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 16,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 12,
+    flex: 1,
+  },
+  dateButtonTextSelected: {
+    color: '#111827',
+    fontWeight: '500',
+  },
+  footer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    gap: 8,
+  },
+  createButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  createButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  modalDoneButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  modalDoneButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  datePickerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
   },
 });
