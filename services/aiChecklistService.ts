@@ -3,11 +3,15 @@ import { checklistService } from './checklistService';
 import { taskGroupService } from './taskGroupService';
 import { tagService } from './tagService';
 import { bucketService } from './bucketService';
+import { supabase } from '../lib/supabase';
 
 interface CreateAIChecklistParams {
   request: AIChecklistRequest;
   userId: string;
   bucketId?: string;
+  checklistName?: string;
+  dueDate?: string;
+  tagIds?: string[];
   onProgress?: ProgressCallback;
 }
 
@@ -23,7 +27,7 @@ class AIChecklistService {
    * Generate and create a checklist using AI (optimized version)
    */
   async generateAndCreateChecklist(params: CreateAIChecklistParams): Promise<CreatedChecklistResult> {
-    const { request, userId, bucketId, onProgress } = params;
+    const { request, userId, bucketId, checklistName, dueDate: providedDueDate, tagIds, onProgress } = params;
 
     try {
       // Step 1: Generate checklist using AI
@@ -36,14 +40,25 @@ class AIChecklistService {
         progress: 75
       });
 
-      // Ensure we have tags created
-      const tagNames = await this.ensureTagsExist(aiChecklist.metadata.tags, userId);
+      // Use provided tags or ensure AI-suggested tags exist
+      let tagNames: string[] = [];
+      if (tagIds && tagIds.length > 0) {
+        // Get tag names from provided IDs
+        const { data: tags } = await supabase
+          .from('tag_master')
+          .select('name')
+          .in('tag_id', tagIds);
+        tagNames = tags?.map(tag => tag.name) || [];
+      } else {
+        // Use AI-suggested tags
+        tagNames = await this.ensureTagsExist(aiChecklist.metadata.tags, userId);
+      }
       
-      // Calculate due date if estimated duration is provided
-      let dueDate: string | undefined;
-      if (aiChecklist.estimatedDuration) {
+      // Use provided due date or calculate from AI estimation
+      let finalDueDate: string | undefined = providedDueDate;
+      if (!finalDueDate && aiChecklist.estimatedDuration) {
         const calculatedDate = this.calculateDueDate(aiChecklist.estimatedDuration);
-        dueDate = calculatedDate ? calculatedDate.toISOString() : undefined;
+        finalDueDate = calculatedDate ? calculatedDate.toISOString() : undefined;
       }
 
       // Prepare groups with items for batch creation
@@ -68,13 +83,13 @@ class AIChecklistService {
 
       const result = await checklistService.createChecklistWithGroupsAndItems(
         userId,
-        aiChecklist.title,
+        checklistName || aiChecklist.title,
         groupsWithItems,
         bucketId,
         undefined, // categoryId
         tagNames,
         undefined, // fromTemplateId
-        dueDate
+        finalDueDate
       );
       
       onProgress?.({

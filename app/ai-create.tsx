@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,30 +11,87 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { 
   ArrowLeft, 
   Wand2, 
   Send, 
   Lightbulb, 
-  CheckCircle2
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Calendar,
+  Folder,
+  Tag,
+  Copy,
+  X
 } from 'lucide-react-native';
-import { RootState } from '../store';
+import { RootState, AppDispatch } from '../store';
 import { aiChecklistService } from '../services/aiChecklistService';
 import { AIChecklistRequest, AIGeneratedChecklist, AIGenerationProgress } from '../services/aiService';
+import { FolderSelectionModal } from '../components/FolderSelectionModal';
+import { TagSelectionModal } from '../components/TagSelectionModal';
+import { fetchBuckets } from '../store/slices/bucketsSlice';
+import { fetchTags } from '../store/slices/tagsSlice';
 
 export default function AICreateScreen() {
   const router = useRouter();
+  const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
+  const { buckets } = useSelector((state: RootState) => state.buckets);
+  const { tags } = useSelector((state: RootState) => state.tags);
   
   // Input states
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [generatedChecklist, setGeneratedChecklist] = useState<AIGeneratedChecklist | null>(null);
-  const [currentStep, setCurrentStep] = useState<'input' | 'preview' | 'creating'>('input');
+  const [currentStep, setCurrentStep] = useState<'input' | 'preview' | 'configure' | 'creating'>('input');
   const [generationProgress, setGenerationProgress] = useState<AIGenerationProgress | null>(null);
+  
+  // Configuration states for step 3
+  const [checklistTitle, setChecklistTitle] = useState<string>('');
+  const [selectedBucketId, setSelectedBucketId] = useState<string>('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [targetDate, setTargetDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+
+  // Load buckets and tags when component mounts
+  useEffect(() => {
+    if (user) {
+      dispatch(fetchBuckets(user.user_id));
+      dispatch(fetchTags());
+    }
+  }, [user, dispatch]);
+
+  // Helper functions
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getSelectedBucketName = () => {
+    if (!selectedBucketId) return 'Select Folder';
+    const bucket = buckets.find(b => b.bucket_id === selectedBucketId);
+    return bucket?.name || 'Select Folder';
+  };
+
+  const toggleTag = (tagName: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tagName) 
+        ? prev.filter(t => t !== tagName)
+        : [...prev, tagName]
+    );
+  };
 
   // Example prompts for user inspiration
   const examplePrompts = [
@@ -93,6 +150,24 @@ export default function AICreateScreen() {
     }
   };
 
+  const handleUseTemplate = () => {
+    if (!generatedChecklist) return;
+    
+    // Set default checklist title
+    setChecklistTitle(generatedChecklist.title);
+    
+    // Move to configuration step
+    setCurrentStep('configure');
+  };
+
+  const handleBackToPreview = () => {
+    setCurrentStep('preview');
+  };
+
+  const handleBackToInput = () => {
+    setCurrentStep('input');
+  };
+
   const handleCreateChecklist = async () => {
     if (!generatedChecklist || !user) return;
 
@@ -123,6 +198,10 @@ export default function AICreateScreen() {
       const result = await aiChecklistService.generateAndCreateChecklist({
         request: aiRequest,
         userId: user.user_id,
+        bucketId: selectedBucketId || undefined,
+        checklistName: checklistTitle,
+        dueDate: targetDate?.toISOString(),
+        tagIds: selectedTags,
         onProgress: (progress) => setGenerationProgress(progress)
       });
       
@@ -136,7 +215,7 @@ export default function AICreateScreen() {
       );
     } catch (error) {
       Alert.alert('Creation Failed', 'Failed to create checklist. Please try again.');
-      setCurrentStep('preview');
+      setCurrentStep('configure');
       console.error('Checklist creation error:', error);
     } finally {
       setIsCreating(false);
@@ -195,7 +274,7 @@ export default function AICreateScreen() {
     </ScrollView>
   );
 
-  // Render preview step
+  // Render preview step - shows AI generated checklist like template details
   const renderPreviewStep = () => (
     <ScrollView style={styles.content}>
       {isGenerating ? (
@@ -281,33 +360,127 @@ export default function AICreateScreen() {
         </View>
       ) : generatedChecklist ? (
         <View style={styles.previewContainer}>
-          <View style={styles.previewHeader}>
-            <Text style={styles.previewTitle}>{generatedChecklist.title}</Text>
+          {/* Checklist Info */}
+          <View style={styles.checklistInfo}>
+            <Text style={styles.checklistName}>{generatedChecklist.title}</Text>
             {generatedChecklist.description && (
-              <Text style={styles.previewDescription}>{generatedChecklist.description}</Text>
+              <Text style={styles.checklistDescription}>{generatedChecklist.description}</Text>
             )}
+            <Text style={styles.itemCount}>
+              {generatedChecklist.groups.reduce((total, group) => total + group.items.length, 0)} items
+            </Text>
           </View>
 
-          {/* Groups Preview */}
-          {generatedChecklist.groups.map((group, groupIndex) => (
-            <View key={groupIndex} style={styles.groupPreview}>
-              <View style={[styles.groupHeader, { borderLeftColor: group.color }]}>
-                <Text style={styles.groupName}>{group.name}</Text>
-                {group.description && (
-                  <Text style={styles.groupDescription}>{group.description}</Text>
+          {/* Items Preview */}
+          <View style={styles.itemsSection}>
+            <Text style={styles.sectionTitle}>Items Preview</Text>
+            {generatedChecklist.groups.map((group) => (
+              <View key={group.order} style={styles.groupContainer}>
+                <TouchableOpacity
+                  style={styles.groupHeader}
+                  onPress={() => {
+                    setCollapsedGroups(prev => {
+                      const newSet = new Set(prev);
+                      if (newSet.has(group.order)) {
+                        newSet.delete(group.order);
+                      } else {
+                        newSet.add(group.order);
+                      }
+                      return newSet;
+                    });
+                  }}
+                >
+                  <View style={styles.groupHeaderContent}>
+                    <View style={[styles.groupColorIndicator, { backgroundColor: group.color }]} />
+                    <Text style={styles.groupName}>{group.name}</Text>
+                    <Text style={styles.groupItemCount}>({group.items.length})</Text>
+                  </View>
+                  {collapsedGroups.has(group.order) ? (
+                    <ChevronRight size={16} color="#6B7280" />
+                  ) : (
+                    <ChevronDown size={16} color="#6B7280" />
+                  )}
+                </TouchableOpacity>
+                
+                {!collapsedGroups.has(group.order) && (
+                  <View style={styles.groupItems}>
+                    {group.items.map((item) => (
+                      <View key={item.order} style={styles.itemRow}>
+                        <View style={styles.checkbox} />
+                        <View style={styles.itemContent}>
+                          <Text style={styles.itemText}>{item.text}</Text>
+                          {item.description && (
+                            <Text style={styles.itemDescription}>{item.description}</Text>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
                 )}
               </View>
-              
-              {group.items.map((item, itemIndex) => (
-                <View key={itemIndex} style={styles.itemPreview}>
-                  <View style={styles.itemBullet} />
-                  <Text style={styles.itemText}>{item.text}</Text>
-                </View>
-              ))}
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
       ) : null}
+    </ScrollView>
+  );
+
+  // Render configure step - shows configuration options
+  const renderConfigureStep = () => (
+    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      {/* Checklist Title */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Checklist Name</Text>
+        <TextInput
+          style={styles.titleInput}
+          value={checklistTitle}
+          onChangeText={setChecklistTitle}
+          placeholder="Enter checklist name"
+          maxLength={100}
+        />
+      </View>
+
+      {/* Target Date Selection */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Target Date (Optional)</Text>
+        <TouchableOpacity 
+          style={styles.dateButton}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Calendar size={20} color="#007AFF" />
+          <Text style={[styles.dateButtonText, targetDate && styles.dateButtonTextSelected]}>
+            {targetDate ? formatDate(targetDate) : 'Select date'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Folder Selection */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Folder</Text>
+        <TouchableOpacity 
+          style={styles.folderButton}
+          onPress={() => setShowFolderModal(true)}
+        >
+          <Folder size={20} color="#007AFF" />
+          <Text style={[styles.folderButtonText, selectedBucketId && styles.folderButtonTextSelected]}>
+            {getSelectedBucketName()}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Tags Selection */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Tags</Text>
+        <TouchableOpacity 
+          style={styles.tagsButton}
+          onPress={() => setShowTagModal(true)}
+        >
+          <Tag size={20} color="#007AFF" />
+          <Text style={[styles.tagsButtonText, selectedTags.length > 0 && styles.tagsButtonTextSelected]}>
+            {selectedTags.length > 0 ? selectedTags.join(', ') : 'Add tags'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 
@@ -319,15 +492,22 @@ export default function AICreateScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={24} color="#374151" />
-          </TouchableOpacity>
+          {currentStep === 'configure' ? (
+            <TouchableOpacity onPress={handleBackToPreview} style={styles.backButton}>
+              <ChevronLeft size={24} color="#007AFF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => currentStep === 'preview' ? handleBackToInput() : router.back()}
+            >
+              <ArrowLeft size={24} color="#374151" />
+            </TouchableOpacity>
+          )}
           <Text style={styles.headerTitle}>
             {currentStep === 'input' ? 'Create with AI' : 
-             currentStep === 'preview' ? 'Review & Create' : 'Creating...'}
+             currentStep === 'preview' ? 'AI Generated Checklist' : 
+             currentStep === 'configure' ? 'Configure Checklist' : 'Creating...'}
           </Text>
           <View style={styles.headerSpacer} />
         </View>
@@ -335,6 +515,7 @@ export default function AICreateScreen() {
         {/* Content based on current step */}
         {currentStep === 'input' && renderInputStep()}
         {(currentStep === 'preview' || currentStep === 'creating') && renderPreviewStep()}
+        {currentStep === 'configure' && renderConfigureStep()}
 
         {/* Footer Actions */}
         <View style={styles.footer}>
@@ -350,35 +531,70 @@ export default function AICreateScreen() {
           )}
           
           {currentStep === 'preview' && !isGenerating && generatedChecklist && (
-            <View style={styles.previewActions}>
-              <TouchableOpacity
-                style={styles.backToEditButton}
-                onPress={() => setCurrentStep('input')}
-                disabled={isCreating}
-              >
-                <Text style={styles.backToEditText}>Edit Request</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.createButton, isCreating && styles.createButtonDisabled]}
-                onPress={handleCreateChecklist}
-                disabled={isCreating}
-              >
-                {isCreating ? (
-                  <>
-                    <Text style={styles.createButtonText}>Creating...</Text>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={18} color="#FFFFFF" />
-                    <Text style={styles.createButtonText}>Create Checklist</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={handleUseTemplate}
+            >
+              <Copy size={18} color="#FFFFFF" />
+              <Text style={styles.createButtonText}>Use Template</Text>
+            </TouchableOpacity>
+          )}
+          
+          {currentStep === 'configure' && (
+            <TouchableOpacity
+              style={[styles.createButton, isCreating && styles.createButtonDisabled]}
+              onPress={handleCreateChecklist}
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <Text style={styles.createButtonText}>Creating...</Text>
+              ) : (
+                <>
+                  <CheckCircle2 size={18} color="#FFFFFF" />
+                  <Text style={styles.createButtonText}>Create Checklist</Text>
+                </>
+              )}
+            </TouchableOpacity>
           )}
         </View>
       </KeyboardAvoidingView>
+      
+      {/* Date Picker */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={targetDate || new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(false);
+            if (selectedDate) {
+              setTargetDate(selectedDate);
+            }
+          }}
+        />
+      )}
+      
+      {/* Folder Selection Modal */}
+      <FolderSelectionModal
+        visible={showFolderModal}
+        selectedFolderId={selectedBucketId}
+        onSelect={(bucketId: string) => {
+          setSelectedBucketId(bucketId);
+          setShowFolderModal(false);
+        }}
+        onClose={() => setShowFolderModal(false)}
+      />
+      
+      {/* Tag Selection Modal */}
+      <TagSelectionModal
+        visible={showTagModal}
+        selectedTagNames={selectedTags}
+        onSelect={(tagNames: string[]) => {
+          setSelectedTags(tagNames);
+          setShowTagModal(false);
+        }}
+        onClose={() => setShowTagModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -725,5 +941,162 @@ const styles = StyleSheet.create({
   createButtonDisabled: {
     backgroundColor: '#9CA3AF',
     opacity: 0.7,
+  },
+  
+  // Template-style preview styles
+  checklistInfo: {
+    marginBottom: 24,
+  },
+  checklistName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  checklistDescription: {
+    fontSize: 16,
+    color: '#6B7280',
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  itemCount: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  itemsSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  groupContainer: {
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  groupHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  groupColorIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  groupItemCount: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 8,
+  },
+  groupItems: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingBottom: 12,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  itemContent: {
+    flex: 1,
+  },
+  itemDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  
+  // Configuration step styles
+  section: {
+    marginBottom: 24,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  titleInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#111827',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    marginLeft: 12,
+  },
+  dateButtonTextSelected: {
+    color: '#111827',
+  },
+  folderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  folderButtonText: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    marginLeft: 12,
+  },
+  folderButtonTextSelected: {
+    color: '#111827',
+  },
+  tagsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  tagsButtonText: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    marginLeft: 12,
+  },
+  tagsButtonTextSelected: {
+    color: '#111827',
   },
 });
