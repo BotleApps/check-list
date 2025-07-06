@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
 import { Check, AlertCircle } from 'lucide-react-native';
 
@@ -17,7 +17,7 @@ export const Toast: React.FC<ToastProps> = ({
   duration = 3000,
   onHide,
 }) => {
-  const translateY = new Animated.Value(-100);
+  const translateY = useRef(new Animated.Value(-100)).current;
 
   useEffect(() => {
     if (visible) {
@@ -35,7 +35,7 @@ export const Toast: React.FC<ToastProps> = ({
 
       return () => clearTimeout(timer);
     }
-  }, [visible]);
+  }, [visible, duration]);
 
   const hideToast = () => {
     Animated.timing(translateY, {

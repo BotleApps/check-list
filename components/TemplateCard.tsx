@@ -55,9 +55,14 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
           </View>
           
           <View style={styles.metadata}>
-            {categoryName && (
-              <Text style={styles.category}>{categoryName}</Text>
-            )}
+            <View style={styles.metadataLeft}>
+              {categoryName && (
+                <Text style={styles.category}>{categoryName}</Text>
+              )}
+            </View>
+            <View style={styles.metadataRight}>
+              <Text style={styles.itemCount}>{itemCount} items</Text>
+            </View>
           </View>
 
           {template.description && (
@@ -71,7 +76,6 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
       {/* Preview Items */}
       {previewItems.length > 0 && (
         <View style={styles.previewSection}>
-          <Text style={styles.previewLabel}>Items ({itemCount})</Text>
           {previewItems.slice(0, 2).map((item, index) => (
             <View key={index} style={styles.previewItem}>
               <View style={[styles.previewCheckbox, item.is_required && styles.requiredCheckbox]}>
@@ -139,21 +143,23 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 16,
     marginHorizontal: 16,
-    marginVertical: 6,
+    marginVertical: 8,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   cardContent: {
-    padding: 16,
+    padding: 20,
     paddingBottom: 0,
   },
   content: {
@@ -176,54 +182,70 @@ const styles = StyleSheet.create({
   metadata: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 8,
     marginBottom: 12,
+  },
+  metadataLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  metadataRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  itemCount: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   category: {
     fontSize: 12,
     color: '#0891B2',
-    fontWeight: '500',
+    fontWeight: '600',
     backgroundColor: '#F0FDFA',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#B2F5EA',
+    overflow: 'hidden',
   },
   description: {
     fontSize: 14,
     color: '#6B7280',
-    marginTop: 4,
-    lineHeight: 20,
+    marginTop: 8,
+    lineHeight: 22,
   },
   previewSection: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 16,
+    paddingBottom: 4,
+    backgroundColor: '#FAFBFC',
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
-  },
-  previewLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 6,
   },
   previewItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
+    paddingVertical: 2,
   },
   previewCheckbox: {
     width: 16,
     height: 16,
-    borderRadius: 3,
-    borderWidth: 1,
+    borderRadius: 4,
+    borderWidth: 1.5,
     borderColor: '#D1D5DB',
-    marginRight: 8,
+    marginRight: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
   requiredCheckbox: {
     borderColor: '#F59E0B',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFFBEB',
   },
   requiredMark: {
     fontSize: 10,
@@ -231,15 +253,17 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
   },
   previewItemText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#374151',
     flex: 1,
+    lineHeight: 20,
   },
   moreItemsText: {
     fontSize: 12,
     color: '#6B7280',
     fontStyle: 'italic',
-    marginTop: 4,
+    marginTop: 8,
+    paddingBottom: 4,
   },
   bottomSection: {
     flexDirection: 'row',
@@ -248,6 +272,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },
@@ -268,10 +293,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    padding: 8,
-    borderRadius: 6,
+    padding: 10,
+    borderRadius: 8,
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
 });

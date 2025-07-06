@@ -149,9 +149,18 @@ export default function TemplatesScreen() {
 
   const handleTemplatePress = async (templateId: string) => {
     setSelectedTemplateId(templateId);
-    // Fetch template details
-    await dispatch(fetchTemplateWithItems(templateId));
-    setShowTemplateModal(true);
+    setShowTemplateModal(true); // Show modal immediately
+    
+    try {
+      // Fetch template details
+      await dispatch(fetchTemplateWithItems(templateId));
+    } catch (error) {
+      console.error('Error fetching template details:', error);
+      showToastMessage('Failed to load template details', 'error');
+      // Close modal on error
+      setShowTemplateModal(false);
+      setSelectedTemplateId(null);
+    }
   };
 
   const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
@@ -404,17 +413,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     margin: 16,
+    marginBottom: 12,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingLeft: 12,
     fontSize: 16,
     color: '#111827',
+    lineHeight: 20,
   },
   categoryFilter: {
     flex: 1,
@@ -425,29 +444,41 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    marginRight: 8,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    minHeight: 32,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    marginRight: 10,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    minHeight: 36,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   categoryChipActive: {
     backgroundColor: '#2563EB',
     borderColor: '#2563EB',
+    shadowColor: '#2563EB',
+    shadowOpacity: 0.3,
   },
   categoryChipText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: '#64748B',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   categoryChipTextActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
   },
   scrollView: {
     flex: 1,

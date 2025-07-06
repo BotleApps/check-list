@@ -64,7 +64,7 @@ export default function NewChecklistScreen() {
   }[]>([
     {
       id: 'default',
-      name: 'Items',
+      name: 'items',
       colorCode: '#007AFF',
       items: [''],
       itemStates: [false]
