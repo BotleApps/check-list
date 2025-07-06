@@ -306,7 +306,8 @@ class ChecklistService {
     checklistId: string,
     text: string,
     description?: string,
-    orderIndex?: number
+    orderIndex?: number,
+    groupId?: string
   ): Promise<ChecklistItem> {
     // If no order specified, get the next order number
     if (orderIndex === undefined) {
@@ -322,6 +323,7 @@ class ChecklistService {
 
     const newItem = {
       checklist_id: checklistId,
+      group_id: groupId || null,
       text,
       description,
       order_index: orderIndex,
