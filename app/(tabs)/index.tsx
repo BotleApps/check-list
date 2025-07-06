@@ -341,17 +341,19 @@ export default function HomeScreen() {
                   style={styles.sortOption}
                   onPress={() => toggleSort(option.key as typeof sortBy)}
                 >
-                  <Text style={[
-                    styles.sortOptionText,
-                    sortBy === option.key && styles.sortOptionTextActive
-                  ]}>
-                    {option.label}
-                  </Text>
-                  {sortBy === option.key && (
-                    <Text style={styles.sortDirection}>
-                      {sortDirection === 'asc' ? '↑' : '↓'}
+                  <View style={styles.sortOptionContent}>
+                    <Text style={[
+                      styles.sortOptionText,
+                      sortBy === option.key && styles.sortOptionTextActive
+                    ]}>
+                      {option.label}
                     </Text>
-                  )}
+                    {sortBy === option.key && (
+                      <Text style={styles.sortDirection}>
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </Text>
+                    )}
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -542,6 +544,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
+  sortOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   sortOptionText: {
     fontSize: 14,
     color: '#6B7280',
@@ -554,7 +561,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2563EB',
     fontWeight: '600',
-    marginLeft: 8,
   },
   section: {
     marginTop: 16,
