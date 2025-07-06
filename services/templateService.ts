@@ -428,19 +428,48 @@ class TemplateService {
     templateId: string,
     userId: string,
     bucketId?: string,
-    tags?: string[]
+    tags?: string[],
+    customName?: string,
+    targetDate?: Date
   ): Promise<{ checklist_id: string; name: string }> {
     try {
       // Get the template with all its items
       const { template, items } = await this.getTemplateWithItems(templateId);
 
+      // Convert tag names to tag IDs if tags are provided
+      let tagIds: string[] = [];
+      if (tags && tags.length > 0) {
+        // Get all existing tags that match the provided names
+        const { data: existingTags, error: tagsError } = await supabase
+          .from('tag_master')
+          .select('tag_id, name')
+          .in('name', tags);
+
+        if (tagsError) {
+          console.error('Error fetching tags:', tagsError);
+          throw new Error(`Failed to fetch tags: ${tagsError.message}`);
+        }
+
+        tagIds = existingTags?.map(tag => tag.tag_id) || [];
+        
+        // Check if all tags were found
+        const foundTagNames = existingTags?.map(tag => tag.name) || [];
+        const missingTags = tags.filter(tagName => !foundTagNames.includes(tagName));
+        
+        if (missingTags.length > 0) {
+          console.warn('Some tags were not found:', missingTags);
+          // For now, we'll just ignore missing tags
+          // In the future, we could create them automatically
+        }
+      }
+
       // Create the checklist header
       const checklistData = {
         user_id: userId,
-        name: `${template.name} (from template)`,
+        name: customName || template.name,
         bucket_id: bucketId || null,
-        tags: tags || [],
-        due_date: null, // User can set this later if needed
+        tags: tagIds, // Use tag IDs instead of names
+        due_date: targetDate ? targetDate.toISOString() : null,
         status: 'active',
       };
 
@@ -455,9 +484,6 @@ class TemplateService {
       }
 
       // Get template groups and create corresponding task groups
-      console.log('🔥 templateService.createChecklistFromTemplate - templateId:', templateId);
-      console.log('🔥 templateService.createChecklistFromTemplate - userId:', userId);
-      console.log('🔥 templateService.createChecklistFromTemplate - bucketId:', bucketId);
       const templateGroups = await templateGroupService.getTemplateGroups(templateId);
       const groupIdMap = new Map<string, string>(); // template group_id -> task group_id
 

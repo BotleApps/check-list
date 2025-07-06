@@ -10,6 +10,7 @@ import {
   Pressable,
   Alert,
   Platform,
+  TextInput,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSelector, useDispatch } from 'react-redux';
@@ -42,7 +43,7 @@ interface TemplateDetailModalProps {
   template: ChecklistTemplateHeader | null;
   categoryName?: string;
   onClose: () => void;
-  onUseTemplate: (bucketId?: string, tags?: string[]) => Promise<void>;
+  onUseTemplate: (bucketId?: string, tags?: string[], customName?: string, targetDate?: Date) => Promise<void>;
   onShare?: () => void;
 }
 
@@ -65,6 +66,7 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   const [currentStep, setCurrentStep] = useState<'details' | 'configure'>('details');
   
   // Configuration states for step 2
+  const [checklistTitle, setChecklistTitle] = useState<string>('');
   const [selectedBucketId, setSelectedBucketId] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [targetDate, setTargetDate] = useState<Date | null>(null);
@@ -135,6 +137,9 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
       return;
     }
     
+    // Set default checklist title based on template name
+    setChecklistTitle(template.name);
+    
     // Move to configuration step
     setCurrentStep('configure');
   };
@@ -142,6 +147,7 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   const handleClose = () => {
     // Reset all state when closing
     setCurrentStep('details');
+    setChecklistTitle('');
     setSelectedBucketId('');
     setSelectedTags([]);
     setTargetDate(null);
@@ -158,16 +164,15 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   const handleCreateChecklist = async () => {
     if (!user) return;
     
-    console.log('🔥 Creating checklist with:');
-    console.log('🔥 selectedBucketId:', selectedBucketId);
-    console.log('🔥 selectedTags:', selectedTags);
-    console.log('🔥 targetDate:', targetDate);
-    console.log('🔥 buckets available:', buckets.map(b => ({ id: b.bucket_id, name: b.name })));
-    
     setIsCreating(true);
     
     try {
-      await onUseTemplate(selectedBucketId || undefined, selectedTags);
+      await onUseTemplate(
+        selectedBucketId || undefined, 
+        selectedTags, 
+        checklistTitle.trim() || template.name,
+        targetDate || undefined
+      );
       // Reset state and close modal
       handleClose();
     } catch (error) {
@@ -345,10 +350,30 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
               </View>
 
               <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Template Name Preview */}
+                {/* Checklist Title */}
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>Checklist Name</Text>
-                  <Text style={styles.checklistNamePreview}>{template.name}</Text>
+                  <TextInput
+                    style={styles.titleInput}
+                    value={checklistTitle}
+                    onChangeText={setChecklistTitle}
+                    placeholder="Enter checklist name"
+                    maxLength={100}
+                  />
+                </View>
+
+                {/* Target Date Selection */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Target Date (Optional)</Text>
+                  <TouchableOpacity 
+                    style={styles.dateButton}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Calendar size={20} color="#007AFF" />
+                    <Text style={[styles.dateButtonText, targetDate && styles.dateButtonTextSelected]}>
+                      {targetDate ? formatDate(targetDate) : 'Select date'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Folder Selection */}
@@ -391,36 +416,17 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
                     )}
                   </TouchableOpacity>
                 </View>
-
-                {/* Target Date Selection */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Target Date (Optional)</Text>
-                  <TouchableOpacity 
-                    style={styles.dateButton}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Calendar size={20} color="#007AFF" />
-                    <Text style={[styles.dateButtonText, targetDate && styles.dateButtonTextSelected]}>
-                      {targetDate ? formatDate(targetDate) : 'Select date'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Template Preview */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Template Preview</Text>
-                  <Text style={styles.itemCount}>
-                    {totalItemCount} item{totalItemCount !== 1 ? 's' : ''} will be added to your checklist
-                  </Text>
-                </View>
               </ScrollView>
 
               {/* Create Button */}
               <View style={styles.footer}>
                 <TouchableOpacity
-                  style={[styles.createButton, isCreating && styles.createButtonDisabled]}
+                  style={[
+                    styles.createButton, 
+                    (isCreating || !checklistTitle.trim()) && styles.createButtonDisabled
+                  ]}
                   onPress={handleCreateChecklist}
-                  disabled={isCreating}
+                  disabled={isCreating || !checklistTitle.trim()}
                 >
                   {isCreating ? (
                     <LoadingSpinner size="small" color="#FFFFFF" />
@@ -444,10 +450,7 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
             <FolderSelectionModal
               visible={showFolderModal}
               selectedFolderId={selectedBucketId}
-              onSelect={(folderId) => {
-                console.log('🔥 FolderSelectionModal selected folderId:', folderId);
-                setSelectedBucketId(folderId);
-              }}
+              onSelect={(folderId) => setSelectedBucketId(folderId)}
               onClose={() => setShowFolderModal(false)}
             />
             
@@ -761,15 +764,16 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 12,
   },
-  checklistNamePreview: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#374151',
+  titleInput: {
+    fontSize: 16,
+    color: '#111827',
     backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontWeight: '500',
   },
   folderButton: {
     flexDirection: 'row',

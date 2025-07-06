@@ -85,18 +85,24 @@ export const createChecklistFromTemplate = createAsyncThunk(
     templateId, 
     userId, 
     bucketId, 
-    tags 
+    tags,
+    customName,
+    targetDate
   }: { 
     templateId: string; 
     userId: string; 
     bucketId?: string; 
-    tags?: string[] 
+    tags?: string[];
+    customName?: string;
+    targetDate?: Date;
   }) => {
     const response = await templateService.createChecklistFromTemplate(
       templateId,
       userId,
       bucketId,
-      tags
+      tags,
+      customName,
+      targetDate
     );
     return response;
   }

@@ -169,13 +169,8 @@ export default function TemplatesScreen() {
     setShowToast(true);
   };
 
-  const handleUseTemplate = async (bucketId?: string, tags: string[] = []) => {
+  const handleUseTemplate = async (bucketId?: string, tags: string[] = [], customName?: string, targetDate?: Date) => {
     if (!user || !selectedTemplateId) return;
-
-    console.log('🔥 templates.tsx handleUseTemplate called with:');
-    console.log('🔥 selectedTemplateId:', selectedTemplateId);
-    console.log('🔥 bucketId:', bucketId);
-    console.log('🔥 tags:', tags);
 
     try {
       const result = await dispatch(createChecklistFromTemplate({
@@ -183,6 +178,8 @@ export default function TemplatesScreen() {
         userId: user.user_id,
         bucketId,
         tags,
+        customName,
+        targetDate,
       })).unwrap();
 
       // Close modal
