@@ -10,6 +10,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
@@ -27,13 +29,18 @@ import {
   Folder,
   Tag,
   Copy,
-  X
+  X,
+  Edit3,
+  Trash2,
+  Plus,
+  Check
 } from 'lucide-react-native';
 import { RootState, AppDispatch } from '../store';
 import { aiChecklistService } from '../services/aiChecklistService';
 import { AIChecklistRequest, AIGeneratedChecklist, AIGenerationProgress } from '../services/aiService';
 import { FolderSelectionModal } from '../components/FolderSelectionModal';
 import { TagSelectionModal } from '../components/TagSelectionModal';
+import { Toast } from '../components/Toast';
 import { fetchBuckets } from '../store/slices/bucketsSlice';
 import { fetchTags } from '../store/slices/tagsSlice';
 
@@ -49,7 +56,7 @@ export default function AICreateScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [generatedChecklist, setGeneratedChecklist] = useState<AIGeneratedChecklist | null>(null);
-  const [currentStep, setCurrentStep] = useState<'input' | 'preview' | 'configure' | 'creating'>('input');
+  const [currentStep, setCurrentStep] = useState<'input' | 'preview' | 'edit' | 'configure' | 'creating'>('input');
   const [generationProgress, setGenerationProgress] = useState<AIGenerationProgress | null>(null);
   
   // Configuration states for step 3
@@ -61,6 +68,15 @@ export default function AICreateScreen() {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+  
+  // Edit mode states
+  const [editableChecklist, setEditableChecklist] = useState<AIGeneratedChecklist | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  
+  // Toast states
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   // Load buckets and tags when component mounts
   useEffect(() => {
@@ -69,6 +85,13 @@ export default function AICreateScreen() {
       dispatch(fetchTags());
     }
   }, [user, dispatch]);
+
+  // Toast helper function
+  const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+  };
 
   // Helper functions
   const formatDate = (date: Date) => {
@@ -160,61 +183,102 @@ export default function AICreateScreen() {
     setCurrentStep('configure');
   };
 
+  const handleEditChecklist = () => {
+    if (!generatedChecklist) return;
+    
+    // Create a copy for editing
+    setEditableChecklist(JSON.parse(JSON.stringify(generatedChecklist)));
+    setCurrentStep('edit');
+  };
+
   const handleBackToPreview = () => {
+    if (currentStep === 'edit') {
+      // Update the original checklist with edits
+      if (editableChecklist) {
+        setGeneratedChecklist(editableChecklist);
+      }
+    }
     setCurrentStep('preview');
+  };
+
+  const handleRemoveItem = (groupIndex: number, itemIndex: number) => {
+    if (!editableChecklist) return;
+    
+    const updatedChecklist = { ...editableChecklist };
+    updatedChecklist.groups[groupIndex].items.splice(itemIndex, 1);
+    
+    // Reorder remaining items
+    updatedChecklist.groups[groupIndex].items.forEach((item, index) => {
+      item.order = index;
+    });
+    
+    setEditableChecklist(updatedChecklist);
+  };
+
+  const handleEditItem = (groupIndex: number, itemIndex: number, newText: string, newDescription?: string) => {
+    if (!editableChecklist) return;
+    
+    const updatedChecklist = { ...editableChecklist };
+    updatedChecklist.groups[groupIndex].items[itemIndex] = {
+      ...updatedChecklist.groups[groupIndex].items[itemIndex],
+      text: newText,
+      description: newDescription || ''
+    };
+    
+    setEditableChecklist(updatedChecklist);
+    setEditingItemId(null);
+  };
+
+  const handleAddItem = (groupIndex: number) => {
+    if (!editableChecklist) return;
+    
+    const updatedChecklist = { ...editableChecklist };
+    const newItem = {
+      text: 'New item',
+      description: '',
+      order: updatedChecklist.groups[groupIndex].items.length
+    };
+    
+    updatedChecklist.groups[groupIndex].items.push(newItem);
+    setEditableChecklist(updatedChecklist);
+    
+    // Start editing the new item
+    setEditingItemId(`${groupIndex}-${newItem.order}`);
   };
 
   const handleBackToInput = () => {
     setCurrentStep('input');
   };
 
+  // Handle checklist creation
   const handleCreateChecklist = async () => {
     if (!generatedChecklist || !user) return;
 
     setIsCreating(true);
     setCurrentStep('creating');
-    setGenerationProgress({
-      step: 'organizing',
-      message: 'Creating your checklist in the database...',
-      progress: 0
-    });
+    // Don't set any progress for the creation step - keep it simple
 
     try {
-      const aiRequest: AIChecklistRequest = {
-        prompt: prompt.trim(),
-        context: {
-          category: '',
-          urgency: 'medium',
-          timeframe: '',
-          complexity: 'detailed',
-        },
-        preferences: {
-          includeSubtasks: true,
-          groupByCategory: true,
-          addEstimates: false,
-        },
-      };
-
-      const result = await aiChecklistService.generateAndCreateChecklist({
-        request: aiRequest,
+      const result = await aiChecklistService.createChecklistFromAI({
+        generatedChecklist,
         userId: user.user_id,
         bucketId: selectedBucketId || undefined,
         checklistName: checklistTitle,
         dueDate: targetDate?.toISOString(),
         tagIds: selectedTags,
-        onProgress: (progress) => setGenerationProgress(progress)
+        // Don't pass onProgress to keep the creation step simple
       });
       
-      Alert.alert(
-        'Success!', 
-        `Your AI-generated checklist "${result.name}" has been created with ${result.groupsCreated} groups and ${result.itemsCreated} items!`,
-        [{ 
-          text: 'View Checklist', 
-          onPress: () => router.replace(`/checklist/${result.checklistId}`)
-        }]
-      );
+      // Show success toast and navigate directly
+      showToastMessage(`Checklist "${result.name}" created successfully!`, 'success');
+      
+      // Navigate to the created checklist after a short delay to show the toast
+      setTimeout(() => {
+        router.replace(`/checklist/${result.checklistId}`);
+      }, 1000);
+      
     } catch (error) {
-      Alert.alert('Creation Failed', 'Failed to create checklist. Please try again.');
+      showToastMessage('Failed to create checklist. Please try again.', 'error');
       setCurrentStep('configure');
       console.error('Checklist creation error:', error);
     } finally {
@@ -277,7 +341,19 @@ export default function AICreateScreen() {
   // Render preview step - shows AI generated checklist like template details
   const renderPreviewStep = () => (
     <ScrollView style={styles.content}>
-      {isGenerating ? (
+      {currentStep === 'creating' ? (
+        // Simple loading state for database creation
+        <View style={styles.generatingContainer}>
+          <View style={styles.generatingIcon}>
+            <ActivityIndicator size="large" color="#3B82F6" />
+          </View>
+          <Text style={styles.generatingTitle}>Creating your checklist...</Text>
+          <Text style={styles.generatingSubtitle}>
+            Saving your checklist to the database. This will only take a moment.
+          </Text>
+        </View>
+      ) : isGenerating ? (
+        // Detailed progress for AI generation
         <View style={styles.generatingContainer}>
           <View style={styles.generatingIcon}>
             <Wand2 size={48} color="#3B82F6" />
@@ -484,6 +560,99 @@ export default function AICreateScreen() {
     </ScrollView>
   );
 
+  // Render edit step - allows editing the AI generated checklist
+  const renderEditStep = () => (
+    <ScrollView style={styles.content}>
+      {editableChecklist && (
+        <View style={styles.previewContainer}>
+          {/* Edit Header */}
+          <View style={styles.editHeader}>
+            <Text style={styles.editTitle}>Edit Your Checklist</Text>
+            <Text style={styles.editSubtitle}>
+              Add, remove, or modify items before creating your checklist
+            </Text>
+          </View>
+
+          {/* Editable Groups and Items */}
+          <View style={styles.itemsSection}>
+            {editableChecklist.groups.map((group, groupIndex) => (
+              <View key={group.order} style={styles.editGroupContainer}>
+                <View style={styles.editGroupHeader}>
+                  <View style={[styles.groupColorIndicator, { backgroundColor: group.color }]} />
+                  <Text style={styles.groupName}>{group.name}</Text>
+                  <TouchableOpacity
+                    style={styles.addItemButton}
+                    onPress={() => handleAddItem(groupIndex)}
+                  >
+                    <Plus size={16} color="#007AFF" />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.editItemsList}>
+                  {group.items.map((item, itemIndex) => {
+                    const itemId = `${groupIndex}-${itemIndex}`;
+                    const isEditing = editingItemId === itemId;
+                    
+                    return (
+                      <View key={itemIndex} style={styles.editItemRow}>
+                        {isEditing ? (
+                          <View style={styles.editItemInput}>
+                            <TextInput
+                              style={styles.itemTextInput}
+                              value={item.text}
+                              onChangeText={(text) => {
+                                const updatedChecklist = { ...editableChecklist };
+                                updatedChecklist.groups[groupIndex].items[itemIndex].text = text;
+                                setEditableChecklist(updatedChecklist);
+                              }}
+                              placeholder="Item text"
+                              autoFocus
+                            />
+                            <View style={styles.editItemActions}>
+                              <TouchableOpacity
+                                style={styles.saveButton}
+                                onPress={() => setEditingItemId(null)}
+                              >
+                                <Check size={16} color="#10B981" />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : (
+                          <View style={styles.viewItemRow}>
+                            <View style={styles.itemContent}>
+                              <Text style={styles.itemText}>{item.text}</Text>
+                              {item.description && (
+                                <Text style={styles.itemDescription}>{item.description}</Text>
+                              )}
+                            </View>
+                            <View style={styles.itemActions}>
+                              <TouchableOpacity
+                                style={styles.editButton}
+                                onPress={() => setEditingItemId(itemId)}
+                              >
+                                <Edit3 size={16} color="#6B7280" />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.deleteButton}
+                                onPress={() => handleRemoveItem(groupIndex, itemIndex)}
+                              >
+                                <Trash2 size={16} color="#EF4444" />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+    </ScrollView>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
@@ -492,7 +661,7 @@ export default function AICreateScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          {currentStep === 'configure' ? (
+          {currentStep === 'configure' || currentStep === 'edit' ? (
             <TouchableOpacity onPress={handleBackToPreview} style={styles.backButton}>
               <ChevronLeft size={24} color="#007AFF" />
             </TouchableOpacity>
@@ -507,6 +676,7 @@ export default function AICreateScreen() {
           <Text style={styles.headerTitle}>
             {currentStep === 'input' ? 'Create with AI' : 
              currentStep === 'preview' ? 'AI Generated Checklist' : 
+             currentStep === 'edit' ? 'Edit Checklist' :
              currentStep === 'configure' ? 'Configure Checklist' : 'Creating...'}
           </Text>
           <View style={styles.headerSpacer} />
@@ -515,6 +685,7 @@ export default function AICreateScreen() {
         {/* Content based on current step */}
         {currentStep === 'input' && renderInputStep()}
         {(currentStep === 'preview' || currentStep === 'creating') && renderPreviewStep()}
+        {currentStep === 'edit' && renderEditStep()}
         {currentStep === 'configure' && renderConfigureStep()}
 
         {/* Footer Actions */}
@@ -531,12 +702,31 @@ export default function AICreateScreen() {
           )}
           
           {currentStep === 'preview' && !isGenerating && generatedChecklist && (
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.createButton, styles.secondaryButton]}
+                onPress={handleEditChecklist}
+              >
+                <Edit3 size={18} color="#007AFF" style={{ marginRight: 8 }} />
+                <Text style={[styles.createButtonText, styles.secondaryButtonText]}>Edit Items</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.createButton}
+                onPress={handleUseTemplate}
+              >
+                <ChevronRight size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.createButtonText}>Continue to Configure</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {currentStep === 'edit' && (
             <TouchableOpacity
               style={styles.createButton}
-              onPress={handleUseTemplate}
+              onPress={handleBackToPreview}
             >
-              <Copy size={18} color="#FFFFFF" />
-              <Text style={styles.createButtonText}>Use Template</Text>
+              <CheckCircle2 size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.createButtonText}>Done Editing</Text>
             </TouchableOpacity>
           )}
           
@@ -547,31 +737,63 @@ export default function AICreateScreen() {
               disabled={isCreating}
             >
               {isCreating ? (
-                <Text style={styles.createButtonText}>Creating...</Text>
+                <>
+                  <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.createButtonText}>Creating...</Text>
+                </>
               ) : (
                 <>
-                  <CheckCircle2 size={18} color="#FFFFFF" />
+                  <CheckCircle2 size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                   <Text style={styles.createButtonText}>Create Checklist</Text>
                 </>
               )}
             </TouchableOpacity>
           )}
+          
+          {currentStep === 'creating' && (
+            <View style={[styles.createButton, styles.createButtonDisabled]}>
+              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.createButtonText}>Creating...</Text>
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
       
-      {/* Date Picker */}
+      {/* Date Picker Modal */}
       {showDatePicker && (
-        <DateTimePicker
-          value={targetDate || new Date()}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(false);
-            if (selectedDate) {
-              setTargetDate(selectedDate);
-            }
-          }}
-        />
+        <Modal
+          visible={showDatePicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Date</Text>
+              <TouchableOpacity 
+                style={styles.modalDoneButton}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.modalDoneButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerContainer}>
+              <DateTimePicker
+                value={targetDate || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedDate) => {
+                  if (selectedDate) {
+                    setTargetDate(selectedDate);
+                  }
+                  if (Platform.OS === 'android') {
+                    setShowDatePicker(false);
+                  }
+                }}
+                minimumDate={new Date()}
+              />
+            </View>
+          </SafeAreaView>
+        </Modal>
       )}
       
       {/* Folder Selection Modal */}
@@ -594,6 +816,14 @@ export default function AICreateScreen() {
           setShowTagModal(false);
         }}
         onClose={() => setShowTagModal(false)}
+      />
+      
+      {/* Toast */}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
       />
     </SafeAreaView>
   );
@@ -895,7 +1125,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     borderRadius: 12,
-    gap: 8,
   },
   generateButtonDisabled: {
     backgroundColor: '#9CA3AF',
@@ -924,14 +1153,13 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   createButton: {
-    flex: 2,
     backgroundColor: '#10B981',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 12,
-    gap: 8,
   },
   createButtonText: {
     fontSize: 16,
@@ -1048,55 +1276,204 @@ const styles = StyleSheet.create({
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
+    gap: 12,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
   },
   dateButtonText: {
     fontSize: 16,
-    color: '#9CA3AF',
-    marginLeft: 12,
+    color: '#8E8E93',
   },
   dateButtonTextSelected: {
-    color: '#111827',
+    color: '#000000',
+    fontWeight: '500',
   },
   folderButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
+    gap: 12,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
   },
   folderButtonText: {
     fontSize: 16,
-    color: '#9CA3AF',
-    marginLeft: 12,
+    color: '#8E8E93',
   },
   folderButtonTextSelected: {
-    color: '#111827',
+    color: '#000000',
+    fontWeight: '500',
   },
   tagsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
+    gap: 12,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
   },
   tagsButtonText: {
     fontSize: 16,
-    color: '#9CA3AF',
-    marginLeft: 12,
+    color: '#8E8E93',
   },
   tagsButtonTextSelected: {
+    color: '#000000',
+    fontWeight: '500',
+  },
+  
+  // Modal styles for date picker
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
     color: '#111827',
+  },
+  modalDoneButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  modalDoneButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  datePickerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  
+  // Edit mode styles
+  editHeader: {
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  editTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  editSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  editGroupContainer: {
+    marginBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  editGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  addItemButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#EFF6FF',
+  },
+  editItemsList: {
+    paddingVertical: 8,
+  },
+  editItemRow: {
+    marginBottom: 4,
+  },
+  editItemInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F9FAFB',
+  },
+  itemTextInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  editItemActions: {
+    flexDirection: 'row',
+    marginLeft: 8,
+  },
+  saveButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#DCFCE7',
+  },
+  viewItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  itemActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+  },
+  deleteButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#FEF2F2',
+  },
+  
+  // Button row and secondary button styles
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  secondaryButton: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    flex: 1,
+  },
+  secondaryButtonText: {
+    color: '#007AFF',
   },
 });

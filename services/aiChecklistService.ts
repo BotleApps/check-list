@@ -301,6 +301,111 @@ class AIChecklistService {
   }
 
   /**
+   * Create checklist from already generated AI data
+   */
+  async createChecklistFromAI(params: {
+    generatedChecklist: AIGeneratedChecklist;
+    userId: string;
+    bucketId?: string;
+    checklistName?: string;
+    dueDate?: string;
+    tagIds?: string[];
+    onProgress?: ProgressCallback;
+  }): Promise<CreatedChecklistResult> {
+    const { generatedChecklist, userId, bucketId, checklistName, dueDate: providedDueDate, tagIds, onProgress } = params;
+
+    try {
+      // Step 1: Prepare data from existing AI checklist
+      onProgress?.({
+        step: 'organizing',
+        message: 'Preparing checklist data...',
+        progress: 10
+      });
+
+      // Use provided tags or ensure AI-suggested tags exist
+      let tagNames: string[] = [];
+      if (tagIds && tagIds.length > 0) {
+        // Get tag names from provided IDs
+        const { data: tags } = await supabase
+          .from('tag_master')
+          .select('name')
+          .in('tag_id', tagIds);
+        tagNames = tags?.map(tag => tag.name) || [];
+      } else {
+        // Use AI-suggested tags
+        tagNames = await this.ensureTagsExist(generatedChecklist.metadata.tags, userId);
+      }
+
+      onProgress?.({
+        step: 'organizing',
+        message: 'Organizing groups and items...',
+        progress: 25
+      });
+      
+      // Use provided due date or calculate from AI estimation
+      let finalDueDate: string | undefined = providedDueDate;
+      if (!finalDueDate && generatedChecklist.estimatedDuration) {
+        const calculatedDate = this.calculateDueDate(generatedChecklist.estimatedDuration);
+        finalDueDate = calculatedDate ? calculatedDate.toISOString() : undefined;
+      }
+
+      // Prepare groups with items for batch creation
+      const groupsWithItems = generatedChecklist.groups.map(group => ({
+        name: group.name,
+        description: group.description,
+        color: group.color,
+        order: group.order,
+        items: group.items.map(item => ({
+          text: item.text,
+          description: item.description,
+          order: item.order
+        }))
+      }));
+
+      // Step 2: Create everything in optimized batches
+      onProgress?.({
+        step: 'organizing',
+        message: 'Saving to database...',
+        progress: 50
+      });
+
+      const result = await checklistService.createChecklistWithGroupsAndItems(
+        userId,
+        checklistName || generatedChecklist.title,
+        groupsWithItems,
+        bucketId,
+        undefined, // categoryId
+        tagNames,
+        undefined, // fromTemplateId
+        finalDueDate
+      );
+
+      onProgress?.({
+        step: 'organizing',
+        message: 'Finalizing checklist...',
+        progress: 90
+      });
+      
+      onProgress?.({
+        step: 'complete',
+        message: 'Checklist created successfully!',
+        progress: 100
+      });
+
+      return {
+        checklistId: result.checklist.checklist_id,
+        name: result.checklist.name,
+        groupsCreated: result.groupsCreated,
+        itemsCreated: result.itemsCreated
+      };
+
+    } catch (error) {
+      console.error('Error creating checklist from AI data:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Test AI connection
    */
   async testAIConnection(): Promise<boolean> {
