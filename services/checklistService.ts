@@ -279,6 +279,91 @@ class ChecklistService {
     return { checklist, items: createdItems };
   }
 
+  async createChecklistWithGroupsAndItems(
+    userId: string,
+    name: string,
+    groups: Array<{
+      name: string;
+      description?: string;
+      color: string;
+      items: Array<{ text: string; description?: string; order: number }>;
+      order: number;
+    }>,
+    bucketId?: string,
+    categoryId?: string,
+    tags?: string[],
+    fromTemplateId?: string,
+    targetDate?: string
+  ): Promise<{ checklist: ChecklistHeader; groupsCreated: number; itemsCreated: number }> {
+    // First create the checklist header
+    const checklist = await this.createChecklist(
+      userId,
+      name,
+      bucketId,
+      categoryId,
+      tags,
+      fromTemplateId,
+      targetDate
+    );
+
+    let groupsCreated = 0;
+    let itemsCreated = 0;
+
+    // Create groups and items in batches
+    for (const group of groups) {
+      try {
+        // Create the group
+        const { data: groupData, error: groupError } = await supabase
+          .from('task_groups')
+          .insert({
+            checklist_id: checklist.checklist_id,
+            name: group.name,
+            description: group.description,
+            color_code: group.color, // Use color_code instead of color
+            order_index: group.order,
+          })
+          .select()
+          .single();
+
+        if (groupError) {
+          console.error('Error creating group:', groupError);
+          continue;
+        }
+
+        groupsCreated++;
+
+        // Batch create all items for this group
+        if (group.items.length > 0) {
+          const itemsToInsert = group.items.map((item, index) => ({
+            checklist_id: checklist.checklist_id,
+            group_id: groupData.group_id,
+            text: item.text,
+            description: item.description,
+            order_index: item.order || index,
+            is_completed: false,
+            is_required: false,
+            tags: [],
+          }));
+
+          const { data: itemsData, error: itemsError } = await supabase
+            .from('checklist_items')
+            .insert(itemsToInsert)
+            .select();
+
+          if (itemsError) {
+            console.error('Error creating items for group:', groupError);
+          } else {
+            itemsCreated += itemsData?.length || 0;
+          }
+        }
+      } catch (error) {
+        console.error('Error creating group and items:', error);
+      }
+    }
+
+    return { checklist, groupsCreated, itemsCreated };
+  }
+
   async updateChecklistItem(item: ChecklistItem): Promise<ChecklistItem> {
     const { data, error } = await supabase
       .from('checklist_items')

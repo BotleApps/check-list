@@ -20,7 +20,7 @@ interface CreatedChecklistResult {
 
 class AIChecklistService {
   /**
-   * Generate and create a checklist using AI
+   * Generate and create a checklist using AI (optimized version)
    */
   async generateAndCreateChecklist(params: CreateAIChecklistParams): Promise<CreatedChecklistResult> {
     const { request, userId, bucketId, onProgress } = params;
@@ -29,20 +29,65 @@ class AIChecklistService {
       // Step 1: Generate checklist using AI
       const aiChecklist = await aiService.generateChecklist(request, onProgress);
       
-      // Step 2: Create the checklist header
-      const checklist = await this.createChecklistHeader(aiChecklist, userId, bucketId);
+      // Step 2: Prepare groups data for batch creation
+      onProgress?.({
+        step: 'organizing',
+        message: 'Organizing groups and items for database...',
+        progress: 75
+      });
+
+      // Ensure we have tags created
+      const tagNames = await this.ensureTagsExist(aiChecklist.metadata.tags, userId);
       
-      // Step 3: Create task groups
-      const groupMapping = await this.createTaskGroups(aiChecklist.groups, checklist.checklist_id, userId);
+      // Calculate due date if estimated duration is provided
+      let dueDate: string | undefined;
+      if (aiChecklist.estimatedDuration) {
+        const calculatedDate = this.calculateDueDate(aiChecklist.estimatedDuration);
+        dueDate = calculatedDate ? calculatedDate.toISOString() : undefined;
+      }
+
+      // Prepare groups with items for batch creation
+      const groupsWithItems = aiChecklist.groups.map(group => ({
+        name: group.name,
+        description: group.description,
+        color: group.color,
+        order: group.order,
+        items: group.items.map(item => ({
+          text: item.text,
+          description: item.description,
+          order: item.order
+        }))
+      }));
+
+      // Step 3: Create everything in optimized batches
+      onProgress?.({
+        step: 'finalizing',
+        message: 'Creating checklist in database...',
+        progress: 90
+      });
+
+      const result = await checklistService.createChecklistWithGroupsAndItems(
+        userId,
+        aiChecklist.title,
+        groupsWithItems,
+        bucketId,
+        undefined, // categoryId
+        tagNames,
+        undefined, // fromTemplateId
+        dueDate
+      );
       
-      // Step 4: Create checklist items
-      const itemsCount = await this.createChecklistItems(aiChecklist.groups, checklist.checklist_id, groupMapping);
-      
+      onProgress?.({
+        step: 'complete',
+        message: 'Checklist created successfully!',
+        progress: 100
+      });
+
       return {
-        checklistId: checklist.checklist_id,
-        name: checklist.name,
-        groupsCreated: Object.keys(groupMapping).length,
-        itemsCreated: itemsCount,
+        checklistId: result.checklist.checklist_id,
+        name: result.checklist.name,
+        groupsCreated: result.groupsCreated,
+        itemsCreated: result.itemsCreated,
       };
     } catch (error) {
       console.error('AI Checklist Creation Error:', error);

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react-native';
 import { RootState } from '../store';
 import { aiChecklistService } from '../services/aiChecklistService';
-import { AIChecklistRequest, AIGeneratedChecklist, AIGenerationProgress } from '../services/aiService';
+import { AIChecklistRequest, AIGeneratedChecklist } from '../services/aiService';
 
 export default function AICreateScreen() {
   const router = useRouter();
@@ -31,10 +31,8 @@ export default function AICreateScreen() {
   // Input states
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [generatedChecklist, setGeneratedChecklist] = useState<AIGeneratedChecklist | null>(null);
   const [currentStep, setCurrentStep] = useState<'input' | 'preview' | 'creating'>('input');
-  const [generationProgress, setGenerationProgress] = useState<AIGenerationProgress | null>(null);
 
   // Example prompts for user inspiration
   const examplePrompts = [
@@ -59,7 +57,6 @@ export default function AICreateScreen() {
 
     setIsGenerating(true);
     setCurrentStep('preview');
-    setGenerationProgress(null);
 
     try {
       const aiRequest: AIChecklistRequest = {
@@ -77,10 +74,7 @@ export default function AICreateScreen() {
         },
       };
 
-      const aiChecklist = await aiChecklistService.generateChecklistPreview(
-        aiRequest,
-        (progress) => setGenerationProgress(progress)
-      );
+      const aiChecklist = await aiChecklistService.generateChecklistPreview(aiRequest);
       setGeneratedChecklist(aiChecklist);
       
     } catch (error) {
@@ -89,20 +83,13 @@ export default function AICreateScreen() {
       console.error('AI generation error:', error);
     } finally {
       setIsGenerating(false);
-      setGenerationProgress(null);
     }
   };
 
   const handleCreateChecklist = async () => {
     if (!generatedChecklist || !user) return;
 
-    setIsCreating(true);
     setCurrentStep('creating');
-    setGenerationProgress({
-      step: 'organizing',
-      message: 'Creating your checklist in the database...',
-      progress: 0
-    });
 
     try {
       const aiRequest: AIChecklistRequest = {
@@ -123,7 +110,6 @@ export default function AICreateScreen() {
       const result = await aiChecklistService.generateAndCreateChecklist({
         request: aiRequest,
         userId: user.user_id,
-        onProgress: (progress) => setGenerationProgress(progress)
       });
       
       Alert.alert(
@@ -138,9 +124,6 @@ export default function AICreateScreen() {
       Alert.alert('Creation Failed', 'Failed to create checklist. Please try again.');
       setCurrentStep('preview');
       console.error('Checklist creation error:', error);
-    } finally {
-      setIsCreating(false);
-      setGenerationProgress(null);
     }
   };
 
@@ -180,7 +163,7 @@ export default function AICreateScreen() {
           <Lightbulb size={16} color="#F59E0B" />
           <Text style={styles.examplesTitle}>Need inspiration? Try these:</Text>
         </View>
-        <View style={styles.examplesContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {examplePrompts.map((example, index) => (
             <TouchableOpacity
               key={index}
@@ -190,7 +173,7 @@ export default function AICreateScreen() {
               <Text style={styles.exampleText}>{example}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </View>
     </ScrollView>
   );
@@ -203,81 +186,10 @@ export default function AICreateScreen() {
           <View style={styles.generatingIcon}>
             <Wand2 size={48} color="#3B82F6" />
           </View>
-          <Text style={styles.generatingTitle}>
-            {generationProgress?.message || 'Creating your checklist...'}
-          </Text>
+          <Text style={styles.generatingTitle}>Creating your checklist...</Text>
           <Text style={styles.generatingSubtitle}>
             AI is analyzing your request and generating personalized tasks and groups.
           </Text>
-          
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${generationProgress?.progress || 0}%` }
-                ]} 
-              />
-            </View>
-            <Text style={styles.progressText}>
-              {generationProgress?.progress || 0}%
-            </Text>
-          </View>
-
-          {/* Progress Steps */}
-          <View style={styles.progressSteps}>
-            {[
-              { key: 'understanding', label: 'Understanding requirements' },
-              { key: 'ai-processing', label: 'AI generating content' },
-              { key: 'parsing', label: 'Processing response' },
-              { key: 'organizing', label: 'Organizing content' },
-              { key: 'finalizing', label: 'Finalizing checklist' }
-            ].map((step, index) => {
-              const isActive = generationProgress?.step === step.key;
-              const isCompleted = generationProgress && 
-                ['understanding', 'ai-processing', 'parsing', 'organizing', 'finalizing', 'complete']
-                  .indexOf(generationProgress.step) > index;
-              
-              return (
-                <View key={step.key} style={styles.progressStep}>
-                  <View style={[
-                    styles.progressStepIcon,
-                    isCompleted && styles.progressStepCompleted,
-                    isActive && styles.progressStepActive
-                  ]}>
-                    {isCompleted ? (
-                      <CheckCircle2 size={16} color="#FFFFFF" />
-                    ) : (
-                      <Text style={[
-                        styles.progressStepNumber,
-                        (isActive || isCompleted) && styles.progressStepNumberActive
-                      ]}>
-                        {index + 1}
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={[
-                    styles.progressStepLabel,
-                    (isActive || isCompleted) && styles.progressStepLabelActive
-                  ]}>
-                    {step.label}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-
-          {/* Current Item Being Generated */}
-          {generationProgress?.currentGroup && (
-            <View style={styles.currentItemContainer}>
-              <Text style={styles.currentItemLabel}>Creating:</Text>
-              <Text style={styles.currentItemText}>
-                {generationProgress.currentGroup}
-                {generationProgress.currentItem && ` → ${generationProgress.currentItem}`}
-              </Text>
-            </View>
-          )}
         </View>
       ) : generatedChecklist ? (
         <View style={styles.previewContainer}>
@@ -354,26 +266,16 @@ export default function AICreateScreen() {
               <TouchableOpacity
                 style={styles.backToEditButton}
                 onPress={() => setCurrentStep('input')}
-                disabled={isCreating}
               >
                 <Text style={styles.backToEditText}>Edit Request</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={[styles.createButton, isCreating && styles.createButtonDisabled]}
+                style={styles.createButton}
                 onPress={handleCreateChecklist}
-                disabled={isCreating}
               >
-                {isCreating ? (
-                  <>
-                    <Text style={styles.createButtonText}>Creating...</Text>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={18} color="#FFFFFF" />
-                    <Text style={styles.createButtonText}>Create Checklist</Text>
-                  </>
-                )}
+                <CheckCircle2 size={18} color="#FFFFFF" />
+                <Text style={styles.createButtonText}>Create Checklist</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -482,16 +384,12 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginLeft: 6,
   },
-  examplesContainer: {
-    flexDirection: 'column',
-    gap: 8,
-  },
   exampleChip: {
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    marginRight: 0,
+    marginRight: 8,
   },
   exampleText: {
     fontSize: 14,
@@ -518,90 +416,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
     maxWidth: 280,
-  },
-  
-  // Progress UI Styles
-  progressContainer: {
-    width: '100%',
-    maxWidth: 300,
-    marginBottom: 24,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#3B82F6',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  
-  progressSteps: {
-    width: '100%',
-    maxWidth: 320,
-    marginBottom: 24,
-  },
-  progressStep: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  progressStepIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  progressStepActive: {
-    backgroundColor: '#3B82F6',
-  },
-  progressStepCompleted: {
-    backgroundColor: '#10B981',
-  },
-  progressStepNumber: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#9CA3AF',
-  },
-  progressStepNumberActive: {
-    color: '#FFFFFF',
-  },
-  progressStepLabel: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  progressStepLabelActive: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  
-  currentItemContainer: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    maxWidth: 320,
-  },
-  currentItemLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  currentItemText: {
-    fontSize: 14,
-    color: '#374151',
-    fontWeight: '500',
   },
   
   previewContainer: {
@@ -721,9 +535,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  createButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-    opacity: 0.7,
   },
 });
