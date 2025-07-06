@@ -170,7 +170,7 @@ export default function AICreateScreen() {
           <Lightbulb size={16} color="#F59E0B" />
           <Text style={styles.examplesTitle}>Need inspiration? Try these:</Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.examplesContainer}>
           {examplePrompts.map((example, index) => (
             <TouchableOpacity
               key={index}
@@ -180,7 +180,7 @@ export default function AICreateScreen() {
               <Text style={styles.exampleText}>{example}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       </View>
     </ScrollView>
   );
@@ -219,13 +219,14 @@ export default function AICreateScreen() {
           <View style={styles.progressSteps}>
             {[
               { key: 'understanding', label: 'Understanding requirements' },
-              { key: 'generating-groups', label: 'Creating task groups' },
-              { key: 'creating-items', label: 'Generating checklist items' },
+              { key: 'ai-processing', label: 'AI generating content' },
+              { key: 'parsing', label: 'Processing response' },
+              { key: 'organizing', label: 'Organizing content' },
               { key: 'finalizing', label: 'Finalizing checklist' }
             ].map((step, index) => {
               const isActive = generationProgress?.step === step.key;
               const isCompleted = generationProgress && 
-                ['understanding', 'generating-groups', 'creating-items', 'finalizing']
+                ['understanding', 'ai-processing', 'parsing', 'organizing', 'finalizing', 'complete']
                   .indexOf(generationProgress.step) > index;
               
               return (
@@ -461,12 +462,16 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginLeft: 6,
   },
+  examplesContainer: {
+    flexDirection: 'column',
+    gap: 8,
+  },
   exampleChip: {
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    marginRight: 8,
+    marginRight: 0,
   },
   exampleText: {
     fontSize: 14,

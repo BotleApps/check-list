@@ -37,7 +37,7 @@ export interface AIGeneratedGroup {
 }
 
 export interface AIGenerationProgress {
-  step: 'understanding' | 'generating-groups' | 'creating-items' | 'finalizing';
+  step: 'understanding' | 'ai-processing' | 'parsing' | 'organizing' | 'finalizing' | 'complete';
   message: string;
   progress: number; // 0-100
   currentGroup?: string;
@@ -80,45 +80,72 @@ class AIService {
       onProgress?.({
         step: 'understanding',
         message: 'Analyzing your requirements...',
-        progress: 10
+        progress: 5
       });
+      
+      // Add a small delay to show progress
+      await new Promise(resolve => setTimeout(resolve, 800));
 
       const prompt = this.buildPrompt(request);
       
-      // Step 2: Generating groups
+      // Step 2: Sending to AI
       onProgress?.({
-        step: 'generating-groups',
-        message: 'Creating task groups...',
-        progress: 30
+        step: 'ai-processing',
+        message: 'Sending request to AI...',
+        progress: 15
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      // Step 3: AI is thinking
+      onProgress?.({
+        step: 'ai-processing',
+        message: 'AI is generating your checklist...',
+        progress: 45
       });
 
       const result = await this.model.generateContent(prompt);
+      
       const response = await result.response;
       const text = response.text();
 
-      // Step 3: Creating items
+      // Step 4: Parsing response
       onProgress?.({
-        step: 'creating-items',
-        message: 'Generating checklist items...',
+        step: 'parsing',
+        message: 'Processing AI response...',
         progress: 70
       });
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Parse the JSON response from Gemini
       const parsedResponse = this.parseGeminiResponse(text);
       
-      // Step 4: Finalizing
+      // Step 5: Organizing content
       onProgress?.({
-        step: 'finalizing',
-        message: 'Finalizing your checklist...',
-        progress: 90
+        step: 'organizing',
+        message: 'Organizing groups and tasks...',
+        progress: 85
       });
+      
+      await new Promise(resolve => setTimeout(resolve, 600));
 
       // Validate and format the response
       const result_formatted = this.formatResponse(parsedResponse, request);
 
+      // Step 6: Final touches
       onProgress?.({
         step: 'finalizing',
-        message: 'Complete!',
+        message: 'Adding final touches...',
+        progress: 95
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      // Step 7: Complete
+      onProgress?.({
+        step: 'complete',
+        message: 'Your checklist is ready!',
         progress: 100
       });
 
