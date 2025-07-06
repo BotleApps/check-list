@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { ChecklistTemplateHeader } from '../types/database';
-import { LayoutTemplate, Trash2, Share } from 'lucide-react-native';
+import { Trash2, Share } from 'lucide-react-native';
 import { ProfileAvatar } from './ProfileAvatar';
 
 interface TemplateCardProps {
@@ -47,10 +47,6 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
       })}
     >
       <View style={styles.cardContent}>
-        <View style={styles.iconContainer}>
-          <LayoutTemplate size={24} color="#0891B2" />
-        </View>
-        
         <View style={styles.content}>
           <View style={styles.titleRow}>
             <Text style={styles.title} numberOfLines={2}>
@@ -72,7 +68,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
         </View>
       </View>
       
-      {/* Preview Items - Outside the icon+content row for proper alignment */}
+      {/* Preview Items */}
       {previewItems.length > 0 && (
         <View style={styles.previewSection}>
           <Text style={styles.previewLabel}>Items ({itemCount})</Text>
@@ -157,18 +153,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardContent: {
-    flexDirection: 'row',
     padding: 16,
     paddingBottom: 0,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F0FDFA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
   },
   content: {
     flex: 1,
@@ -181,16 +167,17 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#111827',
     marginRight: 8,
+    marginBottom: 6,
   },
   metadata: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   category: {
     fontSize: 12,
