@@ -19,7 +19,8 @@ import { ChecklistCard } from '../../components/ChecklistCard';
 import { BucketCard } from '../../components/BucketCard';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
-import { Plus, ChevronDown, ArrowUpDown, Search } from 'lucide-react-native';
+import { FloatingActionMenu } from '../../components/FloatingActionMenu';
+import { ChevronDown, ArrowUpDown, Search } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -443,13 +444,12 @@ export default function HomeScreen() {
         )}
       </ScrollView>
       
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.floatingButton}
-        onPress={() => router.push('/checklist-edit/new')}
-      >
-        <Plus size={24} color="#FFFFFF" />
-      </TouchableOpacity>
+      {/* Floating Action Menu */}
+      <FloatingActionMenu
+        onCreateFromTemplate={() => router.push('/(tabs)/templates')}
+        onCreateWithAI={() => router.push('/ai-create')}
+        onCreateFromScratch={() => router.push('/checklist-edit/new')}
+      />
     </SafeAreaView>
   );
 }
@@ -648,24 +648,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     fontWeight: '500',
-  },
-  floatingButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
 });
