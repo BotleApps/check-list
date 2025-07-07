@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -109,9 +110,13 @@ export default function LoginScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logo}>✅</Text>
+                <Image
+                source={require('../../assets/images/icon.png')}
+                style={{ width: 56, height: 56, resizeMode: 'contain' }}
+                accessibilityLabel="CheckList Logo"
+                />
             </View>
-            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.title}>Checklists</Text>
             <Text style={styles.subtitle}>Sign in to continue to CheckList</Text>
           </View>
 
