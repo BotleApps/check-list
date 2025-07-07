@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Platform
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, AntDesign } from '@expo/vector-icons';
 import * as Google from 'expo-auth-session/providers/google';
 import { googleAuthService } from '../services/googleAuthService';
 import { authService } from '../services/authService';
@@ -136,10 +136,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         {isLoading ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (
-          <MaterialIcons name="login" size={20} color="#fff" />
+          <AntDesign name="google" size={20} color="#fff" />
         )}
         <Text style={styles.googleButtonText}>
-          {isLoading ? 'Signing in...' : 'Continue with Google'}
+          {isLoading ? 'Signing in...' : 'Sign in with Google'}
         </Text>
       </View>
     </TouchableOpacity>
@@ -204,10 +204,10 @@ export const GoogleSignInButtonWebBrowser: React.FC<GoogleSignInButtonProps> = (
         {isLoading ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (
-          <MaterialIcons name="login" size={20} color="#fff" />
+          <AntDesign name="google" size={20} color="#fff" />
         )}
         <Text style={styles.googleButtonText}>
-          {isLoading ? 'Signing in...' : 'Continue with Google'}
+          {isLoading ? 'Signing in...' : 'Sign in with Google'}
         </Text>
       </View>
     </TouchableOpacity>
