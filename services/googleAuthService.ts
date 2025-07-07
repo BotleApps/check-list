@@ -43,26 +43,16 @@ class GoogleAuthService {
   // React Native Google Sign-In using hooks (this should be called from a component)
   createGoogleAuthRequest() {
     const clientId = this.getClientId();
-    
-    // For iOS, use the reversed client ID as URL scheme
-    // For other platforms, use our custom scheme
-    let scheme = 'myapp';
-    if (Platform.OS === 'ios') {
-      // Extract the reversed client ID from the iOS client ID
-      const iosClientId = this.config.iosClientId;
-      if (iosClientId && !iosClientId.includes('REPLACE_WITH')) {
-        scheme = iosClientId.split('.').reverse().join('.');
-      }
-    }
-    
+
+    const useProxy = Platform.OS !== 'web';
     const redirectUri = AuthSession.makeRedirectUri({
-      scheme
+      // @ts-ignore
+      useProxy,
     });
-    
+
     console.log('Creating Google auth request with:');
     console.log('Client ID:', clientId);
     console.log('Redirect URI:', redirectUri);
-    console.log('Scheme:', scheme);
     console.log('Platform:', Platform.OS);
     console.log('Bundle ID from config:', Constants.expoConfig?.ios?.bundleIdentifier);
     
@@ -93,22 +83,16 @@ class GoogleAuthService {
         // For mobile apps, we need to exchange the code manually
         // since Supabase's signInWithOAuth doesn't handle the code exchange on mobile
         console.log('Exchanging authorization code for tokens...');
-        
+
         const clientId = this.getClientId();
-        
-        // Use the same scheme logic as in createGoogleAuthRequest
-        let scheme = 'myapp';
-        if (Platform.OS === 'ios') {
-          const iosClientId = this.config.iosClientId;
-          if (iosClientId && !iosClientId.includes('REPLACE_WITH')) {
-            scheme = iosClientId.split('.').reverse().join('.');
-          }
-        }
-        
+
+        // IMPORTANT: The redirect URI for token exchange must match the one used in the auth request.
+        const useProxy = Platform.OS !== 'web';
         const redirectUri = AuthSession.makeRedirectUri({
-          scheme
+          // @ts-ignore
+          useProxy,
         });
-        
+
         console.log('Using redirect URI for token exchange:', redirectUri);
 
         // Exchange authorization code for tokens

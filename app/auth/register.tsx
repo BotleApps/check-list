@@ -17,6 +17,7 @@ import { RootState, AppDispatch } from '../../store';
 import { registerUser, clearError } from '../../store/slices/authSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { EmailConfirmationScreen } from '../../components/EmailConfirmationScreen';
+import { GoogleSignInButton } from '../../components/GoogleSignInButton';
 
 export default function RegisterScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -94,6 +95,23 @@ export default function RegisterScreen() {
 
           {/* Form */}
           <View style={styles.form}>
+            <GoogleSignInButton
+              onSuccess={() => {
+                // On successful Google sign-in, the user is authenticated.
+                // The auth listener will redirect to the main app.
+                router.replace('/(tabs)');
+              }}
+              onError={(error) => {
+                Alert.alert('Google Sign-Up Failed', error);
+              }}
+            />
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
             <View style={styles.inputContainer}>
               <Text style={styles.icon}>👤</Text>
               <TextInput
@@ -281,5 +299,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2563EB',
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
 });
