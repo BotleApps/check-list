@@ -213,21 +213,35 @@ export default function AICreateScreen() {
 
     setIsCreating(true);
     setCurrentStep('creating');
-    // Don't set any progress for the creation step - keep it simple
 
     try {
-      const result = await aiChecklistService.createChecklistFromAI({
-        generatedChecklist,
+      // Use the working approach from ai-create-new.tsx
+      const aiRequest: AIChecklistRequest = {
+        prompt: prompt.trim(),
+        context: {
+          category: '',
+          urgency: 'medium',
+          timeframe: '',
+          complexity: 'detailed',
+        },
+        preferences: {
+          includeSubtasks: true,
+          groupByCategory: true,
+          addEstimates: false,
+        },
+      };
+
+      const result = await aiChecklistService.generateAndCreateChecklist({
+        request: aiRequest,
         userId: user.user_id,
         bucketId: selectedBucketId || undefined,
         checklistName: checklistTitle,
         dueDate: targetDate?.toISOString(),
         tagIds: selectedTags,
-        // Don't pass onProgress to keep the creation step simple
       });
       
       // Show success toast and navigate directly
-      showToastMessage(`Checklist "${result.name}" created successfully!`, 'success');
+      showToastMessage(`Checklist "${result.name}" created successfully with ${result.groupsCreated} groups and ${result.itemsCreated} items!`, 'success');
       
       // Navigate to the created checklist after a short delay to show the toast
       setTimeout(() => {
