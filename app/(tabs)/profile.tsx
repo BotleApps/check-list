@@ -57,9 +57,7 @@ export default function ProfileScreen() {
   const confirmLogout = async () => {
     setShowLogoutModal(false);
     try {
-      console.log('Initiating logout...');
       await dispatch(logoutUser()).unwrap();
-      console.log('Logout successful - auth state listener will handle navigation');
       // Don't manually navigate - let the auth state listener handle it
     } catch (error) {
       console.error('Logout failed:', error);
