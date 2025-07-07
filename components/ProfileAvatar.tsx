@@ -1,6 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 
+// Import the default avatar image
+const defaultAvatar = require('../assets/images/icon.png');
+
 // Pastel color palette based on name length
 const PASTEL_COLORS = [
   '#FFB3BA', // Light Pink
@@ -50,7 +53,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       <Image
         source={{ uri: imageUrl }}
         style={[styles.avatar, avatarStyle]}
-        defaultSource={require('../assets/images/icon.png')}
+        defaultSource={defaultAvatar}
       />
     );
   }

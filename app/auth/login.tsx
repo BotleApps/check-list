@@ -12,19 +12,43 @@ import {
   Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
 import { loginUser, clearError, forgotPassword } from '../../store/slices/authSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { GoogleSignInButton } from '../../components/GoogleSignInButton';
 
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { loading, error, isAuthenticated, requiresEmailConfirmation } = useSelector((state: RootState) => state.auth);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Handle OAuth errors from callback
+  useEffect(() => {
+    if (params.error) {
+      const errorMessage = typeof params.error === 'string' ? params.error : 'Authentication failed';
+      const friendlyMessage = getFriendlyErrorMessage(errorMessage);
+      Alert.alert('Authentication Failed', friendlyMessage);
+    }
+  }, [params.error]);
+
+  const getFriendlyErrorMessage = (error: string): string => {
+    switch (error) {
+      case 'profile_failed':
+        return 'Failed to retrieve user profile. Please try again.';
+      case 'auth_failed':
+        return 'Authentication was not completed. Please try again.';
+      case 'callback_error':
+        return 'An error occurred during authentication. Please try again.';
+      default:
+        return decodeURIComponent(error);
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -144,6 +168,25 @@ export default function LoginScreen() {
                 <Text style={styles.loginButtonText}>Sign In</Text>
               )}
             </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Google Sign-In Button */}
+            <GoogleSignInButton
+              onSuccess={() => {
+                // Navigation will be handled by the auth state change
+                console.log('Google sign-in successful');
+              }}
+              onError={(error) => {
+                Alert.alert('Google Sign-In Failed', error);
+              }}
+              style={styles.googleButton}
+            />
           </View>
 
           {/* Sign Up Link */}
@@ -263,5 +306,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2563EB',
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  googleButton: {
+    marginTop: 8,
   },
 });

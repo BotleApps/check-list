@@ -15,7 +15,8 @@ import categoriesReducer from './slices/categoriesSlice';
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'buckets', 'checklists', 'taskGroups', 'templateGroups', 'templates', 'tags', 'categories'],
+  whitelist: ['buckets', 'checklists', 'taskGroups', 'templateGroups', 'templates', 'tags', 'categories'],
+  blacklist: ['auth'], // Don't persist auth state to avoid loading state issues
 };
 
 const rootReducer = combineReducers({

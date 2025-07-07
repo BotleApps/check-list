@@ -85,6 +85,8 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
       state.loading = false;
+      state.requiresEmailConfirmation = false;
+      state.pendingConfirmationEmail = undefined;
     },
     clearEmailConfirmation: (state) => {
       state.requiresEmailConfirmation = false;

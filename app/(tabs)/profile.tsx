@@ -54,10 +54,17 @@ export default function ProfileScreen() {
     setShowLogoutModal(true);
   };
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
     setShowLogoutModal(false);
-    dispatch(logoutUser());
-    router.replace('/auth/login');
+    try {
+      console.log('Initiating logout...');
+      await dispatch(logoutUser()).unwrap();
+      console.log('Logout successful - auth state listener will handle navigation');
+      // Don't manually navigate - let the auth state listener handle it
+    } catch (error) {
+      console.error('Logout failed:', error);
+      showToastMessage('Logout failed. Please try again.', 'error');
+    }
   };
 
   const showComingSoon = (title: string, message: string) => {
