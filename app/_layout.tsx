@@ -16,6 +16,7 @@ function AppContent() {
       <Stack.Screen name="index" />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="auth" options={{ headerShown: false }} />
+      <Stack.Screen name="ai-create" options={{ headerShown: false }} />
       <Stack.Screen name="checklist" />
       <Stack.Screen name="checklist-edit" />
       <Stack.Screen name="template-create" />
