@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
   Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -18,6 +17,7 @@ import { RootState, AppDispatch } from '../../store';
 import { loginUser, clearError, forgotPassword } from '../../store/slices/authSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { GoogleSignInButton } from '../../components/GoogleSignInButton';
+import { Toast } from '../../components/Toast';
 
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -29,13 +29,30 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
+  
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('error');
+
+  const showErrorToast = (message: string) => {
+    setToastMessage(message);
+    setToastType('error');
+    setShowToast(true);
+  };
+
+  const showSuccessToast = (message: string) => {
+    setToastMessage(message);
+    setToastType('success');
+    setShowToast(true);
+  };
 
   // Handle OAuth errors from callback
   useEffect(() => {
     if (params.error) {
       const errorMessage = typeof params.error === 'string' ? params.error : 'Authentication failed';
       const friendlyMessage = getFriendlyErrorMessage(errorMessage);
-      Alert.alert('Authentication Failed', friendlyMessage);
+      showErrorToast(friendlyMessage);
     }
   }, [params.error]);
 
@@ -66,14 +83,14 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (error && !requiresEmailConfirmation) {
-      Alert.alert('Login Failed', error);
+      showErrorToast(error);
       dispatch(clearError());
     }
   }, [error, requiresEmailConfirmation, dispatch]);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showErrorToast('Please fill in all fields');
       return;
     }
 
@@ -86,18 +103,15 @@ export default function LoginScreen() {
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
-      Alert.alert('Email Required', 'Please enter your email address to reset your password');
+      showErrorToast('Please enter your email address to reset your password');
       return;
     }
 
     try {
       await dispatch(forgotPassword(email.trim())).unwrap();
-      Alert.alert(
-        'Password Reset Sent',
-        'Please check your email for password reset instructions.'
-      );
+      showSuccessToast('Password reset email sent! Check your inbox.');
     } catch (error) {
-      Alert.alert('Error', 'Failed to send password reset email. Please try again.');
+      showErrorToast('Failed to send password reset email. Please try again.');
     }
   };
 
@@ -132,7 +146,7 @@ export default function LoginScreen() {
                     // Navigation will be handled by the auth state change
                   }}
                   onError={(error) => {
-                    Alert.alert('Google Sign-In Failed', error);
+                    showErrorToast(error);
                   }}
                   style={styles.primaryGoogleButton}
                 />
@@ -228,6 +242,14 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      
+      {/* Toast */}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
     </SafeAreaView>
   );
 }

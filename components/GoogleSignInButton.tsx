@@ -4,7 +4,6 @@ import {
   Text, 
   View, 
   StyleSheet, 
-  Alert,
   ActivityIndicator,
   Platform
 } from 'react-native';
@@ -67,13 +66,11 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         const errorMsg = result.error || 'Google authentication failed';
         console.log('Google auth failed:', errorMsg);
         onError?.(errorMsg);
-        Alert.alert('Authentication Error', errorMsg);
       }
     } catch (error) {
       console.error('Error in handleGoogleResponse:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
       onError?.(errorMsg);
-      Alert.alert('Authentication Error', errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -85,7 +82,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     if (!googleAuthService.isConfigured()) {
       const errorMsg = 'Google OAuth is not properly configured';
       console.log('Google OAuth not configured');
-      Alert.alert('Configuration Error', errorMsg);
       onError?.(errorMsg);
       return;
     }
@@ -108,7 +104,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
           const webResult = await googleAuthService.signInWithGoogleWebBrowser();
           if (!webResult.success) {
             onError?.(webResult.error || 'Failed to initiate Google sign-in');
-            Alert.alert('Authentication Error', webResult.error || 'Failed to initiate Google sign-in');
           }
         }
         // For web, the redirect will happen, so we don't need to handle response here
@@ -122,7 +117,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       setIsLoading(false);
       const errorMsg = error instanceof Error ? error.message : 'Failed to initiate Google sign-in';
       onError?.(errorMsg);
-      Alert.alert('Authentication Error', errorMsg);
     }
   };
 
@@ -158,7 +152,6 @@ export const GoogleSignInButtonWebBrowser: React.FC<GoogleSignInButtonProps> = (
   const handleGoogleSignIn = async () => {
     if (!googleAuthService.isConfigured()) {
       const errorMsg = 'Google OAuth is not properly configured';
-      Alert.alert('Configuration Error', errorMsg);
       onError?.(errorMsg);
       return;
     }
@@ -183,12 +176,10 @@ export const GoogleSignInButtonWebBrowser: React.FC<GoogleSignInButtonProps> = (
       } else {
         const errorMsg = result.error || 'Google authentication failed';
         onError?.(errorMsg);
-        Alert.alert('Authentication Error', errorMsg);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
       onError?.(errorMsg);
-      Alert.alert('Authentication Error', errorMsg);
     } finally {
       setIsLoading(false);
     }

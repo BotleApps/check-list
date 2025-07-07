@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'expo-router';
@@ -18,6 +17,7 @@ import { registerUser, clearError } from '../../store/slices/authSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { EmailConfirmationScreen } from '../../components/EmailConfirmationScreen';
 import { GoogleSignInButton } from '../../components/GoogleSignInButton';
+import { Toast } from '../../components/Toast';
 
 export default function RegisterScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -30,6 +30,17 @@ export default function RegisterScreen() {
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('error');
+
+  const showErrorToast = (message: string) => {
+    setToastMessage(message);
+    setToastType('error');
+    setShowToast(true);
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -39,24 +50,24 @@ export default function RegisterScreen() {
 
   useEffect(() => {
     if (error) {
-      Alert.alert('Registration Failed', error);
+      showErrorToast(error);
       dispatch(clearError());
     }
   }, [error, dispatch]);
 
   const handleRegister = async () => {
     if (!email.trim() || !password.trim() || !confirmPassword.trim() || !fullName.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showErrorToast('Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showErrorToast('Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      showErrorToast('Password must be at least 6 characters long');
       return;
     }
 
@@ -102,7 +113,7 @@ export default function RegisterScreen() {
                 router.replace('/(tabs)');
               }}
               onError={(error) => {
-                Alert.alert('Google Sign-Up Failed', error);
+                showErrorToast(error);
               }}
             />
 
@@ -199,6 +210,14 @@ export default function RegisterScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      
+      {/* Toast */}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
     </SafeAreaView>
   );
 }
