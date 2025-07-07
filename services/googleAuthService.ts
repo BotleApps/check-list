@@ -5,6 +5,7 @@ import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { debugGoogleOAuth } from '../lib/debugGoogleOAuth';
 
 // Make sure WebBrowser completes authentication sessions properly
 WebBrowser.maybeCompleteAuthSession();
@@ -40,15 +41,32 @@ class GoogleAuthService {
     return this.config.webClientId; // fallback
   }
 
+  private getRedirectUri(): string {
+    if (Platform.OS === 'web') {
+      // For web, use the current origin + callback path
+      if (typeof window !== 'undefined') {
+        const origin = window.location.origin;
+        console.log('Detected web origin:', origin);
+        return `${origin}/auth/callback`;
+      }
+      // Fallback for SSR or other cases
+      return 'http://localhost:3000/auth/callback';
+    } else {
+      // For mobile, use Expo's proxy
+      return AuthSession.makeRedirectUri({
+        // @ts-ignore
+        useProxy: true,
+      });
+    }
+  }
+
   // React Native Google Sign-In using hooks (this should be called from a component)
   createGoogleAuthRequest() {
     const clientId = this.getClientId();
+    const redirectUri = this.getRedirectUri();
 
-    const useProxy = Platform.OS !== 'web';
-    const redirectUri = AuthSession.makeRedirectUri({
-      // @ts-ignore
-      useProxy,
-    });
+    // Debug information
+    debugGoogleOAuth();
 
     console.log('Creating Google auth request with:');
     console.log('Client ID:', clientId);
@@ -87,11 +105,7 @@ class GoogleAuthService {
         const clientId = this.getClientId();
 
         // IMPORTANT: The redirect URI for token exchange must match the one used in the auth request.
-        const useProxy = Platform.OS !== 'web';
-        const redirectUri = AuthSession.makeRedirectUri({
-          // @ts-ignore
-          useProxy,
-        });
+        const redirectUri = this.getRedirectUri();
 
         console.log('Using redirect URI for token exchange:', redirectUri);
 
