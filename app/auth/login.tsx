@@ -28,6 +28,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
 
   // Handle OAuth errors from callback
   useEffect(() => {
@@ -122,76 +123,100 @@ export default function LoginScreen() {
 
           {/* Form */}
           <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.icon}>📧</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Email address"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
+            {!showEmailLogin ? (
+              // Default view with Google login as primary
+              <>
+                {/* Google Sign-In Button */}
+                <GoogleSignInButton
+                  onSuccess={() => {
+                    // Navigation will be handled by the auth state change
+                  }}
+                  onError={(error) => {
+                    Alert.alert('Google Sign-In Failed', error);
+                  }}
+                  style={styles.primaryGoogleButton}
+                />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.icon}>🔒</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-              >
-                <Text style={styles.icon}>
-                  {showPassword ? '🙈' : '👁️'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                {/* Divider */}
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
 
-            <TouchableOpacity
-              style={styles.forgotPasswordButton}
-              onPress={handleForgotPassword}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
+                {/* Email Login Button */}
+                <TouchableOpacity
+                  style={styles.emailLoginButton}
+                  onPress={() => setShowEmailLogin(true)}
+                >
+                  <Text style={styles.icon}>📧</Text>
+                  <Text style={styles.emailLoginButtonText}>Continue with Email</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              // Email login form
+              <>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.icon}>📧</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Email address"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
 
-            <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <LoadingSpinner size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.icon}>🔒</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeButton}
+                  >
+                    <Text style={styles.icon}>
+                      {showPassword ? '🙈' : '👁️'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-            {/* Divider */}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
+                <TouchableOpacity
+                  style={styles.forgotPasswordButton}
+                  onPress={handleForgotPassword}
+                >
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
 
-            {/* Google Sign-In Button */}
-            <GoogleSignInButton
-              onSuccess={() => {
-                // Navigation will be handled by the auth state change
-                console.log('Google sign-in successful');
-              }}
-              onError={(error) => {
-                Alert.alert('Google Sign-In Failed', error);
-              }}
-              style={styles.googleButton}
-            />
+                <TouchableOpacity
+                  style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                  onPress={handleLogin}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <LoadingSpinner size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.loginButtonText}>Sign In</Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Back to options */}
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => setShowEmailLogin(false)}
+                >
+                  <Text style={styles.backButtonText}>← Other sign in options</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
           {/* Sign Up Link */}
@@ -330,5 +355,36 @@ const styles = StyleSheet.create({
   },
   googleButton: {
     marginTop: 8,
+  },
+  primaryGoogleButton: {
+    marginBottom: 8,
+  },
+  emailLoginButton: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  emailLoginButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginLeft: 8,
+  },
+  backButton: {
+    alignItems: 'center',
+    marginTop: 24,
+    paddingVertical: 12,
+  },
+  backButtonText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
 });
