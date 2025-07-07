@@ -29,6 +29,22 @@ export const createTag = createAsyncThunk(
   }
 );
 
+export const deleteTag = createAsyncThunk(
+  'tags/deleteTag',
+  async (tagId: string) => {
+    await tagService.deleteTag(tagId);
+    return tagId;
+  }
+);
+
+export const updateTag = createAsyncThunk(
+  'tags/updateTag',
+  async ({ tagId, name }: { tagId: string; name: string }) => {
+    const response = await tagService.updateTag(tagId, name);
+    return response;
+  }
+);
+
 const tagsSlice = createSlice({
   name: 'tags',
   initialState,
@@ -44,6 +60,15 @@ const tagsSlice = createSlice({
       })
       .addCase(createTag.fulfilled, (state, action) => {
         state.tags.push(action.payload);
+      })
+      .addCase(updateTag.fulfilled, (state, action) => {
+        const index = state.tags.findIndex(tag => tag.tag_id === action.payload.tag_id);
+        if (index !== -1) {
+          state.tags[index] = action.payload;
+        }
+      })
+      .addCase(deleteTag.fulfilled, (state, action) => {
+        state.tags = state.tags.filter(tag => tag.tag_id !== action.payload);
       });
   },
 });

@@ -28,6 +28,8 @@ import {
   Mail,
   Calendar,
   Edit3,
+  Folder,
+  Tag,
 } from 'lucide-react-native';
 
 export default function ProfileScreen() {
@@ -112,6 +114,18 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
+    {
+      icon: Folder,
+      title: 'Folders',
+      subtitle: 'Create, edit, and organize your folders',
+      onPress: () => router.push('/folder-management'),
+    },
+    {
+      icon: Tag,
+      title: 'Tags',
+      subtitle: 'Create, edit, and organize your tags',
+      onPress: () => router.push('/tag-management'),
+    },
     {
       icon: Settings,
       title: 'Settings',
