@@ -150,7 +150,7 @@ export default function LoginScreen() {
                   onPress={() => setShowEmailLogin(true)}
                 >
                   <Text style={styles.icon}>📧</Text>
-                  <Text style={styles.emailLoginButtonText}>Continue with Email</Text>
+                  <Text style={styles.emailLoginButtonText}>Sign in with Email</Text>
                 </TouchableOpacity>
               </>
             ) : (
