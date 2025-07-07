@@ -9,6 +9,7 @@ import {
   RefreshControl,
   FlatList,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -328,39 +329,47 @@ export default function HomeScreen() {
           >
             <ArrowUpDown size={20} color="#6B7280" />
           </TouchableOpacity>
-          
-          {showSortMenu && (
-            <View style={styles.sortMenu}>
-              {[
-                { key: 'folder', label: 'Folder Name' },
-                { key: 'created', label: 'Created Date' },
-                { key: 'target', label: 'Due Date' },
-                { key: 'modified', label: 'Modified Date' }
-              ].map(option => (
-                <TouchableOpacity
-                  key={option.key}
-                  style={styles.sortOption}
-                  onPress={() => toggleSort(option.key as typeof sortBy)}
-                >
-                  <View style={styles.sortOptionContent}>
-                    <Text style={[
-                      styles.sortOptionText,
-                      sortBy === option.key && styles.sortOptionTextActive
-                    ]}>
-                      {option.label}
-                    </Text>
-                    {sortBy === option.key && (
-                      <Text style={styles.sortDirection}>
-                        {sortDirection === 'asc' ? '↑' : '↓'}
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
         </View>
       </View>
+
+      {/* Sort Menu - Positioned absolutely outside header */}
+      {showSortMenu && (
+        <View style={styles.sortMenuOverlay}>
+          <TouchableOpacity 
+            style={styles.sortMenuBackdrop}
+            onPress={() => setShowSortMenu(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.sortMenu}>
+            {[
+              { key: 'folder', label: 'Folder Name' },
+              { key: 'created', label: 'Created Date' },
+              { key: 'target', label: 'Due Date' },
+              { key: 'modified', label: 'Modified Date' }
+            ].map(option => (
+              <TouchableOpacity
+                key={option.key}
+                style={styles.sortOption}
+                onPress={() => toggleSort(option.key as typeof sortBy)}
+              >
+                <View style={styles.sortOptionContent}>
+                  <Text style={[
+                    styles.sortOptionText,
+                    sortBy === option.key && styles.sortOptionTextActive
+                  ]}>
+                    {option.label}
+                  </Text>
+                  {sortBy === option.key && (
+                    <Text style={styles.sortDirection}>
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
 
       <ScrollView
         style={styles.scrollView}
@@ -524,8 +533,8 @@ const styles = StyleSheet.create({
   },
   sortMenu: {
     position: 'absolute',
-    top: 45,
-    right: 0,
+    top: Platform.OS === 'web' ? 120 : 100, // Position below header
+    right: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1,
@@ -535,8 +544,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    zIndex: 1000,
     minWidth: 150,
+  },
+  sortMenuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
+    ...(Platform.OS === 'web' && {
+      position: 'fixed' as any,
+    }),
+  },
+  sortMenuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
   },
   sortOption: {
     paddingHorizontal: 16,
