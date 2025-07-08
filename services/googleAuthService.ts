@@ -39,15 +39,28 @@ class GoogleAuthService {
     return this.config.webClientId; // fallback
   }
 
+  private getBaseUrl(): string {
+    if (typeof window !== 'undefined') {
+      return window.location.origin;
+    }
+    
+    // Check for Netlify environment variables
+    if (typeof process !== 'undefined' && process.env) {
+      const netlifyUrl = process.env.REACT_APP_NETLIFY_URL || 
+                        process.env.URL || 
+                        process.env.DEPLOY_PRIME_URL;
+      if (netlifyUrl) {
+        return netlifyUrl;
+      }
+    }
+    
+    // Final fallback
+    return 'http://localhost:3000';
+  }
+
   private getRedirectUri(): string {
     if (Platform.OS === 'web') {
-      // For web, use the current origin + callback path
-      if (typeof window !== 'undefined') {
-        const origin = window.location.origin;
-        return `${origin}/auth/callback`;
-      }
-      // Fallback for SSR or other cases
-      return 'http://localhost:3000/auth/callback';
+      return `${this.getBaseUrl()}/auth/callback`;
     } else {
       // For mobile, use Expo's proxy
       return AuthSession.makeRedirectUri({
@@ -273,7 +286,7 @@ class GoogleAuthService {
         provider: 'google',
         options: {
           redirectTo: Platform.OS === 'web' 
-            ? `${window.location.origin}/auth/callback`
+            ? `${this.getBaseUrl()}/auth/callback`
             : 'myapp://auth/callback'
         }
       });
