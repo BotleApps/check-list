@@ -1,7 +1,6 @@
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
@@ -45,7 +44,6 @@ class GoogleAuthService {
       // For web, use the current origin + callback path
       if (typeof window !== 'undefined') {
         const origin = window.location.origin;
-        console.log('Detected web origin:', origin);
         return `${origin}/auth/callback`;
       }
       // Fallback for SSR or other cases
@@ -64,11 +62,7 @@ class GoogleAuthService {
     const clientId = this.getClientId();
     const redirectUri = this.getRedirectUri();
 
-    console.log('Creating Google auth request with:');
-    console.log('Client ID:', clientId);
-    console.log('Redirect URI:', redirectUri);
-    console.log('Platform:', Platform.OS);
-    console.log('Bundle ID from config:', Constants.expoConfig?.ios?.bundleIdentifier);
+    console.log('Initializing Google auth for platform:', Platform.OS);
     
     return Google.useAuthRequest({
       clientId,
@@ -81,11 +75,8 @@ class GoogleAuthService {
   // Process Google authentication result
   async processGoogleAuthResult(response: AuthSession.AuthSessionResult): Promise<{ success: boolean; error?: string; user?: any }> {
     try {
-      console.log('Processing auth result, type:', response?.type);
-      
       if (response?.type === 'success') {
         const { code } = response.params;
-        console.log('Authorization code received:', code ? 'yes' : 'no');
         
         if (!code) {
           return { 
@@ -96,14 +87,10 @@ class GoogleAuthService {
 
         // For mobile apps, we need to exchange the code manually
         // since Supabase's signInWithOAuth doesn't handle the code exchange on mobile
-        console.log('Exchanging authorization code for tokens...');
-
         const clientId = this.getClientId();
 
         // IMPORTANT: The redirect URI for token exchange must match the one used in the auth request.
         const redirectUri = this.getRedirectUri();
-
-        console.log('Using redirect URI for token exchange:', redirectUri);
 
         // Exchange authorization code for tokens
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -120,7 +107,6 @@ class GoogleAuthService {
         });
 
         const tokens = await tokenResponse.json();
-        console.log('Token exchange result:', tokens.error ? 'failed' : 'success');
 
         if (tokens.error) {
           return { 
@@ -130,7 +116,6 @@ class GoogleAuthService {
         }
 
         // Sign in to Supabase with the ID token
-        console.log('Signing in to Supabase with ID token...');
         const { data, error } = await supabase.auth.signInWithIdToken({
           provider: 'google',
           token: tokens.id_token,
@@ -144,26 +129,23 @@ class GoogleAuthService {
           };
         }
 
-        console.log('Supabase sign-in successful');
         return { 
           success: true, 
           user: data.user 
         };
       } else if (response?.type === 'cancel') {
-        console.log('Authentication cancelled by user');
         return { 
           success: false, 
           error: 'Authentication cancelled' 
         };
       } else {
-        console.log('Authentication failed, type:', response?.type);
         return { 
           success: false, 
           error: 'Authentication failed' 
         };
       }
     } catch (error) {
-      console.error('Error in processGoogleAuthResult:', error);
+      console.error('Google authentication error:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error occurred' 
