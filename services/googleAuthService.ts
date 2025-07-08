@@ -5,7 +5,6 @@ import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { debugGoogleOAuth } from '../lib/debugGoogleOAuth';
 
 // Make sure WebBrowser completes authentication sessions properly
 WebBrowser.maybeCompleteAuthSession();
@@ -64,9 +63,6 @@ class GoogleAuthService {
   createGoogleAuthRequest() {
     const clientId = this.getClientId();
     const redirectUri = this.getRedirectUri();
-
-    // Debug information
-    debugGoogleOAuth();
 
     console.log('Creating Google auth request with:');
     console.log('Client ID:', clientId);
