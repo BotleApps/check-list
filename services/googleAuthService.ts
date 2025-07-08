@@ -282,12 +282,16 @@ class GoogleAuthService {
   // Simple Supabase OAuth redirect method (works best for web)
   async signInWithGoogleSupabase(): Promise<{ success: boolean; error?: string }> {
     try {
+      const redirectUrl = Platform.OS === 'web' 
+        ? `${this.getBaseUrl()}/auth/callback`
+        : 'myapp://auth/callback';
+        
+      console.log('Google OAuth redirect URL:', redirectUrl);
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: Platform.OS === 'web' 
-            ? `${this.getBaseUrl()}/auth/callback`
-            : 'myapp://auth/callback'
+          redirectTo: redirectUrl
         }
       });
 
