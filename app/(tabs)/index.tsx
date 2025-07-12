@@ -306,7 +306,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header with App Name */}
       <View style={styles.header}>
-        <Text style={styles.appTitle}>Checklist</Text>
+        <Text style={styles.appTitle}>Checklists</Text>
         
         {/* Search and Sort Controls */}
         <View style={styles.searchSortContainer}>
