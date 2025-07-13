@@ -11,7 +11,6 @@ import {
   Platform,
   Modal,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
@@ -23,6 +22,7 @@ import { fetchTaskGroups, createTaskGroup, moveTaskToGroup } from '../../store/s
 import { TaskGroup } from '../../types/database';
 import { FolderSelectionModal } from '../../components/FolderSelectionModal';
 import { TagSelectionModal } from '../../components/TagSelectionModal';
+import { DatePicker } from '../../components/DatePicker';
 import { Toast } from '../../components/Toast';
 import { 
   validateChecklistTitle, 
@@ -397,13 +397,6 @@ export default function NewChecklistScreen() {
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    if (selectedDate) {
-      setTargetDate(selectedDate);
-      // Don't auto-close - let user click Done
-    }
-  };
-
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -701,55 +694,14 @@ export default function NewChecklistScreen() {
         </ScrollView>
 
         {/* Date Selection Modal */}
-        <Modal
+        <DatePicker
           visible={showDatePicker}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Date</Text>
-              <TouchableOpacity 
-                style={styles.modalDoneButton}
-                onPress={() => setShowDatePicker(false)}
-              >
-                <Text style={styles.modalDoneButtonText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.datePickerContainer}>
-              {Platform.OS === 'web' ? (
-                <View style={styles.webDateInputContainer}>
-                  <TextInput
-                    style={styles.webDateInput}
-                    placeholder="YYYY-MM-DD"
-                    value={targetDate ? targetDate.toISOString().split('T')[0] : ''}
-                    onChangeText={(text) => {
-                      // Validate date format
-                      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-                      if (dateRegex.test(text)) {
-                        const selectedDate = new Date(text);
-                        if (!isNaN(selectedDate.getTime())) {
-                          setTargetDate(selectedDate);
-                        }
-                      } else if (text === '') {
-                        setTargetDate(null);
-                      }
-                    }}
-                  />
-                </View>
-              ) : (
-                <DateTimePicker
-                  value={targetDate || new Date()}
-                  mode="date"
-                  display="spinner"
-                  onChange={handleDateChange}
-                  minimumDate={new Date()}
-                  style={styles.datePicker}
-                />
-              )}
-            </View>
-          </SafeAreaView>
-        </Modal>
+          date={targetDate}
+          minimumDate={new Date()}
+          onDateChange={(date) => setTargetDate(date)}
+          onClose={() => setShowDatePicker(false)}
+          title="Select Target Date"
+        />
         
         {/* Reusable Modals */}
         <FolderSelectionModal
@@ -935,28 +887,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#8E8E93',
     marginTop: 32,
-  },
-  datePickerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  datePicker: {
-    height: 200,
-  },
-  webDateInputContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  webDateInput: {
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    fontSize: 16,
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    textAlign: 'center',
   },
   tagsContent: {
     flex: 1,

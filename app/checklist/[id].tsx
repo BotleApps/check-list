@@ -24,7 +24,7 @@ import { fetchCategories } from '../../store/slices/categoriesSlice';
 // Task groups imports
 import { fetchTaskGroups, fetchGroupedTasks, moveTaskToGroup, createTaskGroup, updateTaskGroup, deleteTaskGroup } from '../../store/slices/taskGroupsSlice';
 import { TaskGroup } from '../../types/database';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { DatePicker } from '../../components/DatePicker';
 import { ProgressBar } from '../../components/ProgressBar';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -1296,49 +1296,22 @@ export default function ChecklistDetailsScreen() {
       </Modal>
       
       {/* Date Picker Modal */}
-      {showDatePicker && (
-        <Modal
-          visible={showDatePicker}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Due Date</Text>
-              <TouchableOpacity 
-                onPress={handleDatePickerDone}
-                style={styles.modalCloseButton}
-              >
-                <Text style={styles.modalDoneText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.datePickerContainer}>
-              <TouchableOpacity
-                style={styles.modalOption}
-                onPress={() => {
-                  setEditingTargetDate(null);
-                  setTempSelectedDate(null);
-                  setShowDatePicker(false);
-                }}
-              >
-                <Text style={styles.modalOptionText}>No due date</Text>
-                {!editingTargetDate && (
-                  <Check size={20} color="#2563EB" />
-                )}
-              </TouchableOpacity>
-              
-              <DateTimePicker
-                value={tempSelectedDate || editingTargetDate || new Date()}
-                mode="date"
-                display="spinner"
-                onChange={handleDateChange}
-                style={styles.datePicker}
-              />
-            </View>
-          </SafeAreaView>
-        </Modal>
-      )}
+      <DatePicker
+        visible={showDatePicker}
+        date={tempSelectedDate || editingTargetDate}
+        minimumDate={new Date()}
+        onDateChange={(date) => {
+          setTempSelectedDate(date);
+          setEditingTargetDate(date);
+        }}
+        onClose={() => {
+          setShowDatePicker(false);
+          if (editingTargetDate !== tempSelectedDate) {
+            handleDatePickerDone();
+          }
+        }}
+        title="Select Due Date"
+      />
       
       <Toast
         visible={showToast}
@@ -2121,5 +2094,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  // Web date picker styles
+  webDateInputContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  webDateTrigger: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 200,
+  },
+  webDateTriggerText: {
+    fontSize: 16,
+    color: '#000000',
   },
 });
