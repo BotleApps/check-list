@@ -4,12 +4,10 @@ import {
   Text, 
   View, 
   StyleSheet, 
-  ActivityIndicator,
-  Platform
+  ActivityIndicator
 } from 'react-native';
-import { MaterialIcons, AntDesign } from '@expo/vector-icons';
-import * as Google from 'expo-auth-session/providers/google';
-import { googleAuthService } from '../services/googleAuthService';
+import { AntDesign } from '@expo/vector-icons';
+import { oauthService } from '../services/oauth';
 import { authService } from '../services/authService';
 import { useDispatch } from 'react-redux';
 import { setUser, clearError } from '../store/slices/authSlice';
@@ -28,168 +26,51 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const dispatch = useDispatch();
 
-  // Create Google auth request using the service
-  const [request, response, promptAsync] = googleAuthService.createGoogleAuthRequest() || [null, null, null];
-
-  // Handle the authentication response
-  React.useEffect(() => {
-    if (response) {
-      console.log('Google auth response received:', response.type);
-      handleGoogleResponse(response);
-    }
-  }, [response]);
-
-  const handleGoogleResponse = async (response: any) => {
-    console.log('Processing Google auth response:', response.type);
+  const handleGoogleSignIn = async () => {
+    console.log('🚀 Google sign-in initiated');
     setIsLoading(true);
     
     try {
-      const result = await googleAuthService.processGoogleAuthResult(response);
-      console.log('Google auth result:', result.success ? 'success' : 'failed', result.error);
+      // Use the centralized OAuth service
+      console.log(`📱 Using ${oauthService.getPlatform()} OAuth Provider`);
+      
+      // Perform authentication
+      const result = await oauthService.signInWithGoogle();
       
       if (result.success) {
-        // Get the current user session from Supabase
-        console.log('Getting current user from Supabase...');
-        const user = await authService.getCurrentUser();
+        console.log('✅ OAuth authentication initiated successfully');
         
-        if (user) {
-          console.log('User retrieved successfully:', user.user_id);
+        // Check if we got user information directly (mobile with tokens in URL)
+        if (result.user && result.tokens) {
+          console.log('🔑 User information received directly, updating state');
           dispatch(clearError());
-          dispatch(setUser(user));
+          dispatch(setUser({
+            user_id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            avatar_url: result.user.avatar_url,
+            created_at: new Date().toISOString(),
+          }));
           onSuccess?.();
-        } else {
-          console.log('Failed to get user from Supabase');
-          const errorMsg = 'Failed to get user information';
-          onError?.(errorMsg);
+          return;
         }
-      } else {
-        const errorMsg = result.error || 'Google authentication failed';
-        console.log('Google auth failed:', errorMsg);
-        onError?.(errorMsg);
-      }
-    } catch (error) {
-      console.error('Error in handleGoogleResponse:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
-      onError?.(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    console.log('Google sign-in initiated');
-    
-    // Debug OAuth configuration
-    googleAuthService.debugOAuthConfig();
-    
-    // Additional iOS debugging
-    if (Platform.OS === 'ios') {
-      googleAuthService.debugiOSConfig();
-    }
-    
-    if (!googleAuthService.isConfigured()) {
-      const errorMsg = 'Google OAuth is not properly configured';
-      console.log('Google OAuth not configured');
-      onError?.(errorMsg);
-      return;
-    }
-
-    console.log('Google OAuth is configured, proceeding...');
-    setIsLoading(true);
-    
-    try {
-      // Use expo-auth-session method for mobile (iOS/Android)
-      if (Platform.OS === 'web') {
-        console.log('Using Supabase OAuth for web');
-        // For web, use Supabase OAuth redirect
-        const result = await googleAuthService.signInWithGoogleSupabase();
-        if (!result.success) {
-          setIsLoading(false);
-          const errorMsg = result.error || 'Failed to initiate Google sign-in';
-          console.log('Supabase OAuth failed, trying WebBrowser method:', errorMsg);
-          
-          // Fallback to WebBrowser method if Supabase OAuth fails
-          const webResult = await googleAuthService.signInWithGoogleWebBrowser();
-          if (!webResult.success) {
-            onError?.(webResult.error || 'Failed to initiate Google sign-in');
-          }
-        }
-        // For web, the redirect will happen, so we don't need to handle response here
-      } else {
-        console.log('Using expo-auth-session for mobile');
-        // For mobile, use expo-auth-session
-        if (promptAsync) {
-          await promptAsync();
-        } else {
-          throw new Error('Google Auth not properly configured for this platform');
-        }
-      }
-    } catch (error) {
-      console.error('Error initiating Google sign-in:', error);
-      setIsLoading(false);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to initiate Google sign-in';
-      onError?.(errorMsg);
-    }
-  };
-
-  return (
-    <TouchableOpacity
-      style={[styles.googleButton, style]}
-      onPress={handleGoogleSignIn}
-      disabled={isLoading || !request}
-    >
-      <View style={styles.buttonContent}>
-        {isLoading ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <AntDesign name="google" size={20} color="#fff" />
-        )}
-        <Text style={styles.googleButtonText}>
-          {isLoading ? 'Signing in...' : 'Sign in with Google'}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-};
-
-// Alternative component using WebBrowser method
-export const GoogleSignInButtonWebBrowser: React.FC<GoogleSignInButtonProps> = ({
-  onSuccess,
-  onError,
-  style
-}) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const dispatch = useDispatch();
-
-  const handleGoogleSignIn = async () => {
-    if (!googleAuthService.isConfigured()) {
-      const errorMsg = 'Google OAuth is not properly configured';
-      onError?.(errorMsg);
-      return;
-    }
-
-    setIsLoading(true);
-    
-    try {
-      const result = await googleAuthService.signInWithGoogleWebBrowser();
-      
-      if (result.success) {
-        // Get the current user session from Supabase
-        const user = await authService.getCurrentUser();
         
-        if (user) {
-          dispatch(clearError());
-          dispatch(setUser(user));
-          onSuccess?.();
-        } else {
-          const errorMsg = 'Failed to get user information';
-          onError?.(errorMsg);
-        }
+        // For all other cases (web redirect, mobile deep link), 
+        // the authentication completion will be handled by callback handlers
+        const platform = oauthService.getPlatform();
+        console.log(`🌐 ${platform} OAuth redirect initiated - authentication will complete via callback`);
+        
+        // Don't call onSuccess yet - wait for callback
+        return;
       } else {
-        const errorMsg = result.error || 'Google authentication failed';
-        onError?.(errorMsg);
+        console.log('❌ OAuth authentication failed:', result.error);
+        const errorMessage = typeof result.error === 'string' 
+          ? result.error 
+          : result.error?.message || 'Google authentication failed';
+        onError?.(errorMessage);
       }
     } catch (error) {
+      console.error('❌ Error during Google sign-in:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
       onError?.(errorMsg);
     } finally {
@@ -220,9 +101,9 @@ export const GoogleSignInButtonWebBrowser: React.FC<GoogleSignInButtonProps> = (
 const styles = StyleSheet.create({
   googleButton: {
     backgroundColor: '#4285F4',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     marginVertical: 8,
     shadowColor: '#000',
     shadowOffset: {
@@ -241,7 +122,7 @@ const styles = StyleSheet.create({
   googleButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     marginLeft: 8,
   },
 });

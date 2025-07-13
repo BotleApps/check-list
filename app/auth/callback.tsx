@@ -1,15 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useDispatch } from 'react-redux';
 import { supabase } from '../../lib/supabase';
 import { setUser, clearError } from '../../store/slices/authSlice';
-import { authService } from '../../services/authService';
+import { oauthService } from '../../services/oauth';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const params = useLocalSearchParams();
+  const [isProcessing, setIsProcessing] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('Processing authentication...');
 
   useEffect(() => {
     handleAuthCallback();
@@ -17,103 +19,97 @@ export default function AuthCallbackScreen() {
 
   const handleAuthCallback = async () => {
     try {
-      console.log('Auth callback received with params:', params);
-      console.log('Full URL:', typeof window !== 'undefined' ? window.location.href : 'Not available');
-
-      // For web, check if we have hash fragments (access_token, etc.)
-      if (typeof window !== 'undefined' && window.location.hash) {
-        console.log('Hash fragments detected:', window.location.hash);
-        
-        // Parse hash parameters
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
-        const expiresAt = hashParams.get('expires_at');
-        
-        console.log('Hash tokens:', { 
-          hasAccessToken: !!accessToken, 
-          hasRefreshToken: !!refreshToken,
-          expiresAt 
-        });
-
-        if (accessToken) {
-          console.log('Access token found in hash, setting Supabase session...');
-          
-          try {
-            // Set the session using the tokens from the hash
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || '',
-            });
-
-            if (error) {
-              console.error('Error setting session from hash:', error);
-              router.replace('/auth/login?error=session_error');
-              return;
-            }
-
-            console.log('Session set successfully from hash tokens');
-            dispatch(clearError());
-            
-            // Navigate to main app - the auth state listener will handle the rest
-            router.replace('/(tabs)');
-            return;
-          } catch (error) {
-            console.error('Error processing hash tokens:', error);
-            router.replace('/auth/login?error=token_error');
-            return;
-          }
+      console.log('🔄 Auth callback received with params:', params);
+      dispatch(clearError());
+      
+      // Extract all parameters for processing
+      const allParams: Record<string, string> = {};
+      
+      // Get URL parameters
+      Object.entries(params).forEach(([key, value]) => {
+        if (typeof value === 'string') {
+          allParams[key] = value;
         }
+      });
+
+      // For web, also check hash fragments
+      if (typeof window !== 'undefined' && window.location.hash) {
+        console.log('🔗 Hash fragments detected:', window.location.hash);
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        hashParams.forEach((value, key) => {
+          allParams[key] = value;
+        });
       }
 
-      // Wait a moment for Supabase to process the OAuth response
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('📋 All callback parameters:', allParams);
 
       // Check for OAuth errors first
-      const error = params.error || params.error_description;
-      if (error) {
-        console.log('OAuth error:', error);
-        router.replace(`/auth/login?error=${encodeURIComponent(error as string)}`);
+      if (allParams.error) {
+        console.error('❌ OAuth error in callback:', allParams.error);
+        setStatusMessage(`Authentication failed: ${allParams.error_description || allParams.error}`);
+        setTimeout(() => router.replace('/auth/login'), 3000);
         return;
       }
 
-      // For web OAuth, Supabase automatically handles the session
-      // The auth state listener will detect the session and handle navigation
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      console.log('Current session after OAuth:', session ? 'exists' : 'none', sessionError);
+      // Use the modular OAuth service to handle the callback
+      setStatusMessage('Validating authentication...');
+      const result = await oauthService.handleCallback(allParams);
 
-      if (session?.user) {
-        console.log('Session found - auth state listener will handle user profile and navigation');
-        // Let the auth state listener handle everything
-        // Just clear any previous errors
-        dispatch(clearError());
-        router.replace('/(tabs)');
-      } else {
-        console.log('No session found after OAuth');
-        // Sometimes the session takes a moment to be available, try once more
-        setTimeout(async () => {
-          const { data: { session: retrySession } } = await supabase.auth.getSession();
-          if (retrySession?.user) {
-            console.log('Session found on retry - auth state listener will handle it');
-            dispatch(clearError());
-            router.replace('/(tabs)');
-          } else {
-            console.log('Still no session after retry, redirecting to login');
-            router.replace('/auth/login?error=auth_failed');
-          }
-        }, 2000);
+      if (!result.success) {
+        console.error('❌ OAuth callback validation failed:', result.error);
+        setStatusMessage(`Authentication validation failed: ${result.error?.message}`);
+        setTimeout(() => router.replace('/auth/login'), 3000);
+        return;
       }
+
+      // Get the current session
+      setStatusMessage('Retrieving session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        console.error('❌ Failed to retrieve session:', sessionError);
+        setStatusMessage('Failed to establish session');
+        setTimeout(() => router.replace('/auth/login'), 3000);
+        return;
+      }
+
+      console.log('✅ Session established successfully');
+      setStatusMessage('Authentication successful! Redirecting...');
+      
+      // Update Redux store with user data
+      dispatch(setUser({
+        user_id: session.user.id,
+        email: session.user.email!,
+        name: session.user.user_metadata?.name || session.user.email!.split('@')[0],
+        avatar_url: session.user.user_metadata?.avatar_url,
+        created_at: new Date().toISOString(),
+      }));
+
+      // Navigate to main app
+      setTimeout(() => {
+        router.replace('/');
+      }, 1000);
+
     } catch (error) {
-      console.error('Error in auth callback:', error);
-      router.replace('/auth/login?error=callback_error');
+      console.error('❌ Auth callback error:', error);
+      setStatusMessage('Authentication failed due to an unexpected error');
+      setTimeout(() => router.replace('/auth/login'), 3000);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#3B82F6" />
-      <Text style={styles.text}>Completing sign in...</Text>
+      <ActivityIndicator size="large" color="#007AFF" style={styles.spinner} />
+      <Text style={styles.title}>Completing Sign In</Text>
+      <Text style={styles.message}>{statusMessage}</Text>
+      
+      {!isProcessing && (
+        <Text style={styles.debugInfo}>
+          Platform: {oauthService.getPlatform()}
+        </Text>
+      )}
     </View>
   );
 }
@@ -123,11 +119,30 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f5f5f5',
+    padding: 20,
   },
-  text: {
-    marginTop: 16,
+  spinner: {
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  message: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 24,
+  },
+  debugInfo: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 20,
   },
 });

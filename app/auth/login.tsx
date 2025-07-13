@@ -64,6 +64,12 @@ export default function LoginScreen() {
         return 'Authentication was not completed. Please try again.';
       case 'callback_error':
         return 'An error occurred during authentication. Please try again.';
+      case 'session_error':
+        return 'Failed to establish session. Please try again.';
+      case 'no_tokens':
+        return 'Authentication failed - no tokens received. Please try again.';
+      case 'redirect_error':
+        return 'Authentication redirect failed. Please try again.';
       default:
         return decodeURIComponent(error);
     }

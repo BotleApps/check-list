@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
@@ -7,9 +7,48 @@ import { store, persistor } from '../store';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useAuthStateListener } from '../hooks/useAuthStateListener';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import * as Linking from 'expo-linking';
+import { useRouter } from 'expo-router';
 
 function AppContent() {
+  const router = useRouter();
   useAuthStateListener();
+
+  useEffect(() => {
+    // Handle incoming deep links for OAuth
+    const handleDeepLink = (url: string) => {
+      console.log('🔗 Deep link received:', url);
+      
+      // Check if this is an OAuth callback
+      if (url.includes('auth/callback')) {
+        console.log('📱 OAuth callback deep link detected');
+        
+        // Parse the URL to extract query parameters
+        const parsedUrl = Linking.parse(url);
+        const params = parsedUrl.queryParams || {};
+        
+        console.log('🔑 OAuth callback params:', params);
+        
+        // Navigate to the mobile callback handler with the parameters
+        const queryString = new URLSearchParams(params as Record<string, string>).toString();
+        router.push(`/auth/callback-mobile?${queryString}`);
+      }
+    };
+
+    // Listen for incoming links when app is already open
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    // Handle the initial URL if app was opened via deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink(url);
+      }
+    });
+
+    return () => subscription?.remove();
+  }, [router]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
