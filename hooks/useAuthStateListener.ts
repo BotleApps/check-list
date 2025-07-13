@@ -89,14 +89,42 @@ export const useAuthStateListener = () => {
           router.replace('/auth/login');
         } else if (session?.user && (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')) {
           console.log('👤 User session found, getting profile and redirecting to app');
+          console.log('📋 Session details:', { 
+            userId: session.user.id, 
+            email: session.user.email,
+            hasAccessToken: !!session.access_token
+          });
+          
           try {
-            const user = await authService.getUserProfile(session.user.id, session.user.email || '');
-            console.log('✅ User profile loaded successfully:', { userId: user.user_id, email: user.email });
+            console.log('🔄 Creating user profile directly from session data...');
+            
+            // Skip the database call for now and create user from session metadata
+            const user = {
+              user_id: session.user.id,
+              email: session.user.email!,
+              name: session.user.user_metadata?.name || 
+                    session.user.user_metadata?.full_name || 
+                    session.user.email!.split('@')[0],
+              avatar_url: session.user.user_metadata?.avatar_url || 
+                         session.user.user_metadata?.picture,
+              created_at: new Date().toISOString(),
+            };
+            
+            console.log('✅ User profile created from session:', { userId: user.user_id, email: user.email });
+            
+            console.log('🔄 Dispatching setUser...');
             dispatch(setUser(user));
-            console.log('🏠 Redirecting to home screen');
-            router.replace('/(tabs)');
+            
+            console.log('🏠 Redirecting to home screen...');
+            // Use setTimeout to ensure the dispatch completes before navigation
+            setTimeout(() => {
+              console.log('🔄 Executing navigation...');
+              router.replace('/(tabs)');
+              console.log('✅ Navigation completed');
+            }, 100);
           } catch (error) {
-            console.error('❌ Error getting user profile on auth change:', error);
+            console.error('❌ Error creating user profile from session:', error);
+            console.log('🔄 Clearing auth and redirecting to login due to profile error');
             dispatch(setUser(null));
             router.replace('/auth/login');
           }

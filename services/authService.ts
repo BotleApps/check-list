@@ -153,38 +153,52 @@ class AuthService {
 
   async getUserProfile(userId: string, email: string): Promise<User> {
     try {
+      console.log('🔄 getUserProfile called with:', { userId, email });
+      
       // Ensure the session is properly established
+      console.log('🔄 Getting current session...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
+        console.error('❌ Session error in getUserProfile:', sessionError);
         throw new Error(`Session error: ${sessionError.message}`);
       }
       
       if (!session) {
+        console.error('❌ No active session in getUserProfile');
         throw new Error('No active session');
       }
 
+      console.log('✅ Session verified in getUserProfile');
+
       // Verify the user can only access their own profile
       if (session.user.id !== userId) {
+        console.error('❌ Unauthorized access attempt:', { sessionUserId: session.user.id, requestedUserId: userId });
         throw new Error('Unauthorized: Cannot access other user profiles');
       }
       
       // Query the user profile
+      console.log('🔄 Querying user profile from database...');
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('user_id', userId)
         .single();
 
+      console.log('📋 Database query result:', { data: !!data, error: error?.message, errorCode: error?.code });
+
       if (error && error.code !== 'PGRST116') { // PGRST116 = not found
+        console.error('❌ Database error in getUserProfile:', error);
         throw new Error(error.message);
       }
 
       if (!data) {
         // User profile doesn't exist, create one
+        console.log('🔄 User profile not found, creating new profile...');
         return await this.createUserProfile(userId, email, email.split('@')[0]);
       }
 
+      console.log('✅ User profile found and returned');
       return data;
     } catch (error) {
       console.error('Error in getUserProfile:', error);

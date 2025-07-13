@@ -79,10 +79,118 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
       
       if (result.type === 'success') {
         console.log('✅ OAuth browser session completed successfully');
-        console.log('� Deep link handler will process the authentication result');
         
-        // Return success - the deep link handler will process the tokens
-        return { success: true };
+        // Extract tokens from the result URL if available
+        if (result.url) {
+          console.log('🔗 OAuth result URL:', result.url);
+          
+          // Parse the URL to extract tokens from fragment
+          let access_token: string | null = null;
+          let refresh_token: string | null = null;
+          
+          try {
+            const url = new URL(result.url);
+            
+            // Check fragment first (tokens after #)
+            if (url.hash) {
+              const fragmentParams = new URLSearchParams(url.hash.substring(1));
+              access_token = fragmentParams.get('access_token');
+              refresh_token = fragmentParams.get('refresh_token');
+              console.log('🔑 Extracted tokens from fragment:', {
+                hasAccessToken: !!access_token,
+                hasRefreshToken: !!refresh_token
+              });
+            }
+            
+            // If not in fragment, check query params
+            if (!access_token && url.search) {
+              access_token = url.searchParams.get('access_token');
+              refresh_token = url.searchParams.get('refresh_token');
+              console.log('🔑 Extracted tokens from query params:', {
+                hasAccessToken: !!access_token,
+                hasRefreshToken: !!refresh_token
+              });
+            }
+            
+            if (access_token) {
+              console.log('🔑 Setting session with extracted tokens...');
+              console.log('🔑 Access token length:', access_token.length);
+              console.log('🔑 Refresh token length:', refresh_token?.length || 0);
+              
+              // Set session directly with the tokens
+              const { data, error } = await supabase.auth.setSession({
+                access_token,
+                refresh_token: refresh_token || '',
+              });
+              
+              if (error) {
+                console.error('❌ Failed to set session from tokens:', error);
+                return {
+                  success: false,
+                  error: {
+                    code: 'session_error',
+                    message: `Failed to establish session: ${error.message}`
+                  }
+                };
+              }
+              
+              if (data.session && data.user) {
+                console.log('✅ Session established successfully from OAuth tokens');
+                console.log('👤 User authenticated:', data.user.email);
+                
+                return {
+                  success: true,
+                  user: {
+                    id: data.user.id,
+                    email: data.user.email!,
+                    name: data.user.user_metadata?.name || data.user.user_metadata?.full_name || data.user.email!.split('@')[0],
+                    avatar_url: data.user.user_metadata?.avatar_url || data.user.user_metadata?.picture,
+                  },
+                  tokens: {
+                    accessToken: access_token,
+                    refreshToken: refresh_token || '',
+                  }
+                };
+              } else {
+                console.error('❌ Session or user missing after setSession');
+                return {
+                  success: false,
+                  error: {
+                    code: 'session_invalid',
+                    message: 'Session was set but user data is missing'
+                  }
+                };
+              }
+            } else {
+              console.error('❌ No access token found in OAuth result URL');
+              return {
+                success: false,
+                error: {
+                  code: 'no_tokens',
+                  message: 'No authentication tokens received'
+                }
+              };
+            }
+          } catch (urlError) {
+            console.error('❌ Error parsing OAuth result URL:', urlError);
+            return {
+              success: false,
+              error: {
+                code: 'url_parse_error',
+                message: 'Failed to parse OAuth result URL'
+              }
+            };
+          }
+        } else {
+          console.error('❌ No URL in OAuth result');
+          return {
+            success: false,
+            error: {
+              code: 'no_result_url',
+              message: 'OAuth completed but no result URL received'
+            }
+          };
+        }
       }
       
       return {
