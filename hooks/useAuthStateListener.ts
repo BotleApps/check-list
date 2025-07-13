@@ -54,36 +54,54 @@ export const useAuthStateListener = () => {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔔 Auth state change detected:', {
+        event,
+        hasSession: !!session,
+        sessionUserId: session?.user?.id,
+        mounted,
+        initialCheckDone: initialCheckDoneRef.current,
+        isProcessing: isProcessingRef.current
+      });
+      
       if (!mounted) {
+        console.log('⚠️ Component not mounted, ignoring auth state change');
         return;
       }
 
-      // Skip SIGNED_IN events that happen during initial session check
-      if (event === 'SIGNED_IN' && (!initialCheckDoneRef.current || isProcessingRef.current)) {
+      // Skip SIGNED_IN events that happen during initial session check, but allow OAuth-triggered SIGNED_IN events
+      if (event === 'SIGNED_IN' && !initialCheckDoneRef.current && isProcessingRef.current) {
+        console.log('⚠️ Skipping SIGNED_IN event during initial session check');
         return;
       }
 
       if (isProcessingRef.current) {
+        console.log('⚠️ Already processing auth state change, ignoring');
         return;
       }
 
       isProcessingRef.current = true;
+      console.log('🔄 Processing auth state change:', event);
 
       try {
         if (event === 'SIGNED_OUT') {
+          console.log('🚪 User signed out, clearing auth and redirecting to login');
           dispatch(clearAuth());
           router.replace('/auth/login');
         } else if (session?.user && (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')) {
+          console.log('👤 User session found, getting profile and redirecting to app');
           try {
             const user = await authService.getUserProfile(session.user.id, session.user.email || '');
+            console.log('✅ User profile loaded successfully:', { userId: user.user_id, email: user.email });
             dispatch(setUser(user));
+            console.log('🏠 Redirecting to home screen');
             router.replace('/(tabs)');
           } catch (error) {
-            console.error('Error getting user profile on auth change:', error);
+            console.error('❌ Error getting user profile on auth change:', error);
             dispatch(setUser(null));
             router.replace('/auth/login');
           }
         } else {
+          console.log('❌ No valid session found, redirecting to login');
           dispatch(setUser(null));
           router.replace('/auth/login');
         }

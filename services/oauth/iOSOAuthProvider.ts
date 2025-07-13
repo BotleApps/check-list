@@ -6,10 +6,8 @@ import { Platform } from 'react-native';
 
 export class iOSOAuthProvider extends BaseOAuthProvider {
   private getRedirectUrl(): string {
-    // For iOS, we need to use a web URL that can then redirect to the app scheme
-    // This ensures proper OAuth flow completion
-    const baseUrl = getBaseUrl();
-    return `${baseUrl}/auth/callback-mobile-web`;
+    // For iOS, use the app scheme directly for proper handoff back to the app
+    return 'in.botle.checklistapp://auth/callback';
   }
 
   private isIOSSimulator(): boolean {
@@ -58,10 +56,10 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
       
       console.log('🌐 Opening OAuth URL:', oauthUrl);
       
-      // Open the OAuth URL in system browser
+      // Open the OAuth URL in system browser with app scheme redirect
       const result = await WebBrowser.openAuthSessionAsync(
         oauthUrl,
-        'in.botle.checklistapp', // Use the app scheme as the redirect base
+        redirectUrl,
         {
           showInRecents: false,
         }
@@ -81,9 +79,9 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
       
       if (result.type === 'success') {
         console.log('✅ OAuth browser session completed successfully');
+        console.log('� Deep link handler will process the authentication result');
         
-        // The web callback page will handle token extraction and redirect to the app
-        // Just return success here - the deep link handler will process the actual tokens
+        // Return success - the deep link handler will process the tokens
         return { success: true };
       }
       

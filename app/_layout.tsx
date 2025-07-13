@@ -9,13 +9,20 @@ import { useAuthStateListener } from '../hooks/useAuthStateListener';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
+import { Platform } from 'react-native';
 
 function AppContent() {
   const router = useRouter();
   useAuthStateListener();
 
   useEffect(() => {
-    // Handle incoming deep links for OAuth
+    // Only handle deep links on native platforms (iOS/Android)
+    // Web OAuth is handled by the regular callback handler
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    // Handle incoming deep links for OAuth on native platforms
     const handleDeepLink = (url: string) => {
       console.log('🔗 Deep link received:', url);
       
