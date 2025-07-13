@@ -17,7 +17,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata, deleteChecklist, shareChecklist, createChecklistWithItems } from '../../store/slices/checklistsSlice';
+import { fetchChecklistWithItems, updateChecklistItem, createChecklistItem, updateChecklist, clearCurrentData, updateItemCompletion, updateItemText, updateChecklistTitle, updateChecklistMetadata, deleteChecklist, shareChecklist, createChecklistWithItems, deleteChecklistItem } from '../../store/slices/checklistsSlice';
 import { fetchBuckets, createBucket } from '../../store/slices/bucketsSlice';
 import { fetchTags, createTag } from '../../store/slices/tagsSlice';
 import { fetchCategories } from '../../store/slices/categoriesSlice';
@@ -80,6 +80,29 @@ export default function ChecklistDetailsScreen() {
   const [showTagModal, setShowTagModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [savingHeader, setSavingHeader] = useState(false);
+  const [saveInProgress, setSaveInProgress] = useState(false);
+  
+  // Edit mode grouped items (similar to new checklist)
+  const [editingGroupedItems, setEditingGroupedItems] = useState<{
+    id: string;
+    name: string;
+    colorCode: string;
+    items: string[];
+    itemStates: boolean[];
+    itemIds?: string[]; // Track original item IDs for deletion
+    isNewGroup?: boolean;
+  }[]>([]);
+  const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
+  const [originalItemMapping, setOriginalItemMapping] = useState<Map<string, string>>(new Map()); // text -> itemId mapping
+  const [isAddingGroup, setIsAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
+  const [editingGroupName, setEditingGroupName] = useState('');
+  const [showDeleteGroupConfirmation, setShowDeleteGroupConfirmation] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<number | null>(null);
+  
+  // Group name character limit
+  const MAX_GROUP_NAME_LENGTH = 50;
   
   // Share functionality states
   const [showShareModal, setShowShareModal] = useState(false);
@@ -352,6 +375,9 @@ export default function ChecklistDetailsScreen() {
     setEditingBucketId(checklist.bucket_id || '');
     setEditingTargetDate(checklist.due_date ? new Date(checklist.due_date) : null);
     setEditingTags([...checklist.tags]);
+    
+    // Initialize editable groups when entering edit mode
+    initializeEditableGroups();
   };
 
   const handleSaveHeader = async () => {
@@ -381,6 +407,10 @@ export default function ChecklistDetailsScreen() {
       tags: editingTags
     };
     
+    // Set loading states
+    setSavingHeader(true);
+    setSaveInProgress(true);
+    
     // Optimistic update
     dispatch(updateChecklistMetadata({
       checklistId: checklist.checklist_id,
@@ -390,10 +420,8 @@ export default function ChecklistDetailsScreen() {
       tags: newData.tags
     }));
     
-    setEditingHeader(false);
-    setSavingHeader(true);
-    
     try {
+      // Save header metadata changes
       await dispatch(updateChecklist({
         checklistId: checklist.checklist_id,
         name: newData.name,
@@ -401,6 +429,20 @@ export default function ChecklistDetailsScreen() {
         tags: newData.tags,
         dueDate: newData.due_date || undefined
       })).unwrap();
+
+      // Save group and item changes if in edit mode
+      if (editingGroupedItems.length > 0) {
+        await saveEditModeChanges();
+      }
+      
+      setEditingHeader(false);
+      showToastMessage('Checklist updated successfully!', 'success');
+      
+      // Refresh the checklist and grouped tasks
+      dispatch(fetchChecklistWithItems(checklist.checklist_id));
+      if (id) {
+        dispatch(fetchGroupedTasks(id));
+      }
     } catch (error) {
       // Revert optimistic update on error
       dispatch(updateChecklistMetadata({
@@ -413,6 +455,7 @@ export default function ChecklistDetailsScreen() {
       showToastMessage('Failed to update checklist. Please try again.', 'error');
     } finally {
       setSavingHeader(false);
+      setSaveInProgress(false);
     }
   };
 
@@ -422,6 +465,400 @@ export default function ChecklistDetailsScreen() {
     setEditingBucketId('');
     setEditingTargetDate(null);
     setEditingTags([]);
+    setEditingGroupedItems([]);
+    setDeletedItemIds([]);
+    setOriginalItemMapping(new Map());
+  };
+
+  const saveEditModeChanges = async () => {
+    if (!checklist || !id || !user) return;
+    
+    setSaveInProgress(true);
+    showToastMessage('Saving changes...', 'success');
+    
+    try {
+      // Get original data to compare against
+      const currentGroupedTasks = groupedTasks[id] || [];
+      const originalGroups = new Map();
+      const originalItems = new Map();
+      
+      // Build maps of original data for comparison
+      currentGroupedTasks.forEach(groupData => {
+        const { group, tasks } = groupData;
+        if (group) {
+          originalGroups.set(group.group_id, group);
+          tasks.forEach(task => {
+            originalItems.set(task.item_id, { ...task, groupId: group.group_id });
+          });
+        } else {
+          // Ungrouped tasks
+          tasks.forEach(task => {
+            originalItems.set(task.item_id, { ...task, groupId: null });
+          });
+        }
+      });
+      
+      // Track changes with proper typing
+      const groupChanges: {
+        created: Array<{
+          tempId: string;
+          name: string;
+          colorCode: string;
+          items: string[];
+        }>;
+        updated: Array<{
+          groupId: string;
+          updates: {
+            name: string;
+            color_code: string;
+          };
+        }>;
+        deleted: string[];
+      } = {
+        created: [],
+        updated: [],
+        deleted: []
+      };
+      
+      const itemChanges: {
+        created: Array<{
+          text: string;
+          completed: boolean;
+          groupId: string | null;
+          tempGroupId: string;
+          order: number;
+        }>;
+        updated: Array<{
+          itemId: string;
+          updates: {
+            text: string;
+            is_completed: boolean;
+          };
+        }>;
+        moved: Array<{
+          itemId: string;
+          fromGroupId: string | null;
+          toGroupId: string | null;
+          tempGroupId: string;
+        }>;
+        deleted: string[];
+      } = {
+        created: [],
+        updated: [],
+        moved: [],
+        deleted: []
+      };
+      
+      // Step 1: Analyze group changes
+      const processedGroupIds = new Set();
+      
+      for (const editedGroup of editingGroupedItems) {
+        if (editedGroup.id.startsWith('new-group-') || editedGroup.isNewGroup) {
+          // New group to create
+          groupChanges.created.push({
+            tempId: editedGroup.id,
+            name: editedGroup.name,
+            colorCode: editedGroup.colorCode,
+            items: editedGroup.items.filter(text => text.trim().length > 0)
+          });
+        } else if (editedGroup.id !== 'ungrouped' && editedGroup.id !== 'default') {
+          // Existing group - check for changes
+          const originalGroup = originalGroups.get(editedGroup.id);
+          if (originalGroup) {
+            processedGroupIds.add(editedGroup.id);
+            
+            if (originalGroup.name !== editedGroup.name || 
+                originalGroup.color_code !== editedGroup.colorCode) {
+              groupChanges.updated.push({
+                groupId: editedGroup.id,
+                updates: {
+                  name: editedGroup.name,
+                  color_code: editedGroup.colorCode
+                }
+              });
+            }
+          }
+        }
+      }
+      
+      // Find deleted groups
+      originalGroups.forEach((group, groupId) => {
+        if (!processedGroupIds.has(groupId)) {
+          groupChanges.deleted.push(groupId);
+        }
+      });
+      
+      // Step 2: Analyze item changes
+      const processedItemIds = new Set();
+      
+      for (const editedGroup of editingGroupedItems) {
+        const targetGroupId = editedGroup.id.startsWith('new-group-') || editedGroup.isNewGroup 
+          ? null // Will be set after group creation
+          : (editedGroup.id === 'ungrouped' || editedGroup.id === 'default' ? null : editedGroup.id);
+        
+        const validItems = editedGroup.items
+          .map((text, index) => ({
+            text: text.trim(),
+            completed: editedGroup.itemStates[index],
+            order: index
+          }))
+          .filter(item => item.text.length > 0);
+        
+        for (const editedItem of validItems) {
+          // Try to find matching original item
+          let matchedOriginalItem = null;
+          
+          // First try exact text match
+          for (const [itemId, originalItem] of originalItems.entries()) {
+            if (!processedItemIds.has(itemId) && originalItem.text === editedItem.text) {
+              matchedOriginalItem = { itemId, ...originalItem };
+              processedItemIds.add(itemId);
+              break;
+            }
+          }
+          
+          // If no exact match, try partial match (for edited items)
+          if (!matchedOriginalItem) {
+            for (const [itemId, originalItem] of originalItems.entries()) {
+              if (!processedItemIds.has(itemId)) {
+                const similarity = calculateTextSimilarity(originalItem.text, editedItem.text);
+                if (similarity > 0.7) { // 70% similarity threshold
+                  matchedOriginalItem = { itemId, ...originalItem };
+                  processedItemIds.add(itemId);
+                  break;
+                }
+              }
+            }
+          }
+          
+          if (matchedOriginalItem) {
+            // Existing item - check for changes
+            const hasTextChanged = matchedOriginalItem.text !== editedItem.text;
+            const hasCompletionChanged = matchedOriginalItem.is_completed !== editedItem.completed;
+            const hasGroupChanged = matchedOriginalItem.groupId !== targetGroupId;
+            
+            if (hasTextChanged || hasCompletionChanged) {
+              itemChanges.updated.push({
+                itemId: matchedOriginalItem.itemId,
+                updates: {
+                  text: editedItem.text,
+                  is_completed: editedItem.completed
+                }
+              });
+            }
+            
+            if (hasGroupChanged) {
+              itemChanges.moved.push({
+                itemId: matchedOriginalItem.itemId,
+                fromGroupId: matchedOriginalItem.groupId,
+                toGroupId: targetGroupId,
+                tempGroupId: editedGroup.id // For new groups
+              });
+            }
+          } else {
+            // New item to create
+            itemChanges.created.push({
+              text: editedItem.text,
+              completed: editedItem.completed,
+              groupId: targetGroupId,
+              tempGroupId: editedGroup.id, // For new groups
+              order: editedItem.order
+            });
+          }
+        }
+      }
+      
+      // Find deleted items
+      originalItems.forEach((originalItem, itemId) => {
+        if (!processedItemIds.has(itemId)) {
+          itemChanges.deleted.push(itemId);
+        }
+      });
+      
+      // Step 3: Apply changes in order with rollback capability
+      const createdGroupMapping = new Map(); // tempId -> realGroupId
+      const rollbackActions: Array<() => Promise<void>> = [];
+      
+      // Create new groups first
+      for (const groupToCreate of groupChanges.created) {
+        try {
+          const newGroup = await dispatch(createTaskGroup({
+            checklistId: id,
+            name: groupToCreate.name,
+            description: '',
+            colorCode: groupToCreate.colorCode
+          })).unwrap();
+          createdGroupMapping.set(groupToCreate.tempId, newGroup.group_id);
+          rollbackActions.push(async () => {
+            await dispatch(deleteTaskGroup(newGroup.group_id)).unwrap();
+          });
+        } catch (error) {
+          console.error('Failed to create group:', groupToCreate.name, error);
+          throw new Error(`Failed to create group "${groupToCreate.name}"`);
+        }
+      }
+      
+      // Update existing groups
+      for (const groupToUpdate of groupChanges.updated) {
+        try {
+          await dispatch(updateTaskGroup({
+            groupId: groupToUpdate.groupId,
+            updates: groupToUpdate.updates
+          })).unwrap();
+        } catch (error) {
+          console.error('Failed to update group:', groupToUpdate.groupId, error);
+          throw new Error('Failed to update group');
+        }
+      }
+      
+      // Create new items
+      const createdItems: string[] = [];
+      for (const itemToCreate of itemChanges.created) {
+        try {
+          const maxOrder = items.length > 0 ? Math.max(...items.map(item => item.order_index)) : 0;
+          const newItem = await dispatch(createChecklistItem({
+            checklist_id: id,
+            text: itemToCreate.text,
+            description: '',
+            is_completed: itemToCreate.completed,
+            order_index: maxOrder + itemToCreate.order + 1,
+            is_required: false,
+            tags: [],
+          })).unwrap();
+          
+          createdItems.push(newItem.item_id);
+          
+          // Move to group if needed
+          let targetGroupId = itemToCreate.groupId;
+          if (createdGroupMapping.has(itemToCreate.tempGroupId)) {
+            targetGroupId = createdGroupMapping.get(itemToCreate.tempGroupId);
+          }
+          
+          if (targetGroupId) {
+            await dispatch(moveTaskToGroup({
+              taskId: newItem.item_id,
+              groupId: targetGroupId!,
+              checklistId: id
+            })).unwrap();
+          }
+        } catch (error) {
+          console.error('Failed to create item:', itemToCreate.text, error);
+          throw new Error(`Failed to create item "${itemToCreate.text.substring(0, 30)}..."`);
+        }
+      }
+      
+      // Update existing items
+      for (const itemToUpdate of itemChanges.updated) {
+        try {
+          const originalItem = items.find(item => item.item_id === itemToUpdate.itemId);
+          if (originalItem) {
+            await dispatch(updateChecklistItem({
+              ...originalItem,
+              ...itemToUpdate.updates
+            })).unwrap();
+          }
+        } catch (error) {
+          console.error('Failed to update item:', itemToUpdate.itemId, error);
+          throw new Error('Failed to update item');
+        }
+      }
+      
+      // Move items between groups
+      for (const itemToMove of itemChanges.moved) {
+        try {
+          let targetGroupId = itemToMove.toGroupId;
+          if (createdGroupMapping.has(itemToMove.tempGroupId)) {
+            targetGroupId = createdGroupMapping.get(itemToMove.tempGroupId);
+          }
+          
+          await dispatch(moveTaskToGroup({
+            taskId: itemToMove.itemId,
+            groupId: targetGroupId || undefined,
+            checklistId: id
+          })).unwrap();
+        } catch (error) {
+          console.error('Failed to move item:', itemToMove.itemId, error);
+          throw new Error('Failed to move item');
+        }
+      }
+      
+      // Collect all deleted items - both explicitly deleted and orphaned
+      const allDeletedItems = new Set([...deletedItemIds]);
+      
+      // Add items that were found in original but not in edited groups (orphaned items)
+      originalItems.forEach((originalItem, itemId) => {
+        if (!processedItemIds.has(itemId)) {
+          allDeletedItems.add(itemId);
+        }
+      });
+      
+      // Delete items (both explicitly deleted and orphaned)
+      for (const itemIdToDelete of allDeletedItems) {
+        try {
+          await dispatch(deleteChecklistItem(itemIdToDelete)).unwrap();
+        } catch (error) {
+          console.error('Failed to delete item:', itemIdToDelete, error);
+          // Continue with other deletions even if one fails
+        }
+      }
+      
+      // Delete groups (this will also handle moving their items to ungrouped)
+      for (const groupIdToDelete of groupChanges.deleted) {
+        try {
+          await dispatch(deleteTaskGroup(groupIdToDelete)).unwrap();
+        } catch (error) {
+          console.error('Failed to delete group:', groupIdToDelete, error);
+          // Don't throw here as it's not critical if delete fails
+        }
+      }
+      
+      const changesSummary = [];
+      if (groupChanges.created.length > 0) changesSummary.push(`${groupChanges.created.length} groups created`);
+      if (groupChanges.updated.length > 0) changesSummary.push(`${groupChanges.updated.length} groups updated`);
+      if (groupChanges.deleted.length > 0) changesSummary.push(`${groupChanges.deleted.length} groups deleted`);
+      if (itemChanges.created.length > 0) changesSummary.push(`${itemChanges.created.length} items created`);
+      if (itemChanges.updated.length > 0) changesSummary.push(`${itemChanges.updated.length} items updated`);
+      if (itemChanges.moved.length > 0) changesSummary.push(`${itemChanges.moved.length} items moved`);
+      if (allDeletedItems.size > 0) changesSummary.push(`${allDeletedItems.size} items deleted`);
+      
+      if (changesSummary.length > 0) {
+        showToastMessage(`Changes saved: ${changesSummary.join(', ')}`, 'success');
+      } else {
+        showToastMessage('No changes to save', 'success');
+      }
+      
+    } catch (error) {
+      console.error('Error saving edit mode changes:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save changes. Please try again.';
+      showToastMessage(errorMessage, 'error');
+      throw error;
+    } finally {
+      setSaveInProgress(false);
+    }
+  };
+
+  // Helper function to calculate text similarity
+  const calculateTextSimilarity = (text1: string, text2: string): number => {
+    if (text1 === text2) return 1;
+    if (text1.length === 0 || text2.length === 0) return 0;
+    
+    // Simple similarity based on common substrings
+    const longer = text1.length > text2.length ? text1 : text2;
+    const shorter = text1.length > text2.length ? text2 : text1;
+    
+    if (longer.length === 0) return 1;
+    
+    // Calculate edit distance (simplified)
+    let matches = 0;
+    const minLength = Math.min(text1.length, text2.length);
+    
+    for (let i = 0; i < minLength; i++) {
+      if (text1[i].toLowerCase() === text2[i].toLowerCase()) {
+        matches++;
+      }
+    }
+    
+    return matches / longer.length;
   };
 
   const toggleEditingTag = (tagName: string) => {
@@ -636,6 +1073,248 @@ export default function ChecklistDetailsScreen() {
     }
   };
 
+  // Initialize editable groups from current grouped tasks
+  const initializeEditableGroups = () => {
+    if (!id) return;
+    
+    const currentGroupedTasks = groupedTasks[id] || [];
+    const editableGroups: typeof editingGroupedItems = [];
+    const itemMapping = new Map<string, string>(); // text -> itemId mapping
+    
+    // Clear deleted items when starting edit mode
+    setDeletedItemIds([]);
+    
+    currentGroupedTasks.forEach(groupData => {
+      const { group, tasks } = groupData;
+      
+      // Build item mapping for all tasks in this group
+      tasks.forEach(task => {
+        itemMapping.set(task.text, task.item_id);
+      });
+      
+      if (group) {
+        // Existing group
+        editableGroups.push({
+          id: group.group_id,
+          name: group.name,
+          colorCode: group.color_code || '#6B7280',
+          items: [...tasks.map(task => task.text), ''], // Add empty item at end
+          itemStates: [...tasks.map(task => task.is_completed), false], // Add state for empty item
+          itemIds: [...tasks.map(task => task.item_id), ''], // Track original IDs
+          isNewGroup: false
+        });
+      } else {
+        // Ungrouped items
+        if (tasks.length > 0) {
+          editableGroups.push({
+            id: 'ungrouped',
+            name: 'Ungrouped',
+            colorCode: '#6B7280',
+            items: [...tasks.map(task => task.text), ''], // Add empty item at end
+            itemStates: [...tasks.map(task => task.is_completed), false], // Add state for empty item
+            itemIds: [...tasks.map(task => task.item_id), ''], // Track original IDs
+            isNewGroup: false
+          });
+        }
+      }
+    });
+    
+    // If no groups exist but there are items, create an ungrouped section
+    if (editableGroups.length === 0 && items.length > 0) {
+      // Build mapping for ungrouped items
+      items.forEach(item => {
+        itemMapping.set(item.text, item.item_id);
+      });
+      
+      editableGroups.push({
+        id: 'ungrouped',
+        name: 'Ungrouped',
+        colorCode: '#6B7280',
+        items: [...items.map(item => item.text), ''], // Add empty item at end
+        itemStates: [...items.map(item => item.is_completed), false], // Add state for empty item
+        itemIds: [...items.map(item => item.item_id), ''], // Track original IDs
+        isNewGroup: false
+      });
+    }
+    
+    setEditingGroupedItems(editableGroups);
+    setOriginalItemMapping(itemMapping);
+  };
+
+  // Group editing functions (similar to new checklist)
+  const addTaskGroup = () => {
+    const trimmedName = newGroupName.trim();
+    if (!trimmedName) return;
+    
+    if (trimmedName.length > MAX_GROUP_NAME_LENGTH) {
+      showToastMessage(`Group name must be ${MAX_GROUP_NAME_LENGTH} characters or less`, 'error');
+      return;
+    }
+    
+    const colors = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899'];
+    const colorIndex = editingGroupedItems.length % colors.length;
+    
+    const newGroup = {
+      id: `new-group-${Date.now()}`,
+      name: trimmedName,
+      colorCode: colors[colorIndex],
+      items: [''],
+      itemStates: [false],
+      itemIds: [''], // New group starts with empty item ID
+      isNewGroup: true,
+    };
+    
+    setEditingGroupedItems([...editingGroupedItems, newGroup]);
+    setNewGroupName('');
+    setIsAddingGroup(false);
+  };
+
+  const removeTaskGroup = (groupIndex: number) => {
+    if (editingGroupedItems.length <= 1) return; // Keep at least one group
+    
+    setGroupToDelete(groupIndex);
+    setShowDeleteGroupConfirmation(true);
+  };
+
+  const confirmDeleteGroup = () => {
+    if (groupToDelete === null) return;
+    
+    const updatedGroups = editingGroupedItems.filter((_, i) => i !== groupToDelete);
+    setEditingGroupedItems(updatedGroups);
+    
+    setShowDeleteGroupConfirmation(false);
+    setGroupToDelete(null);
+  };
+
+  const cancelDeleteGroup = () => {
+    setShowDeleteGroupConfirmation(false);
+    setGroupToDelete(null);
+  };
+
+  const startEditingGroup = (groupIndex: number) => {
+    setEditingGroupIndex(groupIndex);
+    setEditingGroupName(editingGroupedItems[groupIndex].name);
+  };
+
+  const confirmGroupEdit = () => {
+    const trimmedName = editingGroupName.trim();
+    if (editingGroupIndex === null || !trimmedName) return;
+    
+    if (trimmedName.length > MAX_GROUP_NAME_LENGTH) {
+      showToastMessage(`Group name must be ${MAX_GROUP_NAME_LENGTH} characters or less`, 'error');
+      return;
+    }
+    
+    const updatedGroups = [...editingGroupedItems];
+    updatedGroups[editingGroupIndex].name = trimmedName;
+    setEditingGroupedItems(updatedGroups);
+    
+    setEditingGroupIndex(null);
+    setEditingGroupName('');
+  };
+
+  const cancelGroupEdit = () => {
+    setEditingGroupIndex(null);
+    setEditingGroupName('');
+  };
+
+  const updateGroupItem = (groupIndex: number, itemIndex: number, value: string) => {
+    const updatedGroups = [...editingGroupedItems];
+    updatedGroups[groupIndex].items[itemIndex] = value;
+    
+    // If user is typing in the last item and it's not empty, add a new empty item
+    const isLastItem = itemIndex === updatedGroups[groupIndex].items.length - 1;
+    
+    if (isLastItem && value.trim() !== '') {
+      // Check if there's already an empty item at the end (after this one)
+      const hasEmptyAtEnd = updatedGroups[groupIndex].items.length > itemIndex + 1 && 
+                           updatedGroups[groupIndex].items[updatedGroups[groupIndex].items.length - 1] === '';
+      
+      if (!hasEmptyAtEnd) {
+        updatedGroups[groupIndex].items.push('');
+        updatedGroups[groupIndex].itemStates.push(false);
+        if (updatedGroups[groupIndex].itemIds) {
+          updatedGroups[groupIndex].itemIds!.push(''); // New item, no ID yet
+        }
+      }
+    }
+    
+    setEditingGroupedItems(updatedGroups);
+  };
+
+  const toggleGroupItemState = (groupIndex: number, itemIndex: number) => {
+    const updatedGroups = [...editingGroupedItems];
+    updatedGroups[groupIndex].itemStates[itemIndex] = !updatedGroups[groupIndex].itemStates[itemIndex];
+    setEditingGroupedItems(updatedGroups);
+  };
+
+  const removeItemFromGroup = (groupIndex: number, itemIndex: number) => {
+    const updatedGroups = [...editingGroupedItems];
+    const group = updatedGroups[groupIndex];
+    
+    // Don't remove if this would leave no items (keep at least one empty item)
+    if (group.items.length <= 1) {
+      return;
+    }
+    
+    // Track the removed item for deletion if it's not empty
+    const removedItem = group.items[itemIndex];
+    const removedItemId = group.itemIds ? group.itemIds[itemIndex] : null;
+    
+    if (removedItem && removedItem.trim() !== '') {
+      let itemIdToDelete = null;
+      
+      // First try to use the stored item ID
+      if (removedItemId && removedItemId !== '') {
+        itemIdToDelete = removedItemId;
+      } else {
+        // Fallback to original mapping
+        const mappedItemId = originalItemMapping.get(removedItem);
+        if (mappedItemId) {
+          itemIdToDelete = mappedItemId;
+        } else {
+          // Last resort: search through original grouped tasks
+          const currentGroupedTasks = groupedTasks[id || ''] || [];
+          for (const groupData of currentGroupedTasks) {
+            const matchingTask = groupData.tasks.find(task => {
+              if (task.text === removedItem) return true;
+              const similarity = calculateTextSimilarity(task.text, removedItem);
+              return similarity > 0.7;
+            });
+            
+            if (matchingTask) {
+              itemIdToDelete = matchingTask.item_id;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Add to deletion list if we found an ID
+      if (itemIdToDelete && !deletedItemIds.includes(itemIdToDelete)) {
+        setDeletedItemIds(prev => [...prev, itemIdToDelete]);
+      }
+    }
+    
+    // Remove the item from the editing group
+    group.items.splice(itemIndex, 1);
+    group.itemStates.splice(itemIndex, 1);
+    if (group.itemIds) {
+      group.itemIds.splice(itemIndex, 1);
+    }
+    
+    // Ensure there's always an empty item at the end if the group is now empty or doesn't end with empty
+    if (group.items.length === 0 || group.items[group.items.length - 1].trim() !== '') {
+      group.items.push('');
+      group.itemStates.push(false);
+      if (group.itemIds) {
+        group.itemIds.push('');
+      }
+    }
+    
+    setEditingGroupedItems(updatedGroups);
+  };
+
   // Handle back navigation during editing
   useEffect(() => {
     // This effect is just for cleanup, no auto-save functionality
@@ -719,24 +1398,56 @@ export default function ChecklistDetailsScreen() {
           <ArrowLeft size={24} color="#111827" />
         </TouchableOpacity>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            onPress={handleShareAction}
-            style={styles.actionButton}
-          >
-            <Share2 size={20} color="#6B7280" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={handleDuplicateAction}
-            style={styles.actionButton}
-          >
-            <Copy size={20} color="#6B7280" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={handleDeleteAction}
-            style={[styles.actionButton, styles.deleteActionButton]}
-          >
-            <Trash2 size={20} color="#DC2626" />
-          </TouchableOpacity>
+          {editingHeader ? (
+            <>
+              <TouchableOpacity 
+                onPress={handleSaveHeader}
+                style={[styles.actionButton, styles.saveActionButton]}
+                disabled={savingHeader || saveInProgress}
+              >
+                {(savingHeader || saveInProgress) ? (
+                  <LoadingSpinner size="small" />
+                ) : (
+                  <Save size={18} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                onPress={handleCancelEditHeader}
+                style={[styles.actionButton, styles.cancelHeaderActionButton]}
+                disabled={savingHeader || saveInProgress}
+              >
+                <X size={18} color="#6B7280" />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity 
+                onPress={handleEditHeader}
+                style={styles.actionButton}
+              >
+                <Edit3 size={18} color="#6B7280" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleShareAction}
+                style={styles.actionButton}
+              >
+                <Share2 size={20} color="#6B7280" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleDuplicateAction}
+                style={styles.actionButton}
+              >
+                <Copy size={20} color="#6B7280" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleDeleteAction}
+                style={[styles.actionButton, styles.deleteActionButton]}
+              >
+                <Trash2 size={20} color="#DC2626" />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
 
@@ -792,38 +1503,6 @@ export default function ChecklistDetailsScreen() {
             ) : (
               <Text style={styles.title}>{checklist.name}</Text>
             )}
-            
-            <View style={styles.headerActionButtons}>
-              {editingHeader ? (
-                <>
-                  <TouchableOpacity 
-                    onPress={handleSaveHeader}
-                    style={[styles.headerActionButton, styles.headerSaveButton]}
-                    disabled={savingHeader}
-                  >
-                    {savingHeader ? (
-                      <LoadingSpinner size="small" />
-                    ) : (
-                      <Save size={18} color="#FFFFFF" />
-                    )}
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    onPress={handleCancelEditHeader}
-                    style={[styles.headerActionButton, styles.cancelActionButton]}
-                  >
-                    <X size={18} color="#6B7280" />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity 
-                  onPress={handleEditHeader}
-                  style={[styles.headerActionButton, styles.editActionButton]}
-                >
-                  <Edit3 size={18} color="#6B7280" />
-                </TouchableOpacity>
-              )}
-            </View>
           </View>
           
           {checklist.description && (
@@ -937,14 +1616,184 @@ export default function ChecklistDetailsScreen() {
 
         {/* Items List */}
         <View style={styles.itemsContainer}>
-          {items.length === 0 && !isAddingItem ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No tasks yet</Text>
-              <Text style={styles.emptySubtext}>
-                Tap the + button to add your first task
-              </Text>
-            </View>
+          {editingHeader ? (
+            /* Edit Mode - Show editable groups similar to new checklist */
+            <>
+              {/* Groups with Items */}
+              {editingGroupedItems.map((group, groupIndex) => (
+                <View 
+                  key={group.id} 
+                  style={[
+                    styles.section,
+                    styles.groupContainer,
+                    { borderLeftColor: group.colorCode }
+                  ]}
+                >
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.groupTitleContainer}>
+                      {editingGroupIndex === groupIndex ? (
+                        <>
+                          <View style={styles.editGroupContainer}>
+                            <View style={styles.editInputRow}>
+                              <TextInput
+                                style={styles.editGroupInput}
+                                value={editingGroupName}
+                                onChangeText={(text) => {
+                                  if (text.length <= MAX_GROUP_NAME_LENGTH) {
+                                    setEditingGroupName(text);
+                                  }
+                                }}
+                                placeholderTextColor="#C7C7CC"
+                                returnKeyType="done"
+                                onSubmitEditing={confirmGroupEdit}
+                                autoFocus
+                                maxLength={MAX_GROUP_NAME_LENGTH}
+                              />
+                              <View style={styles.editButtonsContainer}>
+                                <TouchableOpacity
+                                  style={styles.confirmButton}
+                                  onPress={confirmGroupEdit}
+                                >
+                                  <Check size={16} color="#22C55E" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.cancelGroupButton}
+                                  onPress={cancelGroupEdit}
+                                >
+                                  <X size={16} color="#FF3B30" />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          </View>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.groupName}>{group.name}</Text>
+                          <View style={styles.groupActionsContainer}>
+                            <TouchableOpacity
+                              style={styles.editGroupButton}
+                              onPress={() => startEditingGroup(groupIndex)}
+                            >
+                              <Edit3 size={16} color="#007AFF" />
+                            </TouchableOpacity>
+                            {editingGroupedItems.length > 1 && (
+                              <TouchableOpacity
+                                style={styles.deleteGroupButton}
+                                onPress={() => removeTaskGroup(groupIndex)}
+                              >
+                                <Trash2 size={16} color="#FF3B30" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                  
+                  <View style={styles.itemsList}>
+                    {group.items.map((item, itemIndex) => (
+                      <View key={`${group.id}-item-${itemIndex}`} style={styles.itemRow}>
+                        <TouchableOpacity 
+                          style={styles.checkboxContainer}
+                          onPress={() => toggleGroupItemState(groupIndex, itemIndex)}
+                          activeOpacity={0.7}
+                        >
+                          {group.itemStates[itemIndex] ? (
+                            <SquareCheck size={20} color={group.colorCode} />
+                          ) : (
+                            <Circle size={20} color="#C7C7CC" />
+                          )}
+                        </TouchableOpacity>
+                        <TextInput
+                          style={[
+                            styles.itemInput,
+                            group.itemStates[itemIndex] && styles.itemInputCompleted
+                          ]}
+                          placeholder={itemIndex === 0 && groupIndex === 0 ? "Add your first item..." : "Add item..."}
+                          value={item}
+                          onChangeText={(value) => updateGroupItem(groupIndex, itemIndex, value)}
+                          placeholderTextColor="#C7C7CC"
+                          returnKeyType="next"
+                          multiline={true}
+                          textAlignVertical="top"
+                          scrollEnabled={false}
+                        />
+                        {group.items.length > 1 && item.trim() !== '' && (
+                          <TouchableOpacity
+                            style={styles.removeButton}
+                            onPress={() => removeItemFromGroup(groupIndex, itemIndex)}
+                          >
+                            <X size={16} color="#FF3B30" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ))}
+              
+              {/* Add New Group Button */}
+              {!isAddingGroup ? (
+                <TouchableOpacity 
+                  style={styles.addGroupSection}
+                  onPress={() => setIsAddingGroup(true)}
+                >
+                  <Plus size={20} color="#007AFF" />
+                  <Text style={styles.addGroupSectionText}>Add Group</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.newGroupSection, { borderLeftColor: '#6B7280' }]}>
+                  <View style={styles.newGroupHeader}>
+                    <View style={styles.newGroupInputContainer}>
+                      <View style={styles.newInputRow}>
+                        <TextInput
+                          style={styles.newGroupInput}
+                          placeholder="Group name..."
+                          value={newGroupName}
+                          onChangeText={(text) => {
+                            if (text.length <= MAX_GROUP_NAME_LENGTH) {
+                              setNewGroupName(text);
+                            }
+                          }}
+                          placeholderTextColor="#C7C7CC"
+                          returnKeyType="done"
+                          onSubmitEditing={addTaskGroup}
+                          autoFocus
+                          maxLength={MAX_GROUP_NAME_LENGTH}
+                        />
+                        <View style={styles.editButtonsContainer}>
+                          <TouchableOpacity
+                            style={styles.confirmButton}
+                            onPress={addTaskGroup}
+                          >
+                            <Check size={16} color="#22C55E" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.cancelGroupButton}
+                            onPress={() => {
+                              setIsAddingGroup(false);
+                              setNewGroupName('');
+                            }}
+                          >
+                            <X size={16} color="#FF3B30" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </>
           ) : (
+            /* View Mode - Show read-only grouped items */
+            items.length === 0 && !isAddingItem ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No tasks yet</Text>
+                <Text style={styles.emptySubtext}>
+                  Tap the + button to add your first task
+                </Text>
+              </View>
+            ) : (
             <>
               {checklist && groupedTasks[checklist.checklist_id] && groupedTasks[checklist.checklist_id].length > 0 ? (
                 // Show actual groups as saved - each group displayed separately
@@ -1171,6 +2020,7 @@ export default function ChecklistDetailsScreen() {
                 </View>
               )}
             </>
+            )
           )}
         </View>
       </ScrollView>
@@ -1342,6 +2192,17 @@ export default function ChecklistDetailsScreen() {
         onCancel={() => setShowDuplicateModal(false)}
       />
       
+      <ConfirmationModal
+        visible={showDeleteGroupConfirmation}
+        title="Delete Group"
+        message={`Are you sure you want to delete the "${groupToDelete !== null ? editingGroupedItems[groupToDelete]?.name : ''}" group? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        onConfirm={confirmDeleteGroup}
+        onCancel={cancelDeleteGroup}
+      />
+      
       {/* Custom Unsaved Changes Modal */}
       <Modal
         visible={showUnsavedChangesModal}
@@ -1417,6 +2278,14 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 8,
   },
+  saveActionButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 6,
+  },
+  cancelHeaderActionButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
+  },
   activeActionButton: {
     backgroundColor: '#EFF6FF',
     borderRadius: 6,
@@ -1438,6 +2307,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
+    includeFontPadding: false, // Better text positioning on Android
   },
   titleInput: {
     fontSize: 24,
@@ -1673,35 +2543,9 @@ const styles = StyleSheet.create({
   datePicker: {
     backgroundColor: '#FFFFFF',
   },
-  // New header edit styles
+  // Title row style (simplified)
   titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 16,
-  },
-  headerActionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerActionButton: {
-    padding: 8,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 36,
-    minHeight: 36,
-  },
-  headerSaveButton: {
-    backgroundColor: '#2563EB',
-  },
-  cancelActionButton: {
-    backgroundColor: '#F3F4F6',
-  },
-  editActionButton: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   metadataRow: {
     flexDirection: 'row',
@@ -1873,7 +2717,7 @@ const styles = StyleSheet.create({
   },
   // Validation styles
   titleEditContainer: {
-    flex: 1,
+    width: '100%',
   },
   inputError: {
     borderColor: '#EF4444',
@@ -2113,5 +2957,119 @@ const styles = StyleSheet.create({
   webDateTriggerText: {
     fontSize: 16,
     color: '#000000',
+  },
+  // Edit mode styles (copied from new checklist screen) - only new styles not already existing
+  // Group editing styles
+  editGroupContainer: {
+    flex: 1,
+  },
+  editInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editGroupInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    textAlign: 'left',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    height: 44,
+  },
+  editButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  confirmButton: {
+    padding: 6,
+    backgroundColor: '#E8F5E8',
+    borderRadius: 4,
+  },
+  cancelGroupButton: {
+    padding: 6,
+    backgroundColor: '#FFE8E8',
+    borderRadius: 4,
+  },
+  groupActionsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  editGroupButton: {
+    padding: 6,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 4,
+  },
+  deleteGroupButton: {
+    padding: 6,
+    backgroundColor: '#FFE8E8',
+    borderRadius: 4,
+  },
+  // Add group styles
+  addGroupSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    marginBottom: 16,
+    gap: 8,
+    marginHorizontal: 16,
+  },
+  addGroupSectionText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  // New group section styles
+  newGroupSection: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderLeftWidth: 4,
+    borderLeftColor: '#6B7280',
+    marginBottom: 16,
+    marginHorizontal: 16,
+    padding: 12,
+  },
+  newGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  newGroupInputContainer: {
+    flex: 1,
+  },
+  newInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  newGroupInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    textAlign: 'left',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    height: 44,
+  },
+  removeButton: {
+    padding: 8,
+    marginLeft: 8,
   },
 });
