@@ -26,17 +26,7 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
         };
       }
 
-      if (this.isIOSSimulator()) {
-        console.warn('⚠️ Running on iOS Simulator - OAuth may work differently than on device');
-        console.warn('📱 For full testing, use a physical iOS device');
-      }
-
       const redirectUrl = this.getRedirectUrl();
-      
-      console.log('📱 iOS OAuth Configuration:');
-      console.log('🔄 Redirect URL:', redirectUrl);
-      console.log('📱 Device Type:', this.isIOSSimulator() ? 'iOS Simulator' : 'Physical Device');
-      console.log('🏠 Environment:', isLocalDevelopment() ? 'Development' : 'Production');
       
       // For iOS, we need to manually construct the OAuth URL and open it in WebBrowser
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -54,8 +44,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
       // Construct Google OAuth URL through Supabase
       const oauthUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}&access_type=offline&prompt=consent`;
       
-      console.log('🌐 Opening OAuth URL:', oauthUrl);
-      
       // Open the OAuth URL in system browser with app scheme redirect
       const result = await WebBrowser.openAuthSessionAsync(
         oauthUrl,
@@ -64,8 +52,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
           showInRecents: false,
         }
       );
-      
-      console.log('📱 WebBrowser result:', result);
       
       if (result.type === 'cancel') {
         return {
@@ -78,12 +64,8 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
       }
       
       if (result.type === 'success') {
-        console.log('✅ OAuth browser session completed successfully');
-        
         // Extract tokens from the result URL if available
         if (result.url) {
-          console.log('🔗 OAuth result URL:', result.url);
-          
           // Parse the URL to extract tokens from fragment
           let access_token: string | null = null;
           let refresh_token: string | null = null;
@@ -96,27 +78,15 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
               const fragmentParams = new URLSearchParams(url.hash.substring(1));
               access_token = fragmentParams.get('access_token');
               refresh_token = fragmentParams.get('refresh_token');
-              console.log('🔑 Extracted tokens from fragment:', {
-                hasAccessToken: !!access_token,
-                hasRefreshToken: !!refresh_token
-              });
             }
             
             // If not in fragment, check query params
             if (!access_token && url.search) {
               access_token = url.searchParams.get('access_token');
               refresh_token = url.searchParams.get('refresh_token');
-              console.log('🔑 Extracted tokens from query params:', {
-                hasAccessToken: !!access_token,
-                hasRefreshToken: !!refresh_token
-              });
             }
             
             if (access_token) {
-              console.log('🔑 Setting session with extracted tokens...');
-              console.log('🔑 Access token length:', access_token.length);
-              console.log('🔑 Refresh token length:', refresh_token?.length || 0);
-              
               // Set session directly with the tokens
               const { data, error } = await supabase.auth.setSession({
                 access_token,
@@ -135,9 +105,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
               }
               
               if (data.session && data.user) {
-                console.log('✅ Session established successfully from OAuth tokens');
-                console.log('👤 User authenticated:', data.user.email);
-                
                 return {
                   success: true,
                   user: {
@@ -152,7 +119,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
                   }
                 };
               } else {
-                console.error('❌ Session or user missing after setSession');
                 return {
                   success: false,
                   error: {
@@ -162,7 +128,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
                 };
               }
             } else {
-              console.error('❌ No access token found in OAuth result URL');
               return {
                 success: false,
                 error: {
@@ -182,7 +147,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
             };
           }
         } else {
-          console.error('❌ No URL in OAuth result');
           return {
             success: false,
             error: {
@@ -214,8 +178,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
 
   async handleCallback(params: Record<string, string>): Promise<OAuthResult> {
     try {
-      console.log('🔄 Handling iOS OAuth callback');
-      
       if (params.error) {
         return {
           success: false,
@@ -226,8 +188,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
         };
       }
 
-      // For iOS OAuth, the callback is typically handled automatically by the system
-      // This method is called for validation/completion
       return {
         success: true,
         user: null // Will be populated by Supabase session
@@ -245,7 +205,6 @@ export class iOSOAuthProvider extends BaseOAuthProvider {
   }
 
   async signOut(): Promise<void> {
-    console.log('🚪 iOS OAuth sign-out (handled by Supabase)');
     // iOS OAuth sign-out is typically handled by Supabase auth
     // No additional cleanup needed for iOS platform
   }

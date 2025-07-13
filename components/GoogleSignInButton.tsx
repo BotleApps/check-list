@@ -27,22 +27,15 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const dispatch = useDispatch();
 
   const handleGoogleSignIn = async () => {
-    console.log('🚀 Google sign-in initiated');
     setIsLoading(true);
     
     try {
-      // Use the centralized OAuth service
-      console.log(`📱 Using ${oauthService.getPlatform()} OAuth Provider`);
-      
       // Perform authentication
       const result = await oauthService.signInWithGoogle();
       
       if (result.success) {
-        console.log('✅ OAuth authentication initiated successfully');
-        
         // Check if we got user information directly (mobile with tokens in URL)
         if (result.user && result.tokens) {
-          console.log('🔑 User information received directly, updating state');
           dispatch(clearError());
           dispatch(setUser({
             user_id: result.user.id,
@@ -57,20 +50,16 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         
         // For all other cases (web redirect, mobile deep link), 
         // the authentication completion will be handled by callback handlers
-        const platform = oauthService.getPlatform();
-        console.log(`🌐 ${platform} OAuth redirect initiated - authentication will complete via callback`);
-        
         // Don't call onSuccess yet - wait for callback
         return;
       } else {
-        console.log('❌ OAuth authentication failed:', result.error);
         const errorMessage = typeof result.error === 'string' 
           ? result.error 
           : result.error?.message || 'Google authentication failed';
         onError?.(errorMessage);
       }
     } catch (error) {
-      console.error('❌ Error during Google sign-in:', error);
+      console.error('Error during Google sign-in:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
       onError?.(errorMsg);
     } finally {

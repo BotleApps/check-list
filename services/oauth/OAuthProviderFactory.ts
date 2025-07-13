@@ -17,16 +17,13 @@ export class OAuthProviderFactory {
 
   private static createProvider(): BaseOAuthProvider {
     if (isWeb()) {
-      console.log('🌐 Creating Web OAuth Provider');
       return new WebOAuthProvider();
     } else if (Platform.OS === 'ios') {
-      console.log('📱 Creating iOS OAuth Provider');
       return new iOSOAuthProvider();
     } else if (Platform.OS === 'android') {
-      console.log('🤖 Creating Android OAuth Provider');
       return new AndroidOAuthProvider();
     } else {
-      console.warn('⚠️ Unknown platform, defaulting to Web OAuth Provider');
+      console.warn('Unknown platform, defaulting to Web OAuth Provider');
       return new WebOAuthProvider();
     }
   }

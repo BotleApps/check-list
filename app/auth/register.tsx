@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'expo-router';
@@ -98,7 +99,12 @@ export default function RegisterScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logo}>✅</Text>
+              <Image
+              source={require('../../assets/images/icon.png')}
+              style={{ width: 56, height: 56, resizeMode: 'contain' }}
+              accessibilityLabel="Checklists Logo"
+              />
+                          
             </View>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Sign up to get started with Checklists</Text>

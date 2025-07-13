@@ -19,7 +19,6 @@ export default function AuthCallbackScreen() {
 
   const handleAuthCallback = async () => {
     try {
-      console.log('🔄 Auth callback received with params:', params);
       dispatch(clearError());
       
       // Extract all parameters for processing
@@ -34,18 +33,15 @@ export default function AuthCallbackScreen() {
 
       // For web, also check hash fragments
       if (typeof window !== 'undefined' && window.location.hash) {
-        console.log('🔗 Hash fragments detected:', window.location.hash);
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         hashParams.forEach((value, key) => {
           allParams[key] = value;
         });
       }
 
-      console.log('📋 All callback parameters:', allParams);
-
       // Check for OAuth errors first
       if (allParams.error) {
-        console.error('❌ OAuth error in callback:', allParams.error);
+        console.error('OAuth error in callback:', allParams.error);
         setStatusMessage(`Authentication failed: ${allParams.error_description || allParams.error}`);
         setTimeout(() => router.replace('/auth/login'), 3000);
         return;
@@ -56,7 +52,7 @@ export default function AuthCallbackScreen() {
       const result = await oauthService.handleCallback(allParams);
 
       if (!result.success) {
-        console.error('❌ OAuth callback validation failed:', result.error);
+        console.error('OAuth callback validation failed:', result.error);
         setStatusMessage(`Authentication validation failed: ${result.error?.message}`);
         setTimeout(() => router.replace('/auth/login'), 3000);
         return;
@@ -67,13 +63,12 @@ export default function AuthCallbackScreen() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
-        console.error('❌ Failed to retrieve session:', sessionError);
+        console.error('Failed to retrieve session:', sessionError);
         setStatusMessage('Failed to establish session');
         setTimeout(() => router.replace('/auth/login'), 3000);
         return;
       }
 
-      console.log('✅ Session established successfully');
       setStatusMessage('Authentication successful! Redirecting...');
       
       // Update Redux store with user data
@@ -91,7 +86,7 @@ export default function AuthCallbackScreen() {
       }, 1000);
 
     } catch (error) {
-      console.error('❌ Auth callback error:', error);
+      console.error('Auth callback error:', error);
       setStatusMessage('Authentication failed due to an unexpected error');
       setTimeout(() => router.replace('/auth/login'), 3000);
     } finally {

@@ -18,12 +18,10 @@ export abstract class BaseOAuthProvider implements OAuthProvider {
 
   // Default implementations for common methods
   async signOut(): Promise<void> {
-    console.log(`🚪 Signing out from ${this.platform} OAuth provider`);
     // Base implementation - can be overridden by platform-specific providers
   }
 
   async handleCallback(params: Record<string, string>): Promise<OAuthResult> {
-    console.log(`🔄 Handling callback for ${this.platform} platform`);
     // Default implementation - should be overridden for platforms that need it
     return {
       success: false,

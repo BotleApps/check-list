@@ -22,11 +22,6 @@ export class WebOAuthProvider extends BaseOAuthProvider {
 
       const redirectUrl = this.getRedirectUrl();
       
-      console.log('🌐 Web OAuth Configuration:');
-      console.log('📍 Base URL:', getBaseUrl());
-      console.log('🔄 Redirect URL:', redirectUrl);
-      console.log('🏠 Environment:', isLocalDevelopment() ? 'Local Development' : 'Production');
-      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -39,7 +34,7 @@ export class WebOAuthProvider extends BaseOAuthProvider {
       });
 
       if (error) {
-        console.error('❌ Supabase Google OAuth error:', error);
+        console.error('Supabase Google OAuth error:', error);
         return {
           success: false,
           error: {
@@ -49,10 +44,9 @@ export class WebOAuthProvider extends BaseOAuthProvider {
         };
       }
 
-      console.log('✅ Google OAuth initiated successfully');
       return { success: true };
     } catch (error) {
-      console.error('❌ Web OAuth error:', error);
+      console.error('Web OAuth error:', error);
       return {
         success: false,
         error: {
@@ -65,8 +59,6 @@ export class WebOAuthProvider extends BaseOAuthProvider {
 
   async handleCallback(params: Record<string, string>): Promise<OAuthResult> {
     try {
-      console.log('🔄 Handling web OAuth callback');
-      
       if (params.error) {
         return {
           success: false,
@@ -84,7 +76,7 @@ export class WebOAuthProvider extends BaseOAuthProvider {
         user: null // Will be populated by Supabase session
       };
     } catch (error) {
-      console.error('❌ Web OAuth callback error:', error);
+      console.error('Web OAuth callback error:', error);
       return {
         success: false,
         error: {
@@ -96,7 +88,6 @@ export class WebOAuthProvider extends BaseOAuthProvider {
   }
 
   async signOut(): Promise<void> {
-    console.log('🚪 Web OAuth sign-out (handled by Supabase)');
     // Web OAuth sign-out is typically handled by Supabase auth
     // No additional cleanup needed for web platform
   }
