@@ -29,7 +29,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const dispatch = useDispatch();
 
   // Create Google auth request using the service
-  const [request, response, promptAsync] = googleAuthService.createGoogleAuthRequest();
+  const [request, response, promptAsync] = googleAuthService.createGoogleAuthRequest() || [null, null, null];
 
   // Handle the authentication response
   React.useEffect(() => {
@@ -79,6 +79,14 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const handleGoogleSignIn = async () => {
     console.log('Google sign-in initiated');
     
+    // Debug OAuth configuration
+    googleAuthService.debugOAuthConfig();
+    
+    // Additional iOS debugging
+    if (Platform.OS === 'ios') {
+      googleAuthService.debugiOSConfig();
+    }
+    
     if (!googleAuthService.isConfigured()) {
       const errorMsg = 'Google OAuth is not properly configured';
       console.log('Google OAuth not configured');
@@ -110,7 +118,11 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       } else {
         console.log('Using expo-auth-session for mobile');
         // For mobile, use expo-auth-session
-        await promptAsync();
+        if (promptAsync) {
+          await promptAsync();
+        } else {
+          throw new Error('Google Auth not properly configured for this platform');
+        }
       }
     } catch (error) {
       console.error('Error initiating Google sign-in:', error);

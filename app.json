@@ -5,14 +5,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "in.botle.checklistapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "in.botle.checklistapp",
       "urlSchemes": [
-        "myapp",
+        "in.botle.checklistapp",
         "com.googleusercontent.apps.13192300053-fvf13qac2j650m93crtlpl4o61pu3gvd"
       ]
     },

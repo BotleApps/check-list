@@ -18,6 +18,53 @@ export default function AuthCallbackScreen() {
   const handleAuthCallback = async () => {
     try {
       console.log('Auth callback received with params:', params);
+      console.log('Full URL:', typeof window !== 'undefined' ? window.location.href : 'Not available');
+
+      // For web, check if we have hash fragments (access_token, etc.)
+      if (typeof window !== 'undefined' && window.location.hash) {
+        console.log('Hash fragments detected:', window.location.hash);
+        
+        // Parse hash parameters
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const expiresAt = hashParams.get('expires_at');
+        
+        console.log('Hash tokens:', { 
+          hasAccessToken: !!accessToken, 
+          hasRefreshToken: !!refreshToken,
+          expiresAt 
+        });
+
+        if (accessToken) {
+          console.log('Access token found in hash, setting Supabase session...');
+          
+          try {
+            // Set the session using the tokens from the hash
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+
+            if (error) {
+              console.error('Error setting session from hash:', error);
+              router.replace('/auth/login?error=session_error');
+              return;
+            }
+
+            console.log('Session set successfully from hash tokens');
+            dispatch(clearError());
+            
+            // Navigate to main app - the auth state listener will handle the rest
+            router.replace('/(tabs)');
+            return;
+          } catch (error) {
+            console.error('Error processing hash tokens:', error);
+            router.replace('/auth/login?error=token_error');
+            return;
+          }
+        }
+      }
 
       // Wait a moment for Supabase to process the OAuth response
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -41,6 +88,7 @@ export default function AuthCallbackScreen() {
         // Let the auth state listener handle everything
         // Just clear any previous errors
         dispatch(clearError());
+        router.replace('/(tabs)');
       } else {
         console.log('No session found after OAuth');
         // Sometimes the session takes a moment to be available, try once more
@@ -49,6 +97,7 @@ export default function AuthCallbackScreen() {
           if (retrySession?.user) {
             console.log('Session found on retry - auth state listener will handle it');
             dispatch(clearError());
+            router.replace('/(tabs)');
           } else {
             console.log('Still no session after retry, redirecting to login');
             router.replace('/auth/login?error=auth_failed');

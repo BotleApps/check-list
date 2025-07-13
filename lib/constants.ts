@@ -22,7 +22,7 @@ export const DEBUG_CONFIG = {
 // App configuration
 export const APP_CONFIG = {
   scheme: Constants.expoConfig?.scheme || 'myapp',
-  name: Constants.expoConfig?.name || 'CheckList App',
+  name: Constants.expoConfig?.name || 'Checklists App',
   version: Constants.expoConfig?.version || '1.0.0',
 };
 

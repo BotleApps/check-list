@@ -101,7 +101,7 @@ export default function RegisterScreen() {
               <Text style={styles.logo}>✅</Text>
             </View>
             <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Sign up to get started with CheckList</Text>
+            <Text style={styles.subtitle}>Sign up to get started with Checklists</Text>
           </View>
 
           {/* Form */}

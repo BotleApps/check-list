@@ -128,11 +128,11 @@ export default function LoginScreen() {
                 <Image
                 source={require('../../assets/images/icon.png')}
                 style={{ width: 56, height: 56, resizeMode: 'contain' }}
-                accessibilityLabel="CheckList Logo"
+                accessibilityLabel="Checklists Logo"
                 />
             </View>
             <Text style={styles.title}>Checklists</Text>
-            <Text style={styles.subtitle}>Sign in to continue to CheckList</Text>
+            <Text style={styles.subtitle}>Sign in to continue to Checklists</Text>
           </View>
 
           {/* Form */}
