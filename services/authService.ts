@@ -106,9 +106,74 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw new Error(error.message);
+    try {
+      console.log('🚪 Starting logout process...');
+      
+      // Check if there's an active session first
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.warn('⚠️ Session error during logout check:', sessionError);
+        // Don't throw error, just continue with logout
+      }
+      
+      if (!session) {
+        console.log('ℹ️ No active session found, logout already complete');
+        return; // Already logged out
+      }
+      
+      console.log('🔄 Signing out from Supabase...');
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        // For web, sometimes we get 403 errors on logout when session is already invalid
+        // This is not a critical error, so we'll log it but not throw
+        if (error.message.includes('session') || error.status === 403) {
+          console.warn('⚠️ Session-related logout warning (non-critical):', error.message);
+          console.log('🔄 Forcing local session cleanup...');
+          
+          // For web, manually clear the session if Supabase can't
+          if (typeof window !== 'undefined') {
+            try {
+              // Clear Supabase session from localStorage
+              const supabaseKey = `sb-${process.env.EXPO_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`;
+              localStorage.removeItem(supabaseKey);
+              
+              // Force refresh the auth state
+              await supabase.auth.refreshSession();
+            } catch (cleanupError) {
+              console.warn('⚠️ Local cleanup warning:', cleanupError);
+            }
+          }
+          
+          console.log('✅ Treating as successful logout despite session warning');
+          return; // Treat as successful logout
+        }
+        
+        console.error('❌ Logout error:', error);
+        throw new Error(error.message);
+      }
+      
+      console.log('✅ Logout completed successfully');
+    } catch (error) {
+      console.error('❌ Unexpected logout error:', error);
+      // For web platform, don't throw errors on logout issues - always succeed
+      if (typeof window !== 'undefined') {
+        console.warn('⚠️ Web logout error ignored, forcing local logout');
+        
+        // Force clear local storage on web
+        try {
+          const supabaseKey = `sb-${process.env.EXPO_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`;
+          localStorage.removeItem(supabaseKey);
+          console.log('🧹 Local storage cleared');
+        } catch (cleanupError) {
+          console.warn('⚠️ Local storage cleanup failed:', cleanupError);
+        }
+        
+        console.log('✅ Local logout completed');
+        return;
+      }
+      throw error;
     }
   }
 

@@ -13,7 +13,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { RootState, AppDispatch } from '../../store';
-import { logoutUser, updateUserProfile } from '../../store/slices/authSlice';
+import { logoutUser, updateUserProfile, clearAuth } from '../../store/slices/authSlice';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { InfoModal } from '../../components/InfoModal';
 import { Toast } from '../../components/Toast';
@@ -59,10 +59,28 @@ export default function ProfileScreen() {
   const confirmLogout = async () => {
     setShowLogoutModal(false);
     try {
+      console.log('🔄 Starting logout from profile...');
       await dispatch(logoutUser()).unwrap();
+      console.log('✅ Logout successful, navigation should happen automatically');
       // Don't manually navigate - let the auth state listener handle it
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error('❌ Logout failed:', error);
+      
+      // If logout fails, try manual cleanup for web
+      if (typeof window !== 'undefined') {
+        console.log('🔄 Attempting manual logout cleanup for web...');
+        try {
+          // Clear the Redux store manually
+          dispatch(clearAuth());
+          // Navigate manually since auth listener might not trigger
+          router.replace('/auth/login');
+          console.log('✅ Manual logout completed');
+          return;
+        } catch (manualError) {
+          console.error('❌ Manual logout also failed:', manualError);
+        }
+      }
+      
       showToastMessage('Logout failed. Please try again.', 'error');
     }
   };
