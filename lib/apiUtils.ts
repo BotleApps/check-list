@@ -39,20 +39,51 @@ export class ApiUtils {
    */
   static async checkInternetConnectivity(): Promise<boolean> {
     try {
-      // Test connectivity by making a simple fetch request
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      // For web, use a more reliable approach that doesn't trigger CORS
+      if (typeof window !== 'undefined') {
+        // Check if online property exists and is false
+        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+          return false;
+        }
+        
+        // Try to make a request to our own origin or a CORS-friendly endpoint
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      const response = await fetch('https://www.google.com/favicon.ico', {
-        method: 'HEAD',
-        signal: controller.signal,
-        cache: 'no-cache',
-      });
+        try {
+          // Try a lightweight request to a CORS-friendly endpoint
+          const response = await fetch('https://httpbin.org/status/200', {
+            method: 'HEAD',
+            signal: controller.signal,
+            cache: 'no-cache',
+          });
+          clearTimeout(timeoutId);
+          return response.ok;
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          // If httpbin fails, fall back to navigator.onLine
+          return typeof navigator.onLine !== 'undefined' ? navigator.onLine : true;
+        }
+      } else {
+        // For mobile, use the original approach (Google favicon works fine)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      clearTimeout(timeoutId);
-      return response.ok;
+        const response = await fetch('https://www.google.com/favicon.ico', {
+          method: 'HEAD',
+          signal: controller.signal,
+          cache: 'no-cache',
+        });
+
+        clearTimeout(timeoutId);
+        return response.ok;
+      }
     } catch (error) {
       console.warn('Error checking network connectivity:', error);
+      // On web, fall back to navigator.onLine, on mobile assume disconnected
+      if (typeof window !== 'undefined' && typeof navigator.onLine !== 'undefined') {
+        return navigator.onLine;
+      }
       return false;
     }
   }

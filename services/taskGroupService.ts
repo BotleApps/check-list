@@ -74,7 +74,7 @@ class TaskGroupService {
         }
 
         return data || [];
-      });
+      }, { requireNetwork: false }); // Skip external network check for database operations
 
       if (!response.success) {
         console.error('Error fetching task groups:', response.error);

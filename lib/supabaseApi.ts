@@ -10,7 +10,7 @@ export class SupabaseApiWrapper {
     timeout: 15000, // 15 seconds for Supabase operations
     retries: 2,
     retryDelay: 1000,
-    requireNetwork: true,
+    requireNetwork: false, // Skip external network check for database operations
   };
 
   /**
