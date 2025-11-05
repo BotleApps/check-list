@@ -1,0 +1,12 @@
+---
+applications:
+  - name: checklist-app
+    memory: 256M
+    disk_quota: 256M
+    timeout: 180
+    buildpack: staticfile_buildpack
+    path: dist
+    env:
+      FORCE_HTTPS: true
+    routes:
+      - route: checklist-app-${space}.cfapps.${domain}

@@ -1,0 +1,42 @@
+_schema-version: "3.3"
+ID: checklist-app
+version: 1.0.0
+description: "Checklist Task Manager - React Native Web PWA"
+parameters:
+  enable-parallel-deployments: true
+
+modules:
+  # App Router Module - serves static content directly
+  - name: checklist-app-approuter
+    type: approuter.nodejs
+    path: .
+    parameters:
+      disk-quota: 512M
+      memory: 512M
+      keep-existing-routes: true
+    build-parameters:
+      builder: custom
+      commands:
+        - chmod +x build-approuter.sh
+        - ./build-approuter.sh
+      build-result: approuter
+    requires:
+      - name: checklist-uaa
+      - name: checklist-app-destination
+
+resources:
+  - name: checklist-app-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+      config:
+        HTML5Runtime_enabled: false
+        version: 1.0.0
+
+  - name: checklist-uaa
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
