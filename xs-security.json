@@ -1,5 +1,5 @@
 {
-  "xsappname": "checklist-app",
+  "xsappname": "checklist-task-manager",
   "tenant-mode": "dedicated",
   "description": "Security profile for Checklist Task Manager",
   "scopes": [
@@ -31,15 +31,15 @@
   ],
   "role-collections": [
     {
-      "name": "Checklist_Viewer",
-      "description": "Checklist Viewer",
+      "name": "ChecklistTaskManager_Viewer",
+      "description": "Checklist Task Manager Viewer",
       "role-template-references": [
         "$XSAPPNAME.Viewer"
       ]
     },
     {
-      "name": "Checklist_Editor",
-      "description": "Checklist Editor",
+      "name": "ChecklistTaskManager_Editor",
+      "description": "Checklist Task Manager Editor",
       "role-template-references": [
         "$XSAPPNAME.Editor"
       ]

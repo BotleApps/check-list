@@ -1,12 +1,18 @@
 {
   "welcomeFile": "/index.html",
-  "authenticationMethod": "route",
-  "sessionTimeout": 30,
+  "authenticationMethod": "none",
   "routes": [
+    {
+      "source": "^/api/(.*)$",
+      "target": "/api/$1",
+      "destination": "backend-api",
+      "authenticationType": "none",
+      "csrfProtection": false
+    },
     {
       "source": "^/(.*)$",
       "localDir": "resources",
-      "authenticationType": "xsuaa"
+      "authenticationType": "none"
     }
   ]
 }

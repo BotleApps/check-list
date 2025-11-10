@@ -6,10 +6,29 @@ parameters:
   enable-parallel-deployments: true
 
 modules:
-  # App Router Module - serves static content directly
+  # Backend API Service
+  - name: checklist-backend-srv
+    type: nodejs
+    path: backend
+    parameters:
+      disk-quota: 512M
+      memory: 512M
+      buildpack: nodejs_buildpack
+    properties:
+      GOOGLE_CLIENT_ID: "131923000053-9ue6jadnanc7pdscnv01sfqaqosgufs.apps.googleusercontent.com"
+    build-parameters:
+      builder: npm
+    provides:
+      - name: backend-api
+        properties:
+          url: ${default-url}
+    requires:
+      - name: checklist-postgres-db
+
+  # Frontend - App Router with destination
   - name: checklist-app-approuter
-    type: approuter.nodejs
-    path: .
+    type: nodejs
+    path: approuter
     parameters:
       disk-quota: 512M
       memory: 512M
@@ -17,26 +36,35 @@ modules:
     build-parameters:
       builder: custom
       commands:
-        - chmod +x build-approuter.sh
-        - ./build-approuter.sh
-      build-result: approuter
+        - bash -c "cd .. && npm install --legacy-peer-deps && npm run build:web && cd approuter && npm install && mkdir -p resources && rm -rf resources/* && cp -r ../dist/* resources/"
+      build-result: .
     requires:
-      - name: checklist-uaa
-      - name: checklist-app-destination
+      - name: checklist-backend-dest
 
 resources:
-  - name: checklist-app-destination
+  - name: checklist-postgres-db
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: postgresql-db
+      service-plan: development
+
+  - name: checklist-backend-dest
     type: org.cloudfoundry.managed-service
     parameters:
       service: destination
       service-plan: lite
       config:
-        HTML5Runtime_enabled: false
-        version: 1.0.0
-
-  - name: checklist-uaa
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: xsuaa
-      service-plan: application
-      path: ./xs-security.json
+        HTML5Runtime_enabled: true
+        init_data:
+          instance:
+            destinations:
+              - Name: backend-api
+                Description: Backend API Service
+                URL: ~{backend-api/url}
+                Type: HTTP
+                ProxyType: Internet
+                Authentication: NoAuthentication
+                HTML5.ForwardAuthToken: false
+            existing_destinations_policy: update
+    requires:
+      - name: backend-api
