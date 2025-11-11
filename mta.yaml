@@ -15,7 +15,7 @@ modules:
       memory: 512M
       buildpack: nodejs_buildpack
     properties:
-      GOOGLE_CLIENT_ID: "131923000053-9ue6jadnanc7pdscnv01sfqaqosgufs.apps.googleusercontent.com"
+      GOOGLE_CLIENT_ID: "13192300053-9ue6jadnanc7pdscnv01sfqaqosgufs.apps.googleusercontent.com"
     build-parameters:
       builder: npm
     provides:

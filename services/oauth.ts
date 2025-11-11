@@ -1,16 +1,12 @@
 import { auth } from '../lib/supabase';
 import { btpApi } from '../lib/btpApiClient';
+import { User } from '../types/database';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
 
 interface OAuthResult {
   success: boolean;
-  user?: {
-    id: string;
-    email: string;
-    name?: string;
-    avatar_url?: string;
-  };
+  user?: User;
   tokens?: {
     access_token: string;
     id_token: string;
@@ -19,8 +15,13 @@ interface OAuthResult {
 }
 
 class OAuthService {
+  private googleScriptPromise?: Promise<void>;
+  private tokenClient?: google.accounts.oauth2.TokenClient;
+  private pendingResolve?: (result: OAuthResult) => void;
+  private redirectMessageHandler?: (event: MessageEvent) => void;
+
   /**
-   * Sign in with Google OAuth (Web only for now)
+   * Sign in with Google OAuth (web)
    */
   async signInWithGoogle(): Promise<OAuthResult> {
     try {
@@ -31,13 +32,39 @@ class OAuthService {
         };
       }
 
-      // For web, use Google Sign-In with popup
-      if (typeof window !== 'undefined' && window.google) {
-        return await this.signInWithGoogleWeb();
+      if (typeof window === 'undefined') {
+        return {
+          success: false,
+          error: 'Google Sign-In is only available in the browser',
+        };
       }
 
-      // Load Google Sign-In library
-      return await this.loadGoogleSignIn();
+      await this.ensureTokenClient();
+
+      if (!this.tokenClient) {
+        return {
+          success: false,
+          error: 'Failed to load Google Sign-In client. Please refresh and try again.',
+        };
+      }
+
+      // Listen for redirect-based fallbacks (3rd-party cookies disabled, etc.)
+      this.registerRedirectListener();
+
+      // Trigger the Google prompt when the user clicks the button
+      return await new Promise<OAuthResult>((resolve) => {
+        this.pendingResolve = resolve;
+
+        try {
+          this.tokenClient!.requestAccessToken({ prompt: 'consent' });
+        } catch (error) {
+          console.error('Google prompt failed:', error);
+          this.finish({
+            success: false,
+            error: error instanceof Error ? error.message : 'Authentication failed',
+          });
+        }
+      });
     } catch (error) {
       console.error('Error in signInWithGoogle:', error);
       return {
@@ -48,147 +75,199 @@ class OAuthService {
   }
 
   /**
-   * Load Google Sign-In library dynamically
+   * Ensure the Google Identity Services script is loaded and initialized
    */
-  private async loadGoogleSignIn(): Promise<OAuthResult> {
-    return new Promise((resolve) => {
-      // Check if script already loaded
-      if (typeof window !== 'undefined' && window.google) {
-        this.signInWithGoogleWeb().then(resolve);
+  private async ensureTokenClient(): Promise<void> {
+    await this.loadGoogleScript();
+
+    if (this.tokenClient) {
+      return;
+    }
+
+    if (!window.google?.accounts?.oauth2) {
+      throw new Error('Google OAuth client unavailable');
+    }
+
+    this.tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID!,
+      scope: 'openid email profile',
+      prompt: '',
+      callback: this.handleTokenResponse,
+      error_callback: (error) => {
+        console.error('Google token error:', error);
+        this.finish({
+          success: false,
+          error: error?.message || 'Google Sign-In failed',
+        });
+      },
+    });
+  }
+
+  /**
+   * Load the Google Identity Services script dynamically (singleton)
+   */
+  private async loadGoogleScript(): Promise<void> {
+    if (this.googleScriptPromise) {
+      return this.googleScriptPromise;
+    }
+
+    this.googleScriptPromise = new Promise((resolve, reject) => {
+      if (typeof document === 'undefined') {
+        resolve();
         return;
       }
 
-      // Load Google Sign-In script
+      // Script already available
+      if (window.google?.accounts?.oauth2) {
+        resolve();
+        return;
+      }
+
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
       script.defer = true;
-      script.onload = () => {
-        this.signInWithGoogleWeb().then(resolve);
-      };
-      script.onerror = () => {
-        resolve({
-          success: false,
-          error: 'Failed to load Google Sign-In library',
-        });
-      };
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
       document.head.appendChild(script);
+    });
+
+    return this.googleScriptPromise.catch((error) => {
+      console.error('Failed to load Google script:', error);
+      // Reset promise so future attempts retry loading
+      this.googleScriptPromise = undefined;
+      throw error;
     });
   }
 
+  private readonly handleTokenResponse = async (tokenResponse: google.accounts.oauth2.TokenResponse) => {
+    const accessToken = tokenResponse?.access_token;
+
+    if (!accessToken) {
+      this.finish({
+        success: false,
+        error: 'Google Sign-In did not return an access token',
+      });
+      return;
+    }
+
+    try {
+      const result = await this.processAccessToken(accessToken);
+      this.finish(result);
+    } catch (error) {
+      console.error('Error handling Google token response:', error);
+      this.finish({
+        success: false,
+        error: error instanceof Error ? error.message : 'Authentication failed',
+      });
+    }
+  };
+
   /**
-   * Sign in with Google on web using popup
+   * Resolve the pending promise and reset state
    */
-  private async signInWithGoogleWeb(): Promise<OAuthResult> {
-    return new Promise((resolve) => {
+  private finish(result: OAuthResult) {
+    if (this.pendingResolve) {
+      this.pendingResolve(result);
+      this.pendingResolve = undefined;
+    }
+
+    if (this.redirectMessageHandler && typeof window !== 'undefined') {
+      window.removeEventListener('message', this.redirectMessageHandler);
+      this.redirectMessageHandler = undefined;
+    }
+  }
+
+  private registerRedirectListener() {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (this.redirectMessageHandler) {
+      window.removeEventListener('message', this.redirectMessageHandler);
+    }
+
+    this.redirectMessageHandler = async (event: MessageEvent) => {
       try {
-        if (!window.google) {
-          resolve({
+        if (event.origin !== window.location.origin) {
+          return;
+        }
+
+        const data = event.data as
+          | undefined
+          | {
+              type?: string;
+              accessToken?: string;
+              idToken?: string;
+              error?: string;
+              errorDescription?: string;
+            };
+
+        if (!data || data.type !== 'GOOGLE_OAUTH_TOKEN') {
+          return;
+        }
+
+        if (data.error) {
+          this.finish({
             success: false,
-            error: 'Google Sign-In library not loaded',
+            error: data.errorDescription || data.error,
           });
           return;
         }
 
-        // Initialize Google Sign-In
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID!,
-          callback: async (response: any) => {
-            try {
-              // response.credential is the JWT ID token
-              const idToken = response.credential;
-              
-              // Send to backend for validation
-              const result = await this.validateGoogleToken(idToken);
-              resolve(result);
-            } catch (error) {
-              console.error('Error handling Google callback:', error);
-              resolve({
-                success: false,
-                error: error instanceof Error ? error.message : 'Authentication failed',
-              });
-            }
-          },
-        });
+        if (!data.accessToken) {
+          this.finish({
+            success: false,
+            error: 'Google Sign-In did not return an access token',
+          });
+          return;
+        }
 
-        // Show the One Tap dialog or prompt
-        window.google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // Fallback to popup if One Tap is not available
-            console.log('One Tap not available, using popup');
-            this.showGooglePopup().then(resolve);
-          }
-        });
+        const result = await this.processAccessToken(data.accessToken);
+        this.finish(result);
       } catch (error) {
-        console.error('Error in signInWithGoogleWeb:', error);
-        resolve({
+        console.error('Error processing redirect message:', error);
+        this.finish({
           success: false,
           error: error instanceof Error ? error.message : 'Authentication failed',
         });
       }
-    });
+    };
+
+    window.addEventListener('message', this.redirectMessageHandler);
   }
 
-  /**
-   * Show Google Sign-In popup as fallback
-   */
-  private async showGooglePopup(): Promise<OAuthResult> {
-    return new Promise((resolve) => {
-      const client = window.google?.accounts.oauth2.initCodeClient({
-        client_id: GOOGLE_CLIENT_ID!,
-        scope: 'email profile openid',
-        ux_mode: 'popup',
-        callback: async (response: any) => {
-          try {
-            if (response.error) {
-              resolve({
-                success: false,
-                error: response.error,
-              });
-              return;
-            }
-
-            // Exchange code for tokens (handled by backend)
-            const result = await fetch('/api/auth/google-code', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: response.code }),
-            }).then(r => r.json());
-
-            if (result.error) {
-              resolve({ success: false, error: result.error });
-            } else {
-              resolve({
-                success: true,
-                user: result.user,
-                tokens: result.tokens,
-              });
-            }
-          } catch (error) {
-            resolve({
-              success: false,
-              error: error instanceof Error ? error.message : 'Authentication failed',
-            });
-          }
-        },
-      });
-
-      client.requestCode();
+  private async processAccessToken(accessToken: string): Promise<OAuthResult> {
+    // Fetch the user's profile from Google to enrich backend user data
+    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     });
+
+    if (!profileResponse.ok) {
+      throw new Error(`Failed to fetch Google profile: HTTP ${profileResponse.status}`);
+    }
+
+    const profile = await profileResponse.json();
+
+    if (!profile?.email) {
+      throw new Error('Google profile response missing email');
+    }
+
+    return this.validateGoogleToken(accessToken, profile);
   }
 
   /**
    * Validate Google ID token with backend
    */
-  private async validateGoogleToken(idToken: string): Promise<OAuthResult> {
+  private async validateGoogleToken(accessToken: string, profile?: Record<string, any>): Promise<OAuthResult> {
     try {
-      // Store token temporarily
-      await auth.setToken(idToken);
+      await auth.setToken(accessToken);
 
-      // Call backend to validate and create/update user
-      const response = await btpApi.request('/auth/google', {
+      const response = await btpApi.request<{ user: User }>('/auth/google', {
         method: 'POST',
-        body: JSON.stringify({ token: idToken }),
+        body: JSON.stringify({ token: accessToken }),
       });
 
       if (response.error) {
@@ -199,20 +278,29 @@ class OAuthService {
         };
       }
 
-      // Store user data
-      if (response.data && response.data.user) {
-        await auth.setUser(response.data.user);
-        
+      if (response.data?.user) {
+        const serverUser = response.data.user;
+        const mergedUser: User = {
+          ...serverUser,
+          name: serverUser.name ?? profile?.name,
+          avatar_url: serverUser.avatar_url ?? profile?.picture,
+          created_at: serverUser.created_at ?? new Date().toISOString(),
+          updated_at: serverUser.updated_at ?? undefined,
+        };
+
+        await auth.setUser(mergedUser);
+
         return {
           success: true,
-          user: response.data.user,
+          user: mergedUser,
           tokens: {
-            access_token: idToken,
-            id_token: idToken,
+            access_token: accessToken,
+            id_token: accessToken,
           },
         };
       }
 
+      await auth.removeToken();
       return {
         success: false,
         error: 'No user data received from server',
@@ -232,29 +320,46 @@ class OAuthService {
    */
   async signOut(): Promise<void> {
     await auth.removeToken();
-    await auth.setUser(null);
-    
-    // Also revoke Google session if available
+
     if (typeof window !== 'undefined' && window.google) {
-      window.google.accounts.id.disableAutoSelect();
+      window.google.accounts.id?.disableAutoSelect?.();
     }
   }
 }
 
 export const oauthService = new OAuthService();
 
-// Type definitions for Google Sign-In
 declare global {
+  namespace google.accounts.oauth2 {
+    interface TokenClient {
+      requestAccessToken(options?: { prompt?: 'none' | 'consent' | 'select_account' }): void;
+    }
+
+    interface TokenResponse {
+      access_token?: string;
+      expires_in?: number;
+      error?: string;
+    }
+
+    interface TokenClientConfig {
+      client_id: string;
+      scope: string;
+      prompt?: string;
+      callback: (tokenResponse: TokenResponse) => void;
+      error_callback?: (error: { type: string; message: string }) => void;
+    }
+
+    function initTokenClient(config: TokenClientConfig): TokenClient;
+  }
+
   interface Window {
     google?: {
       accounts: {
-        id: {
-          initialize: (config: any) => void;
-          prompt: (callback?: (notification: any) => void) => void;
-          disableAutoSelect: () => void;
-        };
         oauth2: {
-          initCodeClient: (config: any) => any;
+          initTokenClient: typeof google.accounts.oauth2.initTokenClient;
+        };
+        id?: {
+          disableAutoSelect: () => void;
         };
       };
     };

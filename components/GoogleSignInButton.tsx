@@ -34,23 +34,21 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       const result = await oauthService.signInWithGoogle();
       
       if (result.success) {
-        // Check if we got user information directly (mobile with tokens in URL)
-        if (result.user && result.tokens) {
+        if (result.user) {
           dispatch(clearError());
           dispatch(setUser({
-            user_id: result.user.id,
+            user_id: result.user.user_id ?? result.user.id,
             email: result.user.email,
             name: result.user.name,
             avatar_url: result.user.avatar_url,
-            created_at: new Date().toISOString(),
+            created_at: result.user.created_at ?? new Date().toISOString(),
           }));
           onSuccess?.();
           return;
         }
-        
-        // For all other cases (web redirect, mobile deep link), 
-        // the authentication completion will be handled by callback handlers
-        // Don't call onSuccess yet - wait for callback
+
+        // Success without user payload should be treated as error
+        onError?.('Authentication completed without user data. Please try again.');
         return;
       } else {
         const errorMessage = typeof result.error === 'string' 

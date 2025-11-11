@@ -53,6 +53,35 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// Update bucket
+router.put('/:bucketId', async (req, res, next) => {
+  try {
+    const { error, value } = bucketSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const userResult = await db.query('SELECT user_id FROM users WHERE email = $1', [req.user.email]);
+    const userId = userResult.rows[0]?.user_id;
+
+    const result = await db.query(
+      'UPDATE buckets SET bucket_name = $1, updated_at = NOW() WHERE bucket_id = $2 AND user_id = $3 RETURNING *',
+      [value.bucket_name, req.params.bucketId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Bucket not found or unauthorized' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Bucket name already exists' });
+    }
+    next(error);
+  }
+});
+
 // Delete bucket
 router.delete('/:bucketId', async (req, res, next) => {
   try {

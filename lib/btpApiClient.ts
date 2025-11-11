@@ -23,13 +23,15 @@ class BTPApiClient {
   ): Promise<ApiResponse<T>> {
     try {
       const token = await auth.getToken();
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      };
+      const headers = new Headers(options.headers ?? {});
+
+      const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+      if (!isFormData && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+      }
 
       if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+        headers.set('Authorization', `Bearer ${token}`);
       }
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -83,7 +85,14 @@ class BTPApiClient {
   async createBucket(name: string, is_global?: boolean) {
     return this.request('/buckets', {
       method: 'POST',
-      body: JSON.stringify({ name, is_global }),
+      body: JSON.stringify({ bucket_name: name, is_global }),
+    });
+  }
+
+  async updateBucket(bucketId: number, name: string) {
+    return this.request(`/buckets/${bucketId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ bucket_name: name }),
     });
   }
 

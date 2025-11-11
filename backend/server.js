@@ -3,7 +3,6 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const cfenv = require('cfenv');
-const { OAuth2Client } = require('google-auth-library');
 const { initializeDatabase } = require('./db-init');
 
 const db = require('./db');
@@ -18,9 +17,8 @@ const templateRoutes = require('./routes/templates');
 const app = express();
 const appEnv = cfenv.getAppEnv();
 
-// Google OAuth Client
+// Google OAuth Client configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // Security middleware
 app.use(helmet());
@@ -42,8 +40,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Google OAuth Token Verification Middleware (only for API routes)
 const verifyGoogleToken = async (req, res, next) => {
-  // Skip auth for health check and auth endpoints
-  if (req.path === '/health' || req.path.startsWith('/api/auth')) {
+  // Skip auth for health check only
+  if (req.path === '/health') {
     return next();
   }
 
@@ -58,22 +56,33 @@ const verifyGoogleToken = async (req, res, next) => {
   }
 
   const token = authHeader.substring(7);
-  
+
   try {
-    const ticket = await googleClient.verifyIdToken({
-      idToken: token,
-      audience: GOOGLE_CLIENT_ID,
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
-    const payload = ticket.getPayload();
-    
-    // Attach user info to request
+
+    if (!response.ok) {
+      throw new Error(`Google userinfo request failed with status ${response.status}`);
+    }
+
+    const profile = await response.json();
+
+    if (!profile || !profile.email) {
+      throw new Error('Google userinfo missing required fields');
+    }
+
     req.user = {
-      id: payload.sub,
-      email: payload.email,
-      name: payload.name,
-      picture: payload.picture
+      id: profile.sub,
+      email: profile.email,
+      name: profile.name,
+      picture: profile.picture,
     };
-    
+
+    req.googleAccessToken = token;
+
     next();
   } catch (error) {
     console.error('Token verification failed:', error.message);
