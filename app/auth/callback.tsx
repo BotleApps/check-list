@@ -49,17 +49,23 @@ export default function AuthCallbackScreen() {
       if (!accessToken) {
         setStatus('error');
         setMessage('No access token received');
+        console.error('❌ No access token in URL');
+        console.log('Hash params:', Object.fromEntries(hashParams.entries()));
+        console.log('Query params:', Object.fromEntries(queryParams.entries()));
         setTimeout(() => {
           window.location.replace('/auth/login?error=no_token');
         }, 2000);
         return;
       }
 
+      console.log('✅ Access token received:', accessToken.substring(0, 20) + '...');
+      console.log('Token length:', accessToken.length);
+
       // Store the token and redirect to home
       try {
         // Import and use the auth service
         const { oauthService } = await import('../../services/oauth');
-        
+
         const result = await oauthService.handleCallback(accessToken);
 
         if (!result.success) {

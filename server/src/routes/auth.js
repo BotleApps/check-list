@@ -117,37 +117,49 @@ router.post('/logout', (req, res) => {
 });
 
 /**
- * POST /api/auth/google (for mobile apps)
+ * POST /api/auth/google (for mobile apps and web)
  * Validate Google token and create session
  */
 router.post('/google', async (req, res) => {
     const { token } = req.body;
 
+    console.log('📥 POST /api/auth/google received');
+    console.log('Token received:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+
     if (!token) {
+        console.log('❌ No token provided');
         return res.status(400).json({ error: 'Token is required' });
     }
 
     try {
         // Verify token with Google
+        console.log('🔍 Verifying token with Google...');
         const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: { Authorization: `Bearer ${token}` },
         });
 
+        console.log('Google response status:', response.status);
+
         if (!response.ok) {
-            throw new Error('Failed to verify token with Google');
+            const errorText = await response.text();
+            console.log('❌ Google API error:', errorText);
+            throw new Error(`Google API returned ${response.status}: ${errorText}`);
         }
 
         const profile = await response.json();
+        console.log('✅ Google profile received:', profile.email);
 
         // Find or create user
         const User = require('../models/User');
         let user = await User.findOne({ googleId: profile.id });
 
         if (user) {
+            console.log('👤 Existing user found:', user.email);
             user.lastLogin = new Date();
             user.picture = profile.picture || user.picture;
             await user.save();
         } else {
+            console.log('🆕 Creating new user:', profile.email);
             user = await User.create({
                 googleId: profile.id,
                 email: profile.email,
@@ -160,6 +172,8 @@ router.post('/google', async (req, res) => {
         const jwtToken = generateToken(user);
         setTokenCookie(res, jwtToken);
 
+        console.log('✅ Authentication successful for:', user.email);
+
         res.json({
             success: true,
             user: {
@@ -170,8 +184,9 @@ router.post('/google', async (req, res) => {
             },
         });
     } catch (error) {
-        console.error('Google token validation error:', error);
-        res.status(401).json({ error: 'Invalid token' });
+        console.error('❌ Google token validation error:', error.message);
+        console.error('Full error:', error);
+        res.status(401).json({ error: 'Invalid token', details: error.message });
     }
 });
 
