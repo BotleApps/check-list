@@ -1,14 +1,25 @@
 /**
- * BTP API Client
+ * API Client
  * 
- * This client handles all communication with the BTP backend API.
- * Authentication is handled using Google OAuth tokens.
+ * This client handles all communication with the backend API.
+ * Authentication is handled using Google OAuth tokens or JWT cookies.
  */
 
 import { auth } from './supabase';
 
-// Use relative URL - BTP destination handles routing
-const API_BASE_URL = '/api';
+// Get API URL from environment variable or fallback
+const getApiBaseUrl = () => {
+  // Check for environment variable (works in Expo)
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+  // Fallback for local development
+  return 'http://localhost:5001/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('🔗 API Base URL:', API_BASE_URL);
 
 export interface ApiResponse<T> {
   data?: T;
@@ -37,6 +48,7 @@ class BTPApiClient {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers,
+        credentials: 'include', // Include cookies for JWT auth
       });
 
       const data = await response.json();
