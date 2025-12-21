@@ -1,3 +1,0 @@
-root: dist
-location_include: '{,**/}*'
-pushstate: enabled
