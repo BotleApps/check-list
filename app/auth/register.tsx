@@ -19,6 +19,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { EmailConfirmationScreen } from '../../components/EmailConfirmationScreen';
 import { GoogleSignInButton } from '../../components/GoogleSignInButton';
 import { Toast } from '../../components/Toast';
+import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react-native';
 
 export default function RegisterScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -31,7 +32,7 @@ export default function RegisterScreen() {
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   // Toast state
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -73,8 +74,8 @@ export default function RegisterScreen() {
     }
 
     try {
-      await dispatch(registerUser({ 
-        email: email.trim(), 
+      await dispatch(registerUser({
+        email: email.trim(),
         password,
         name: fullName.trim()
       })).unwrap();
@@ -100,11 +101,11 @@ export default function RegisterScreen() {
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Image
-              source={require('../../assets/images/icon.png')}
-              style={{ width: 56, height: 56, resizeMode: 'contain' }}
-              accessibilityLabel="Checklists Logo"
+                source={require('../../assets/images/icon.png')}
+                style={{ width: 56, height: 56, resizeMode: 'contain' }}
+                accessibilityLabel="Checklists Logo"
               />
-                          
+
             </View>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Sign up to get started with Checklists</Text>
@@ -130,67 +131,83 @@ export default function RegisterScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.icon}>👤</Text>
+              <User size={20} color="#6B7280" />
               <TextInput
                 style={styles.input}
                 placeholder="Full name"
+                placeholderTextColor="#9CA3AF"
                 value={fullName}
                 onChangeText={setFullName}
                 autoCapitalize="words"
                 autoCorrect={false}
+                accessibilityLabel="Full name"
               />
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.icon}>📧</Text>
+              <Mail size={20} color="#6B7280" />
               <TextInput
                 style={styles.input}
                 placeholder="Email address"
+                placeholderTextColor="#9CA3AF"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                accessibilityLabel="Email address"
               />
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.icon}>🔒</Text>
+              <Lock size={20} color="#6B7280" />
               <TextInput
                 style={styles.input}
                 placeholder="Password (min. 6 characters)"
+                placeholderTextColor="#9CA3AF"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                accessibilityLabel="Password"
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
                 style={styles.eyeButton}
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                accessibilityRole="button"
               >
-                <Text style={styles.icon}>
-                  {showPassword ? '🙈' : '👁️'}
-                </Text>
+                {showPassword ? (
+                  <EyeOff size={20} color="#6B7280" />
+                ) : (
+                  <Eye size={20} color="#6B7280" />
+                )}
               </TouchableOpacity>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.icon}>🔒</Text>
+              <Lock size={20} color="#6B7280" />
               <TextInput
                 style={styles.input}
                 placeholder="Confirm password"
+                placeholderTextColor="#9CA3AF"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
+                accessibilityLabel="Confirm password"
               />
               <TouchableOpacity
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 style={styles.eyeButton}
+                accessibilityLabel={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                accessibilityRole="button"
               >
-                <Text style={styles.icon}>
-                  {showConfirmPassword ? '🙈' : '👁️'}
-                </Text>
+                {showConfirmPassword ? (
+                  <EyeOff size={20} color="#6B7280" />
+                ) : (
+                  <Eye size={20} color="#6B7280" />
+                )}
               </TouchableOpacity>
             </View>
 
@@ -216,7 +233,7 @@ export default function RegisterScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      
+
       {/* Toast */}
       <Toast
         visible={showToast}

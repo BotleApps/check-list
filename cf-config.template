@@ -1,0 +1,27 @@
+# SAP BTP Cloud Foundry Configuration Template
+# Copy this file to .env.cf and fill in your values
+# DO NOT commit .env.cf to version control
+
+# Cloud Foundry API Endpoint
+CF_API_ENDPOINT=https://api.cf.us10.hana.ondemand.com
+
+# Cloud Foundry Credentials
+CF_USERNAME=your-email@example.com
+CF_PASSWORD=your-password
+
+# Cloud Foundry Organization and Space
+CF_ORG=your-org-name
+CF_SPACE=dev
+
+# Application Configuration
+APP_NAME=checklist-app
+APP_DOMAIN=cfapps.us10.hana.ondemand.com
+
+# Application Environment Variables (will be set on CF)
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+EXPO_PUBLIC_GEMINI_API_KEY=your-gemini-key
+EXPO_PUBLIC_APP_ENV=production
+
+# Optional: Custom Route
+# CUSTOM_ROUTE=checklist.your-domain.com

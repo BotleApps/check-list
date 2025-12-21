@@ -9,3 +9,21 @@ expo-env.d.ts
 /dist
 /.expo
 .env
+
+# Cloud Foundry / MTA
+mta_archives/
+.mta/
+*.mtar
+mta-op*/
+.mtaext
+/approuter/node_modules
+/approuter/resources/
+/backend/node_modules
+/server/node_modules
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+cf-trace.log
+.check-list_mta_build_tmp/
+/deployer/

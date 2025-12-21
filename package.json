@@ -6,9 +6,14 @@
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 npx expo start",
     "build:web": "EXPO_NO_TELEMETRY=1 npx expo export --platform web --output-dir dist",
-    "preview": "npx serve dist",
+    "preview": "npx serve -s dist",
     "install:deps": "npm install --legacy-peer-deps",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "deploy:cf": "./deploy-cf.sh",
+    "deploy:cf:clean": "./deploy-cf.sh --clean",
+    "cleanup:cf": "./cleanup-cf.sh",
+    "build:mta": "mbt build",
+    "deploy:mta": "npm run build:mta && cf deploy mta_archives/*.mtar"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
