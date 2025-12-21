@@ -18,6 +18,7 @@ import { loginUser, clearError, forgotPassword } from '../../store/slices/authSl
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { GoogleSignInButton } from '../../components/GoogleSignInButton';
 import { Toast } from '../../components/Toast';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -29,7 +30,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
-  
+
   // Toast state
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -131,11 +132,11 @@ export default function LoginScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-                <Image
+              <Image
                 source={require('../../assets/images/icon.png')}
                 style={{ width: 56, height: 56, resizeMode: 'contain' }}
                 accessibilityLabel="Checklists Logo"
-                />
+              />
             </View>
             <Text style={styles.title}>Checklists</Text>
             <Text style={styles.subtitle}>Sign in to continue to Checklists</Text>
@@ -168,8 +169,10 @@ export default function LoginScreen() {
                 <TouchableOpacity
                   style={styles.emailLoginButton}
                   onPress={() => setShowEmailLogin(true)}
+                  accessibilityLabel="Sign in with email"
+                  accessibilityRole="button"
                 >
-                  <Text style={styles.icon}>📧</Text>
+                  <Mail size={20} color="#6B7280" />
                   <Text style={styles.emailLoginButtonText}>Sign in with Email</Text>
                 </TouchableOpacity>
               </>
@@ -177,35 +180,43 @@ export default function LoginScreen() {
               // Email login form
               <>
                 <View style={styles.inputContainer}>
-                  <Text style={styles.icon}>📧</Text>
+                  <Mail size={20} color="#6B7280" />
                   <TextInput
                     style={styles.input}
                     placeholder="Email address"
+                    placeholderTextColor="#9CA3AF"
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    accessibilityLabel="Email address"
                   />
                 </View>
 
                 <View style={styles.inputContainer}>
-                  <Text style={styles.icon}>🔒</Text>
+                  <Lock size={20} color="#6B7280" />
                   <TextInput
                     style={styles.input}
                     placeholder="Password"
+                    placeholderTextColor="#9CA3AF"
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
+                    accessibilityLabel="Password"
                   />
                   <TouchableOpacity
                     onPress={() => setShowPassword(!showPassword)}
                     style={styles.eyeButton}
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                    accessibilityRole="button"
                   >
-                    <Text style={styles.icon}>
-                      {showPassword ? '🙈' : '👁️'}
-                    </Text>
+                    {showPassword ? (
+                      <EyeOff size={20} color="#6B7280" />
+                    ) : (
+                      <Eye size={20} color="#6B7280" />
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -232,8 +243,11 @@ export default function LoginScreen() {
                 <TouchableOpacity
                   style={styles.backButton}
                   onPress={() => setShowEmailLogin(false)}
+                  accessibilityLabel="Go back to other sign in options"
+                  accessibilityRole="button"
                 >
-                  <Text style={styles.backButtonText}>← Other sign in options</Text>
+                  <ArrowLeft size={16} color="#6B7280" style={{ marginRight: 4 }} />
+                  <Text style={styles.backButtonText}>Other sign in options</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -248,7 +262,7 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      
+
       {/* Toast */}
       <Toast
         visible={showToast}

@@ -1,4 +1,5 @@
 const express = require('express');
+const fetch = require('node-fetch');
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
@@ -40,8 +41,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Google OAuth Token Verification Middleware (only for API routes)
 const verifyGoogleToken = async (req, res, next) => {
-  // Skip auth for health check only
-  if (req.path === '/health') {
+  // Skip auth for health check and auth endpoints
+  if (req.path === '/health' || req.path === '/api/auth/google') {
     return next();
   }
 

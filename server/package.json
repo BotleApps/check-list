@@ -1,0 +1,30 @@
+{
+    "name": "checklist-backend",
+    "version": "1.0.0",
+    "description": "Backend API service for Checklist app - Vercel deployment",
+    "main": "src/index.js",
+    "scripts": {
+        "start": "node src/index.js",
+        "dev": "nodemon src/index.js",
+        "test": "jest"
+    },
+    "dependencies": {
+        "express": "^5.0.1",
+        "mongoose": "^8.10.0",
+        "cors": "^2.8.5",
+        "cookie-parser": "^1.4.7",
+        "dotenv": "^17.0.0",
+        "passport": "^0.7.0",
+        "passport-google-oauth20": "^2.0.0",
+        "jsonwebtoken": "^9.0.2",
+        "express-session": "^1.18.1",
+        "helmet": "^8.0.0",
+        "express-rate-limit": "^7.5.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.9"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

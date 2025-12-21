@@ -229,25 +229,13 @@ class GoogleAuthService {
           };
         }
 
-        console.log('✅ Tokens received, signing in to Supabase...');
-        // Sign in to Supabase with the ID token
-        const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: tokens.id_token,
-        });
-
-        if (error) {
-          console.error('❌ Supabase sign-in error:', error);
-          return { 
-            success: false, 
-            error: error.message || 'Failed to authenticate with Supabase' 
-          };
-        }
-
-        console.log('✅ Successfully signed in to Supabase');
+        console.log('✅ Tokens received (Note: This service is deprecated, use oauth.ts instead)');
+        // NOTE: This entire file is deprecated and not used by the app
+        // The app uses services/oauth.ts for Google authentication with BTP backend
+        console.warn('⚠️ googleAuthService.ts is deprecated - use oauth.ts instead');
         return { 
-          success: true, 
-          user: data.user 
+          success: false, 
+          error: 'This service is deprecated. Use oauthService from oauth.ts instead.' 
         };
       } else if (response?.type === 'cancel') {
         console.log('⚠️ User cancelled authentication');
@@ -345,23 +333,11 @@ class GoogleAuthService {
           };
         }
 
-        // Sign in to Supabase with the ID token
-        const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: tokens.id_token,
-        });
-
-        if (error) {
-          console.error('Supabase Google auth error:', error);
-          return { 
-            success: false, 
-            error: error.message || 'Failed to authenticate with Supabase' 
-          };
-        }
-
+        // NOTE: This service is deprecated - use oauth.ts instead
+        console.warn('⚠️ googleAuthService.ts is deprecated - use oauth.ts instead');
         return { 
-          success: true, 
-          user: data.user 
+          success: false, 
+          error: 'This service is deprecated. Use oauthService from oauth.ts instead.' 
         };
       } else if (result.type === 'cancel') {
         return { 
@@ -396,27 +372,12 @@ class GoogleAuthService {
       console.log('🔄 Redirect URL:', redirectUrl);
       console.log('🌍 Environment:', typeof window !== 'undefined' && window.location.origin.includes('localhost') ? 'Local Development' : 'Production');
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) {
-        console.error('Supabase Google OAuth error:', error);
-        return { 
-          success: false, 
-          error: error.message || 'Failed to initiate Google authentication' 
-        };
-      }
-
-      console.log('✅ Google OAuth initiated successfully');
-      return { success: true };
+      // NOTE: This service is deprecated - use oauth.ts instead
+      console.warn('⚠️ googleAuthService.ts is deprecated - use oauth.ts instead');
+      return { 
+        success: false, 
+        error: 'This service is deprecated. Use oauthService from oauth.ts instead.' 
+      };
     } catch (error) {
       console.error('Google authentication error:', error);
       return { 
@@ -443,27 +404,12 @@ class GoogleAuthService {
       
       console.log('🔄 Simulator OAuth redirect URL:', redirectUrl);
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) {
-        console.error('❌ Supabase Google OAuth error:', error);
-        return { 
-          success: false, 
-          error: error.message || 'Failed to initiate Google authentication' 
-        };
-      }
-
-      console.log('✅ OAuth initiated for simulator');
-      return { success: true };
+      // NOTE: This service is deprecated - use oauth.ts instead
+      console.warn('⚠️ googleAuthService.ts is deprecated - use oauth.ts instead');
+      return { 
+        success: false, 
+        error: 'This service is deprecated. Use oauthService from oauth.ts instead.' 
+      };
     } catch (error) {
       console.error('❌ Simulator Google authentication error:', error);
       return { 

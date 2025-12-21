@@ -33,11 +33,15 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       // Perform authentication
       const result = await oauthService.signInWithGoogle();
       
+      if (result.isRedirecting) {
+        return;
+      }
+
       if (result.success) {
         if (result.user) {
           dispatch(clearError());
           dispatch(setUser({
-            user_id: result.user.user_id ?? result.user.id,
+            user_id: result.user.user_id,
             email: result.user.email,
             name: result.user.name,
             avatar_url: result.user.avatar_url,

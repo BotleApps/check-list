@@ -7,46 +7,73 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Switch,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { 
-  ArrowLeft, 
-  Moon, 
-  Sun, 
-  Globe, 
+import {
+  ArrowLeft,
+  Moon,
+  Sun,
+  Globe,
   ChevronRight,
   Palette,
   Bell,
   Database,
+  Monitor,
+  Check,
+  X,
 } from 'lucide-react-native';
+import { useTheme } from '../lib/ThemeContext';
+import { Toast } from '../components/Toast';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDark, themeMode, setThemeMode, toggleTheme } = useTheme();
   const [language, setLanguage] = useState('English');
-  const [theme, setTheme] = useState('System');
+  const [showThemeModal, setShowThemeModal] = useState(false);
+
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToastMessage = (message: string) => {
+    setToastMessage(message);
+    setShowToast(true);
+  };
+
+  const getThemeModeLabel = () => {
+    switch (themeMode) {
+      case 'light': return 'Light';
+      case 'dark': return 'Dark';
+      case 'system': return 'System';
+    }
+  };
+
+  const handleThemeSelect = (mode: 'light' | 'dark' | 'system') => {
+    setThemeMode(mode);
+    setShowThemeModal(false);
+    showToastMessage(`Theme changed to ${mode === 'system' ? 'System default' : mode}`);
+  };
 
   const settingsSections = [
     {
       title: 'Appearance',
       items: [
         {
-          icon: isDarkMode ? Moon : Sun,
+          icon: isDark ? Moon : Sun,
           title: 'Dark Mode',
-          subtitle: 'Toggle dark mode appearance',
+          subtitle: isDark ? 'On' : 'Off',
           type: 'switch',
-          value: isDarkMode,
-          onToggle: setIsDarkMode,
+          value: isDark,
+          onToggle: () => toggleTheme(),
         },
         {
           icon: Palette,
           title: 'Theme',
-          subtitle: theme,
+          subtitle: getThemeModeLabel(),
           type: 'navigation',
-          onPress: () => {
-            // TODO: Implement theme selection
-            console.log('Theme selection coming soon');
-          },
+          onPress: () => setShowThemeModal(true),
         },
       ],
     },
@@ -59,8 +86,7 @@ export default function SettingsScreen() {
           subtitle: language,
           type: 'navigation',
           onPress: () => {
-            // TODO: Implement language selection
-            console.log('Language selection coming soon');
+            showToastMessage('Language selection coming soon');
           },
         },
       ],
@@ -74,8 +100,7 @@ export default function SettingsScreen() {
           subtitle: 'Manage your app data and storage',
           type: 'navigation',
           onPress: () => {
-            // TODO: Implement data management
-            console.log('Data management coming soon');
+            showToastMessage('Data management coming soon');
           },
         },
       ],
@@ -149,6 +174,65 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Theme Selection Modal */}
+      <Modal
+        visible={showThemeModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowThemeModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowThemeModal(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choose Theme</Text>
+              <TouchableOpacity onPress={() => setShowThemeModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.themeOption, themeMode === 'light' && styles.themeOptionActive]}
+              onPress={() => handleThemeSelect('light')}
+            >
+              <Sun size={20} color={themeMode === 'light' ? '#2563EB' : '#6B7280'} />
+              <Text style={[styles.themeOptionText, themeMode === 'light' && styles.themeOptionTextActive]}>
+                Light
+              </Text>
+              {themeMode === 'light' && <Check size={20} color="#2563EB" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.themeOption, themeMode === 'dark' && styles.themeOptionActive]}
+              onPress={() => handleThemeSelect('dark')}
+            >
+              <Moon size={20} color={themeMode === 'dark' ? '#2563EB' : '#6B7280'} />
+              <Text style={[styles.themeOptionText, themeMode === 'dark' && styles.themeOptionTextActive]}>
+                Dark
+              </Text>
+              {themeMode === 'dark' && <Check size={20} color="#2563EB" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.themeOption, themeMode === 'system' && styles.themeOptionActive]}
+              onPress={() => handleThemeSelect('system')}
+            >
+              <Monitor size={20} color={themeMode === 'system' ? '#2563EB' : '#6B7280'} />
+              <Text style={[styles.themeOptionText, themeMode === 'system' && styles.themeOptionTextActive]}>
+                System Default
+              </Text>
+              {themeMode === 'system' && <Check size={20} color="#2563EB" />}
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type="success"
+        onHide={() => setShowToast(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -248,4 +332,63 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
   },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 340,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 25,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  themeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: '#F9FAFB',
+    gap: 12,
+  },
+  themeOptionActive: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 2,
+    borderColor: '#2563EB',
+  },
+  themeOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  themeOptionTextActive: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
 });
+

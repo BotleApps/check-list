@@ -55,26 +55,47 @@ export interface AIGeneratedItem {
 }
 
 class AIService {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private genAI: GoogleGenerativeAI | null = null;
+  private model: any = null;
+  private _isAvailable: boolean = false;
 
   constructor() {
     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
     
     if (!apiKey) {
-      throw new Error(
-        'Missing Gemini API key. Please check your .env file and ensure EXPO_PUBLIC_GEMINI_API_KEY is set.'
+      console.warn(
+        '⚠️ Gemini API key not configured - AI features will be disabled. ' +
+        'Add EXPO_PUBLIC_GEMINI_API_KEY to your .env file to enable AI checklist generation.'
       );
+      this._isAvailable = false;
+      return;
     }
 
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    try {
+      this.genAI = new GoogleGenerativeAI(apiKey);
+      this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      this._isAvailable = true;
+    } catch (error) {
+      console.error('Failed to initialize AI service:', error);
+      this._isAvailable = false;
+    }
+  }
+
+  get isAvailable(): boolean {
+    return this._isAvailable;
   }
 
   async generateChecklist(
     request: AIChecklistRequest, 
     onProgress?: ProgressCallback
   ): Promise<AIGeneratedChecklist> {
+    // Check if AI service is available
+    if (!this._isAvailable || !this.model) {
+      throw new Error(
+        'AI features are currently unavailable. Please configure your Gemini API key or try again later.'
+      );
+    }
+
     try {
       // Step 1: Understanding requirements
       onProgress?.({

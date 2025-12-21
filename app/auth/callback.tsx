@@ -18,63 +18,70 @@ export default function AuthCallbackScreen() {
       return;
     }
 
-    const hashParams = new URLSearchParams(window.location.hash?.replace(/^#/, '') || '');
-    const queryParams = new URLSearchParams(window.location.search || '');
+    const processCallback = async () => {
+      const hashParams = new URLSearchParams(window.location.hash?.replace(/^#/, '') || '');
+      const queryParams = new URLSearchParams(window.location.search || '');
 
-    const accessToken = hashParams.get('access_token') || queryParams.get('access_token') || undefined;
-    const idToken = hashParams.get('id_token') || queryParams.get('id_token') || undefined;
-    const error = hashParams.get('error') || queryParams.get('error') || undefined;
-    const errorDescription =
-      hashParams.get('error_description') || queryParams.get('error_description') || undefined;
+      const accessToken = hashParams.get('access_token') || queryParams.get('access_token') || undefined;
+      const state = hashParams.get('state') || queryParams.get('state') || undefined;
+      const error = hashParams.get('error') || queryParams.get('error') || undefined;
+      const errorDescription =
+        hashParams.get('error_description') || queryParams.get('error_description') || undefined;
 
-    const payload: CallbackPayload = {
-      type: 'GOOGLE_OAUTH_TOKEN',
-    };
-
-    if (accessToken) {
-      payload.accessToken = accessToken;
-    }
-
-    if (idToken) {
-      payload.idToken = idToken;
-    }
-
-    if (error) {
-      payload.error = error;
-      payload.errorDescription = errorDescription;
-    }
-
-    if (window.opener && !window.opener.closed) {
-      try {
-        window.opener.postMessage(payload, window.location.origin);
-        setStatus(error ? 'error' : 'success');
-        setMessage(error ? 'Sign-in failed. This window can be closed.' : 'Sign-in complete. Closing window...');
-        setTimeout(() => {
-          window.close();
-        }, 750);
-        return;
-      } catch (postError) {
-        console.error('Failed to post message to opener:', postError);
+      // Validate state to prevent CSRF
+      const storedState = sessionStorage.getItem('oauth_state');
+      if (state && storedState && state !== storedState) {
         setStatus('error');
-        setMessage('Sign-in completed, but automatic window close failed. You may close this tab.');
+        setMessage('Invalid state parameter. Please try again.');
+        return;
       }
-    } else {
-      setStatus(error ? 'error' : 'success');
-      setMessage(
-        error
-          ? 'Sign-in failed. Please return to the main tab and try again.'
-          : 'Sign-in complete. Return to the app tab.'
-      );
-    }
 
-    // As a final fallback, redirect back to login after a delay
-    const timeout = window.setTimeout(() => {
-      window.location.replace(`/auth/login${error ? `?error=${encodeURIComponent(error)}` : ''}`);
-    }, 4000);
+      if (error) {
+        setStatus('error');
+        setMessage(errorDescription || error);
+        // Redirect back to login with error
+        setTimeout(() => {
+          window.location.replace(`/auth/login?error=${encodeURIComponent(errorDescription || error)}`);
+        }, 2000);
+        return;
+      }
 
-    return () => {
-      window.clearTimeout(timeout);
+      if (!accessToken) {
+        setStatus('error');
+        setMessage('No access token received');
+        setTimeout(() => {
+          window.location.replace('/auth/login?error=no_token');
+        }, 2000);
+        return;
+      }
+
+      // Store the token and redirect to home
+      try {
+        // Import and use the auth service
+        const { oauthService } = await import('../../services/oauth');
+        
+        const result = await oauthService.handleCallback(accessToken);
+
+        if (!result.success) {
+          throw new Error(typeof result.error === 'string' ? result.error : result.error?.message || 'Authentication failed');
+        }
+
+        setStatus('success');
+        setMessage('Sign-in successful! Redirecting...');
+        setTimeout(() => {
+          window.location.replace('/');
+        }, 500);
+      } catch (err) {
+        console.error('Auth error:', err);
+        setStatus('error');
+        setMessage('Failed to complete sign-in. Please try again.');
+        setTimeout(() => {
+          window.location.replace('/auth/login?error=auth_failed');
+        }, 2000);
+      }
     };
+
+    processCallback();
   }, []);
 
   return (

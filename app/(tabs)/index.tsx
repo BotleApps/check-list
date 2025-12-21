@@ -21,6 +21,8 @@ import { BucketCard } from '../../components/BucketCard';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { FloatingActionMenu } from '../../components/FloatingActionMenu';
+import { EmptyState } from '../../components/EmptyState';
+import { ChecklistListSkeleton } from '../../components/Skeleton';
 import { ChevronDown, ArrowUpDown, Search } from 'lucide-react-native';
 
 export default function HomeScreen() {
@@ -110,26 +112,26 @@ export default function HomeScreen() {
   // Helper function to format date for grouping
   const formatDateGroupKey = (dateString: string | null | undefined, fallbackText: string) => {
     if (!dateString) return fallbackText;
-    
+
     const date = new Date(dateString);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     // Reset time to compare only dates
     const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-    
+
     if (dateOnly.getTime() === todayOnly.getTime()) {
       return 'Today';
     } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
       return 'Yesterday';
     } else {
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
     }
   };
@@ -176,7 +178,7 @@ export default function HomeScreen() {
     let filteredChecklists = checklists;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      filteredChecklists = checklists.filter(checklist => 
+      filteredChecklists = checklists.filter(checklist =>
         checklist.name.toLowerCase().includes(query) ||
         getBucketName(checklist.bucket_id)?.toLowerCase().includes(query)
       );
@@ -186,7 +188,7 @@ export default function HomeScreen() {
     // Sort checklists
     const sorted = [...filteredChecklists].sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortBy) {
         case 'folder':
           const bucketA = getBucketName(a.bucket_id) || 'No Folder';
@@ -205,7 +207,7 @@ export default function HomeScreen() {
           comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
           break;
       }
-      
+
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
@@ -230,31 +232,31 @@ export default function HomeScreen() {
       // Handle "No" prefixed groups - they should come last
       const isNoGroupA = keyA.startsWith('No ');
       const isNoGroupB = keyB.startsWith('No ');
-      
+
       if (isNoGroupA && !isNoGroupB) return 1;  // A goes after B
       if (!isNoGroupA && isNoGroupB) return -1; // A goes before B
       if (isNoGroupA && isNoGroupB) return keyA.localeCompare(keyB); // Both "No" groups, sort alphabetically
-      
+
       // For date-based sorting, handle special cases
       if (sortBy !== 'folder') {
         if (keyA === 'Today') return -1;
         if (keyB === 'Today') return 1;
         if (keyA === 'Yesterday') return keyB === 'Today' ? 1 : -1;
         if (keyB === 'Yesterday') return keyA === 'Today' ? -1 : 1;
-        
+
         // For other dates, try to parse and compare
         const dateA = new Date(keyA);
         const dateB = new Date(keyB);
         if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
-          return sortDirection === 'asc' ? 
-            dateA.getTime() - dateB.getTime() : 
+          return sortDirection === 'asc' ?
+            dateA.getTime() - dateB.getTime() :
             dateB.getTime() - dateA.getTime();
         }
       }
-      
+
       // Default alphabetical sorting
-      return sortDirection === 'asc' ? 
-        keyA.localeCompare(keyB) : 
+      return sortDirection === 'asc' ?
+        keyA.localeCompare(keyB) :
         keyB.localeCompare(keyA);
     });
 
@@ -290,10 +292,45 @@ export default function HomeScreen() {
   }
 
   if (checklistsLoading && checklists.length === 0) {
-    return <LoadingSpinner />;
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.appTitle}>Checklists</Text>
+        </View>
+        <ScrollView style={styles.scrollView}>
+          <ChecklistListSkeleton count={5} />
+        </ScrollView>
+      </SafeAreaView>
+    );
   }
 
   if (checklistsError) {
+    // Check if it's a backend unavailable error
+    const isBackendError = checklistsError.includes('Backend not available') ||
+      checklistsError.includes('not a function');
+
+    if (isBackendError) {
+      return (
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.appTitle}>Checklists</Text>
+          </View>
+          <EmptyState
+            type="offline"
+            title="Backend Not Available"
+            message="The app is running in local development mode. Data will be available when connected to the backend server."
+            actionLabel="Retry Connection"
+            onAction={() => user && dispatch(fetchChecklistsWithStats(user.user_id))}
+          />
+          <FloatingActionMenu
+            onCreateFromTemplate={() => router.push('/(tabs)/templates')}
+            onCreateWithAI={() => router.push('/ai-create')}
+            onCreateFromScratch={() => router.push('/checklist-edit/new')}
+          />
+        </SafeAreaView>
+      );
+    }
+
     return (
       <ErrorMessage
         message={checklistsError}
@@ -307,7 +344,7 @@ export default function HomeScreen() {
       {/* Header with App Name */}
       <View style={styles.header}>
         <Text style={styles.appTitle}>Checklists</Text>
-        
+
         {/* Search and Sort Controls */}
         <View style={styles.searchSortContainer}>
           <View style={styles.searchContainer}>
@@ -322,7 +359,7 @@ export default function HomeScreen() {
               autoCapitalize="none"
             />
           </View>
-          
+
           <TouchableOpacity
             style={styles.sortIconButton}
             onPress={() => setShowSortMenu(!showSortMenu)}
@@ -335,7 +372,7 @@ export default function HomeScreen() {
       {/* Sort Menu - Positioned absolutely outside header */}
       {showSortMenu && (
         <View style={styles.sortMenuOverlay}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.sortMenuBackdrop}
             onPress={() => setShowSortMenu(false)}
             activeOpacity={1}
@@ -395,30 +432,30 @@ export default function HomeScreen() {
             <>
               {/* {console.log('🎨 Rendering groups:', Object.keys(sortedAndGroupedChecklists))} */}
               {Object.entries(sortedAndGroupedChecklists).map(([groupName, groupChecklists]) => (
-              <View key={groupName} style={styles.section}>
-                <View style={styles.groupHeader}>
-                  <Text style={styles.groupTitle}>{groupName}</Text>
-                  <Text style={styles.groupCount}>({groupChecklists.length})</Text>
+                <View key={groupName} style={styles.section}>
+                  <View style={styles.groupHeader}>
+                    <Text style={styles.groupTitle}>{groupName}</Text>
+                    <Text style={styles.groupCount}>({groupChecklists.length})</Text>
+                  </View>
+
+                  {groupChecklists.slice(0, loadedItems).map(checklist => (
+                    <ChecklistCard
+                      key={checklist.checklist_id}
+                      checklist={checklist}
+                      progress={getChecklistProgress(checklist.checklist_id)}
+                      itemCount={getChecklistItemCount(checklist.checklist_id)}
+                      completedCount={getChecklistCompletedCount(checklist.checklist_id)}
+                      bucketName={getBucketName(checklist.bucket_id)}
+                      onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
+                    />
+                  ))}
                 </View>
-                
-                {groupChecklists.slice(0, loadedItems).map(checklist => (
-                  <ChecklistCard
-                    key={checklist.checklist_id}
-                    checklist={checklist}
-                    progress={getChecklistProgress(checklist.checklist_id)}
-                    itemCount={getChecklistItemCount(checklist.checklist_id)}
-                    completedCount={getChecklistCompletedCount(checklist.checklist_id)}
-                    bucketName={getBucketName(checklist.bucket_id)}
-                    onPress={() => router.push(`/checklist/${checklist.checklist_id}`)}
-                  />
-                ))}
-              </View>
-            ))}
+              ))}
             </>
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>
-                {searchQuery.trim() 
+                {searchQuery.trim()
                   ? `No checklists found for "${searchQuery}"`
                   : 'No checklists match the current filters'
                 }
@@ -434,15 +471,13 @@ export default function HomeScreen() {
             </View>
           )
         ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No checklists yet</Text>
-            <TouchableOpacity
-              style={styles.createFirstButton}
-              onPress={() => router.push('/checklist-edit/new')}
-            >
-              <Text style={styles.createFirstButtonText}>Create your first checklist</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            type="checklists"
+            title="No checklists yet"
+            message="Create your first checklist to start organizing your tasks and boost productivity."
+            actionLabel="Create Your First Checklist"
+            onAction={() => router.push('/checklist-edit/new')}
+          />
         )}
 
         {/* Load More Button */}
@@ -452,7 +487,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
-      
+
       {/* Floating Action Menu */}
       <FloatingActionMenu
         onCreateFromTemplate={() => router.push('/(tabs)/templates')}

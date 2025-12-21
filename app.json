@@ -34,7 +34,7 @@
     },
     "extra": {
       "googleOAuth": {
-        "webClientId": "13192300053-9ue6jadnanc7pdscnv01sfqaqaosgufs.apps.googleusercontent.com",
+        "webClientId": "13192300053-9ue6jadnanc7pdscnv01sfqaqosgufs.apps.googleusercontent.com",
         "androidClientId": "REPLACE_WITH_ANDROID_CLIENT_ID",
         "iosClientId": "13192300053-fvf13qac2j650m93crtlpl4o61pu3gvd.apps.googleusercontent.com"
       }

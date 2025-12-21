@@ -10,6 +10,12 @@
       "csrfProtection": false
     },
     {
+      "source": "^/auth/callback$",
+      "target": "index.html",
+      "localDir": "resources",
+      "authenticationType": "none"
+    },
+    {
       "source": "^/(.*)$",
       "localDir": "resources",
       "authenticationType": "none"

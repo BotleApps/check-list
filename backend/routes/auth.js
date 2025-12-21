@@ -1,4 +1,5 @@
 const express = require('express');
+const fetch = require('node-fetch');
 const router = express.Router();
 const db = require('../db');
 
@@ -11,8 +12,24 @@ router.post('/google', async (req, res, next) => {
       return res.status(400).json({ error: 'Token is required' });
     }
 
-    // Token is already verified by middleware, get user from req.user
-    const { id: externalId, email, name, picture } = req.user;
+    // Verify the token with Google
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(401).json({ error: 'Invalid Google token' });
+    }
+
+    const profile = await response.json();
+
+    if (!profile || !profile.email) {
+      return res.status(401).json({ error: 'Invalid token - missing user info' });
+    }
+
+    const { sub: externalId, email, name, picture } = profile;
 
     // Upsert user in database
     const result = await db.query(`

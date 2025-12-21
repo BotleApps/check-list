@@ -79,6 +79,65 @@ export const GOOGLE_CONFIG = {
   redirectUri: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '',
 };
 
+// Mock query builder for Supabase compatibility
+class MockQueryBuilder {
+  private tableName: string;
+  private queryData: { data: any[] | null; error: any };
+
+  constructor(tableName: string) {
+    this.tableName = tableName;
+    this.queryData = { data: [], error: null };
+  }
+
+  select(_columns?: string) {
+    console.warn(`[Mock Supabase] select() called on ${this.tableName} - backend not available, returning empty data`);
+    return this;
+  }
+
+  insert(_data: any) {
+    console.warn(`[Mock Supabase] insert() called on ${this.tableName} - backend not available`);
+    this.queryData = { data: null, error: { message: 'Backend not available. Please run the BTP server.' } };
+    return this;
+  }
+
+  update(_data: any) {
+    console.warn(`[Mock Supabase] update() called on ${this.tableName} - backend not available`);
+    this.queryData = { data: null, error: { message: 'Backend not available. Please run the BTP server.' } };
+    return this;
+  }
+
+  delete() {
+    console.warn(`[Mock Supabase] delete() called on ${this.tableName} - backend not available`);
+    this.queryData = { data: null, error: { message: 'Backend not available. Please run the BTP server.' } };
+    return this;
+  }
+
+  eq(_column: string, _value: any) {
+    return this;
+  }
+
+  in(_column: string, _values: any[]) {
+    return this;
+  }
+
+  order(_column: string, _options?: any) {
+    return this;
+  }
+
+  limit(_count: number) {
+    return this;
+  }
+
+  single() {
+    return Promise.resolve({ data: null, error: { message: 'Backend not available' } });
+  }
+
+  then(resolve: (value: any) => void) {
+    resolve(this.queryData);
+    return Promise.resolve(this.queryData);
+  }
+}
+
 // For backwards compatibility with existing code
 export const supabase = {
   auth: {
@@ -112,6 +171,22 @@ export const supabase = {
         error: null,
       };
     },
+    async getUser() {
+      const user = await auth.getUser();
+      return {
+        data: {
+          user: user ? {
+            id: user.user_id || user.id,
+            email: user.email,
+            user_metadata: {
+              name: user.name,
+              picture: user.avatar_url,
+            },
+          } : null,
+        },
+        error: null,
+      };
+    },
     onAuthStateChange(callback: (event: string, session: any) => void) {
       // Simple implementation - check for existing session on mount
       setTimeout(async () => {
@@ -136,5 +211,20 @@ export const supabase = {
         data: { subscription: { unsubscribe: () => {} } },
       };
     },
+    async resetPasswordForEmail(_email: string) {
+      return { error: { message: 'Password reset not supported. Please use Google Sign-In.' } };
+    },
+    async updateUser(_updates: any) {
+      return { error: { message: 'User update not supported in mock mode.' } };
+    },
+  },
+  // Mock database methods
+  from(tableName: string) {
+    return new MockQueryBuilder(tableName);
+  },
+  rpc(_functionName: string, _params?: any) {
+    console.warn('[Mock Supabase] rpc() called - backend not available');
+    return Promise.resolve({ data: null, error: { message: 'Backend not available' } });
   },
 };
+

@@ -6,8 +6,10 @@ import {
   Animated,
   StyleSheet,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Plus, X, FileText, Wand2, Edit3 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 interface FloatingActionMenuProps {
   onCreateFromTemplate: () => void;
@@ -26,19 +28,26 @@ export const FloatingActionMenu: React.FC<FloatingActionMenuProps> = ({
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
   const toggleMenu = () => {
+    // Trigger haptic feedback on native platforms
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
     const toValue = isOpen ? 0 : 1;
-    
+
     setIsOpen(!isOpen);
 
     Animated.parallel([
-      Animated.timing(rotateAnim, {
+      Animated.spring(rotateAnim, {
         toValue,
-        duration: 200,
+        tension: 120,
+        friction: 8,
         useNativeDriver: true,
       }),
-      Animated.timing(scaleAnim, {
+      Animated.spring(scaleAnim, {
         toValue,
-        duration: 200,
+        tension: 100,
+        friction: 8,
         useNativeDriver: true,
       }),
       Animated.timing(opacityAnim, {
@@ -50,6 +59,11 @@ export const FloatingActionMenu: React.FC<FloatingActionMenuProps> = ({
   };
 
   const handleOptionPress = (action: () => void) => {
+    // Trigger haptic feedback on selection
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
     toggleMenu();
     // Delay the action slightly so the menu animation completes first
     setTimeout(action, 100);
