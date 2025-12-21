@@ -24,42 +24,63 @@ const apiRoutes = require('./routes/api');
 const app = express();
 
 // MongoDB Connection with serverless optimizations
-let isConnected = false;
+// Cache the connection across serverless invocations
+let cachedDb = null;
 
 const connectDB = async () => {
-    if (isConnected && mongoose.connection.readyState === 1) {
-        console.log('✅ Using existing MongoDB connection');
-        return;
+    if (cachedDb && mongoose.connection.readyState === 1) {
+        console.log('✅ Using cached MongoDB connection');
+        return cachedDb;
+    }
+
+    if (mongoose.connection.readyState === 2) {
+        // Connection is being established, wait for it
+        console.log('⏳ MongoDB connection in progress, waiting...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return connectDB();
     }
 
     try {
+        console.log('🔗 Connecting to MongoDB...');
         const conn = await mongoose.connect(process.env.MONGODB_URI, {
-            serverSelectionTimeoutMS: 10000,
+            serverSelectionTimeoutMS: 30000, // Increased timeout for cold starts
             socketTimeoutMS: 45000,
             maxPoolSize: 10,
             minPoolSize: 1,
+            connectTimeoutMS: 30000,
+            bufferCommands: true, // Buffer commands until connected
         });
 
-        isConnected = true;
+        cachedDb = conn;
         console.log(`✅ MongoDB connected: ${conn.connection.host}`);
+        return conn;
     } catch (error) {
         console.error('❌ MongoDB connection error:', error.message);
+        cachedDb = null;
         throw error;
     }
 };
 
-// Connect on startup
-connectDB();
+// Middleware to ensure DB is connected before handling requests
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (error) {
+        console.error('Failed to connect to MongoDB:', error);
+        res.status(503).json({ error: 'Database connection failed. Please try again.' });
+    }
+});
 
 // Handle connection events
 mongoose.connection.on('disconnected', () => {
     console.log('⚠️ MongoDB disconnected');
-    isConnected = false;
+    cachedDb = null;
 });
 
 mongoose.connection.on('error', (err) => {
     console.error('❌ MongoDB error:', err);
-    isConnected = false;
+    cachedDb = null;
 });
 
 // Security middleware
