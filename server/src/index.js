@@ -40,8 +40,17 @@ const connectDB = async () => {
         return connectDB();
     }
 
+    // Check if MONGODB_URI is set
+    if (!process.env.MONGODB_URI) {
+        console.error('❌ MONGODB_URI environment variable is not set!');
+        throw new Error('MONGODB_URI is not configured');
+    }
+
+    // Log connection attempt (mask the password)
+    const maskedUri = process.env.MONGODB_URI.replace(/:([^@]+)@/, ':****@');
+    console.log('🔗 Connecting to MongoDB...', maskedUri);
+
     try {
-        console.log('🔗 Connecting to MongoDB...');
         const conn = await mongoose.connect(process.env.MONGODB_URI, {
             serverSelectionTimeoutMS: 30000, // Increased timeout for cold starts
             socketTimeoutMS: 45000,
@@ -56,6 +65,7 @@ const connectDB = async () => {
         return conn;
     } catch (error) {
         console.error('❌ MongoDB connection error:', error.message);
+        console.error('Full error:', JSON.stringify(error, null, 2));
         cachedDb = null;
         throw error;
     }
