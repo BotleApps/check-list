@@ -8,8 +8,9 @@ class SecureKeyStorage {
   // Store the API key securely
   async setGeminiApiKey(apiKey: string): Promise<void> {
     if (Platform.OS === 'web') {
-      // For web, use encrypted localStorage or just AsyncStorage
-      // In production, consider additional encryption
+      // For web, use AsyncStorage (browser localStorage)
+      // Note: In production, consider additional encryption for sensitive data
+      // Web storage is less secure than mobile secure stores
       await AsyncStorage.setItem(GEMINI_API_KEY_STORAGE, apiKey);
     } else {
       // For mobile, use SecureStore (Keychain on iOS, Keystore on Android)

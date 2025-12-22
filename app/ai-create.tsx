@@ -90,8 +90,8 @@ export default function AICreateScreen() {
       const isConfigured = await aiService.isApiKeyConfigured();
       if (isConfigured) {
         // Initialize the AI service with the stored key
-        await aiService.initialize();
-        setShowApiKeyPrompt(false);
+        const initialized = await aiService.initialize();
+        setShowApiKeyPrompt(!initialized);
       } else {
         setShowApiKeyPrompt(true);
       }
