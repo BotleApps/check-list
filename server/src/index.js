@@ -23,6 +23,10 @@ const apiRoutes = require('./routes/api');
 
 const app = express();
 
+// Trust proxy - Required for Vercel/serverless deployments
+// This allows Express to trust the X-Forwarded-* headers from Vercel
+app.set('trust proxy', 1);
+
 // MongoDB Connection with serverless optimizations
 // Cache the connection across serverless invocations
 let cachedDb = null;
@@ -130,6 +134,13 @@ const limiter = rateLimit({
     message: { error: 'Too many requests, please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+        // Skip rate limiting for health checks
+        return req.path === '/health';
+    },
+    keyGenerator: (req) => {
+        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    },
 });
 app.use('/api/', limiter);
 
