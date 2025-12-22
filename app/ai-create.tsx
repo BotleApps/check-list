@@ -69,6 +69,7 @@ export default function AICreateScreen() {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+  const [showApiKeyPrompt, setShowApiKeyPrompt] = useState(false);
 
   // Toast states
   const [showToast, setShowToast] = useState(false);
@@ -82,6 +83,21 @@ export default function AICreateScreen() {
       dispatch(fetchTags());
     }
   }, [user, dispatch]);
+
+  // Check if API key is configured and initialize AI service
+  useEffect(() => {
+    const checkAndInitializeAI = async () => {
+      const isConfigured = await aiService.isApiKeyConfigured();
+      if (isConfigured) {
+        // Initialize the AI service with the stored key
+        await aiService.initialize();
+        setShowApiKeyPrompt(false);
+      } else {
+        setShowApiKeyPrompt(true);
+      }
+    };
+    checkAndInitializeAI();
+  }, []);
 
   // Toast helper function
   const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
@@ -262,8 +278,24 @@ export default function AICreateScreen() {
   // Render input step
   const renderInputStep = () => (
     <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-      {/* Check if AI is available */}
-      {!aiService.isAvailable ? (
+      {/* Check if API is available or key is not configured */}
+      {showApiKeyPrompt ? (
+        <View style={styles.unavailableContainer}>
+          <EmptyState
+            type="ai"
+            title="API Key Required"
+            message="AI checklist generation requires a Google Gemini API key. Please add your API key in Settings to use this feature."
+            actionLabel="Go to Settings"
+            onAction={() => router.push('/settings')}
+          />
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => router.replace('/checklist-edit/new')}
+          >
+            <Text style={styles.secondaryButtonText}>Create Manually</Text>
+          </TouchableOpacity>
+        </View>
+      ) : !aiService.isAvailable ? (
         <View style={styles.unavailableContainer}>
           <EmptyState
             type="ai"

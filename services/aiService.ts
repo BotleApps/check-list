@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { secureKeyStorage } from './secureKeyStorage';
 
 // AI Request and Response Interfaces
 export interface AIChecklistRequest {
@@ -58,31 +59,72 @@ class AIService {
   private genAI: GoogleGenerativeAI | null = null;
   private model: any = null;
   private _isAvailable: boolean = false;
+  private _isInitialized: boolean = false;
 
-  constructor() {
-    const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-    
-    if (!apiKey) {
-      console.warn(
-        '⚠️ Gemini API key not configured - AI features will be disabled. ' +
-        'Add EXPO_PUBLIC_GEMINI_API_KEY to your .env file to enable AI checklist generation.'
-      );
-      this._isAvailable = false;
-      return;
-    }
-
+  // Initialize with user's API key (must be called before using AI features)
+  async initialize(): Promise<boolean> {
     try {
+      const apiKey = await secureKeyStorage.getGeminiApiKey();
+      
+      if (!apiKey) {
+        console.log('No Gemini API key configured by user');
+        this._isAvailable = false;
+        this._isInitialized = true;
+        return false;
+      }
+
       this.genAI = new GoogleGenerativeAI(apiKey);
       this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       this._isAvailable = true;
+      this._isInitialized = true;
+      return true;
     } catch (error) {
       console.error('Failed to initialize AI service:', error);
       this._isAvailable = false;
+      this._isInitialized = true;
+      return false;
     }
+  }
+
+  // Re-initialize when user sets/changes their API key
+  async reinitializeWithKey(apiKey: string): Promise<boolean> {
+    try {
+      // Store the key securely
+      await secureKeyStorage.setGeminiApiKey(apiKey);
+      
+      // Initialize with the new key
+      this.genAI = new GoogleGenerativeAI(apiKey);
+      this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      this._isAvailable = true;
+      this._isInitialized = true;
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize AI service with new key:', error);
+      this._isAvailable = false;
+      return false;
+    }
+  }
+
+  // Check if API key is configured
+  async isApiKeyConfigured(): Promise<boolean> {
+    return await secureKeyStorage.hasGeminiApiKey();
+  }
+
+  // Remove the API key
+  async removeApiKey(): Promise<void> {
+    await secureKeyStorage.removeGeminiApiKey();
+    this.genAI = null;
+    this.model = null;
+    this._isAvailable = false;
+    this._isInitialized = false;
   }
 
   get isAvailable(): boolean {
     return this._isAvailable;
+  }
+
+  get isInitialized(): boolean {
+    return this._isInitialized;
   }
 
   async generateChecklist(
@@ -92,7 +134,7 @@ class AIService {
     // Check if AI service is available
     if (!this._isAvailable || !this.model) {
       throw new Error(
-        'AI features are currently unavailable. Please configure your Gemini API key or try again later.'
+        'AI features require a Google Gemini API key. Please add your API key in Settings > AI Configuration.'
       );
     }
 
@@ -349,6 +391,9 @@ Generate a comprehensive checklist as a JSON object:`;
 
   // Test method for development
   async testConnection(): Promise<boolean> {
+    if (!this._isAvailable || !this.model) {
+      return false;
+    }
     try {
       const result = await this.model.generateContent('Hello! Please respond with just the word "connected".');
       const response = await result.response;
