@@ -139,7 +139,7 @@ const limiter = rateLimit({
         return req.path === '/health';
     },
     keyGenerator: (req) => {
-        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
+        return req.ip || 'unknown';
     },
 });
 app.use('/api/', limiter);
