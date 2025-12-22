@@ -18,6 +18,17 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
+    try {
+      // Call backend to clear HTTP-only cookie
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Error calling backend logout:', error);
+    }
+    // Always clear local storage
     await auth.removeToken();
   }
 

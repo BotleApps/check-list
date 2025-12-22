@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,19 +23,33 @@ import {
   Monitor,
   Check,
   X,
+  Sparkles,
 } from 'lucide-react-native';
 import { useTheme } from '../lib/ThemeContext';
 import { Toast } from '../components/Toast';
+import { ApiKeyModal } from '../components/ApiKeyModal';
+import { aiService } from '../services/aiService';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { isDark, themeMode, setThemeMode, toggleTheme } = useTheme();
+  const { isDark, themeMode, setThemeMode, toggleTheme, theme } = useTheme();
   const [language, setLanguage] = useState('English');
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
 
   // Toast state
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  // Check if API key is configured on mount
+  useEffect(() => {
+    const checkApiKey = async () => {
+      const isConfigured = await aiService.isApiKeyConfigured();
+      setHasApiKey(isConfigured);
+    };
+    checkApiKey();
+  }, []);
 
   const showToastMessage = (message: string) => {
     setToastMessage(message);
@@ -56,6 +70,22 @@ export default function SettingsScreen() {
     showToastMessage(`Theme changed to ${mode === 'system' ? 'System default' : mode}`);
   };
 
+  const handleSaveApiKey = async (apiKey: string) => {
+    const success = await aiService.reinitializeWithKey(apiKey);
+    if (success) {
+      setHasApiKey(true);
+      showToastMessage('API key saved successfully');
+    } else {
+      throw new Error('Failed to save API key');
+    }
+  };
+
+  const handleRemoveApiKey = async () => {
+    await aiService.removeApiKey();
+    setHasApiKey(false);
+    showToastMessage('API key removed');
+  };
+
   const settingsSections = [
     {
       title: 'Appearance',
@@ -74,6 +104,18 @@ export default function SettingsScreen() {
           subtitle: getThemeModeLabel(),
           type: 'navigation',
           onPress: () => setShowThemeModal(true),
+        },
+      ],
+    },
+    {
+      title: 'AI Features',
+      items: [
+        {
+          icon: Sparkles,
+          title: 'AI Configuration',
+          subtitle: hasApiKey ? 'API Key configured' : 'Configure your Gemini API key',
+          type: 'navigation',
+          onPress: () => setShowApiKeyModal(true),
         },
       ],
     },
@@ -108,21 +150,40 @@ export default function SettingsScreen() {
   ];
 
   const renderSettingItem = (item: any) => {
+    const dynamicStyles = {
+      settingItem: {
+        ...styles.settingItem,
+        borderBottomColor: theme.border.light,
+      },
+      settingIconContainer: {
+        ...styles.settingIconContainer,
+        backgroundColor: theme.input.background,
+      },
+      settingTitle: {
+        ...styles.settingTitle,
+        color: theme.text.primary,
+      },
+      settingSubtitle: {
+        ...styles.settingSubtitle,
+        color: theme.text.secondary,
+      },
+    };
+
     if (item.type === 'switch') {
       return (
-        <View key={item.title} style={styles.settingItem}>
-          <View style={styles.settingIconContainer}>
-            <item.icon size={20} color="#6B7280" />
+        <View key={item.title} style={dynamicStyles.settingItem}>
+          <View style={dynamicStyles.settingIconContainer}>
+            <item.icon size={20} color={theme.text.secondary} />
           </View>
           <View style={styles.settingContent}>
-            <Text style={styles.settingTitle}>{item.title}</Text>
-            <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
+            <Text style={dynamicStyles.settingTitle}>{item.title}</Text>
+            <Text style={dynamicStyles.settingSubtitle}>{item.subtitle}</Text>
           </View>
           <Switch
             value={item.value}
             onValueChange={item.onToggle}
-            trackColor={{ false: '#E5E7EB', true: '#2563EB' }}
-            thumbColor={item.value ? '#FFFFFF' : '#F3F4F6'}
+            trackColor={{ false: theme.border.medium, true: '#2563EB' }}
+            thumbColor={item.value ? '#FFFFFF' : theme.input.background}
           />
         </View>
       );
@@ -131,44 +192,44 @@ export default function SettingsScreen() {
     return (
       <TouchableOpacity
         key={item.title}
-        style={styles.settingItem}
+        style={dynamicStyles.settingItem}
         onPress={item.onPress}
       >
-        <View style={styles.settingIconContainer}>
-          <item.icon size={20} color="#6B7280" />
+        <View style={dynamicStyles.settingIconContainer}>
+          <item.icon size={20} color={theme.text.secondary} />
         </View>
         <View style={styles.settingContent}>
-          <Text style={styles.settingTitle}>{item.title}</Text>
-          <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
+          <Text style={dynamicStyles.settingTitle}>{item.title}</Text>
+          <Text style={dynamicStyles.settingSubtitle}>{item.subtitle}</Text>
         </View>
-        <ChevronRight size={20} color="#9CA3AF" />
+        <ChevronRight size={20} color={theme.text.tertiary} />
       </TouchableOpacity>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background.primary }]}>
+      <View style={[styles.header, { backgroundColor: theme.background.primary, borderBottomColor: theme.border.light }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={24} color="#007AFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={[styles.headerTitle, { color: theme.text.primary }]}>Settings</Text>
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={[styles.scrollView, { backgroundColor: theme.background.secondary }]}>
         <View style={styles.content}>
           {settingsSections.map((section, sectionIndex) => (
             <View key={section.title} style={styles.section}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              <View style={styles.sectionContent}>
+              <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>{section.title}</Text>
+              <View style={[styles.sectionContent, { backgroundColor: theme.card.background }]}>
                 {section.items.map(renderSettingItem)}
               </View>
             </View>
           ))}
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>
+            <Text style={[styles.footerText, { color: theme.text.tertiary }]}>
               Settings changes are saved automatically
             </Text>
           </View>
@@ -183,42 +244,66 @@ export default function SettingsScreen() {
         onRequestClose={() => setShowThemeModal(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowThemeModal(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.modalContent, { backgroundColor: theme.card.background }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Choose Theme</Text>
+              <Text style={[styles.modalTitle, { color: theme.text.primary }]}>Choose Theme</Text>
               <TouchableOpacity onPress={() => setShowThemeModal(false)}>
-                <X size={24} color="#6B7280" />
+                <X size={24} color={theme.text.secondary} />
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity
-              style={[styles.themeOption, themeMode === 'light' && styles.themeOptionActive]}
+              style={[
+                styles.themeOption,
+                { backgroundColor: theme.background.secondary },
+                themeMode === 'light' && styles.themeOptionActive
+              ]}
               onPress={() => handleThemeSelect('light')}
             >
-              <Sun size={20} color={themeMode === 'light' ? '#2563EB' : '#6B7280'} />
-              <Text style={[styles.themeOptionText, themeMode === 'light' && styles.themeOptionTextActive]}>
+              <Sun size={20} color={themeMode === 'light' ? '#2563EB' : theme.text.secondary} />
+              <Text style={[
+                styles.themeOptionText,
+                { color: theme.text.secondary },
+                themeMode === 'light' && styles.themeOptionTextActive
+              ]}>
                 Light
               </Text>
               {themeMode === 'light' && <Check size={20} color="#2563EB" />}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.themeOption, themeMode === 'dark' && styles.themeOptionActive]}
+              style={[
+                styles.themeOption,
+                { backgroundColor: theme.background.secondary },
+                themeMode === 'dark' && styles.themeOptionActive
+              ]}
               onPress={() => handleThemeSelect('dark')}
             >
-              <Moon size={20} color={themeMode === 'dark' ? '#2563EB' : '#6B7280'} />
-              <Text style={[styles.themeOptionText, themeMode === 'dark' && styles.themeOptionTextActive]}>
+              <Moon size={20} color={themeMode === 'dark' ? '#2563EB' : theme.text.secondary} />
+              <Text style={[
+                styles.themeOptionText,
+                { color: theme.text.secondary },
+                themeMode === 'dark' && styles.themeOptionTextActive
+              ]}>
                 Dark
               </Text>
               {themeMode === 'dark' && <Check size={20} color="#2563EB" />}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.themeOption, themeMode === 'system' && styles.themeOptionActive]}
+              style={[
+                styles.themeOption,
+                { backgroundColor: theme.background.secondary },
+                themeMode === 'system' && styles.themeOptionActive
+              ]}
               onPress={() => handleThemeSelect('system')}
             >
-              <Monitor size={20} color={themeMode === 'system' ? '#2563EB' : '#6B7280'} />
-              <Text style={[styles.themeOptionText, themeMode === 'system' && styles.themeOptionTextActive]}>
+              <Monitor size={20} color={themeMode === 'system' ? '#2563EB' : theme.text.secondary} />
+              <Text style={[
+                styles.themeOptionText,
+                { color: theme.text.secondary },
+                themeMode === 'system' && styles.themeOptionTextActive
+              ]}>
                 System Default
               </Text>
               {themeMode === 'system' && <Check size={20} color="#2563EB" />}
@@ -226,6 +311,15 @@ export default function SettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* API Key Modal */}
+      <ApiKeyModal
+        visible={showApiKeyModal}
+        hasExistingKey={hasApiKey}
+        onSave={handleSaveApiKey}
+        onRemove={handleRemoveApiKey}
+        onClose={() => setShowApiKeyModal(false)}
+      />
 
       <Toast
         visible={showToast}
@@ -240,16 +334,13 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   backButton: {
     width: 44,
@@ -260,14 +351,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
   },
   placeholder: {
     width: 44,
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   content: {
     padding: 16,
@@ -278,12 +367,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
     marginBottom: 12,
     marginLeft: 4,
   },
   sectionContent: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: {
@@ -299,13 +386,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   settingIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -316,12 +401,10 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#111827',
     marginBottom: 2,
   },
   settingSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
   },
   footer: {
     marginTop: 32,
@@ -329,7 +412,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: '#9CA3AF',
     textAlign: 'center',
   },
   // Modal styles
@@ -341,7 +423,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
     width: '100%',
@@ -364,7 +445,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
   },
   themeOption: {
     flexDirection: 'row',
@@ -372,7 +452,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: '#F9FAFB',
     gap: 12,
   },
   themeOptionActive: {
@@ -383,7 +462,6 @@ const styles = StyleSheet.create({
   themeOptionText: {
     flex: 1,
     fontSize: 16,
-    color: '#374151',
     fontWeight: '500',
   },
   themeOptionTextActive: {
