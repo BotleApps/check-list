@@ -1,14 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
-interface CallbackPayload {
-  type: 'GOOGLE_OAUTH_TOKEN';
-  accessToken?: string;
-  idToken?: string;
-  error?: string;
-  errorDescription?: string;
-}
-
 export default function AuthCallbackScreen() {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = useState<string>('Completing sign-in...');
@@ -19,64 +11,34 @@ export default function AuthCallbackScreen() {
     }
 
     const processCallback = async () => {
-      const hashParams = new URLSearchParams(window.location.hash?.replace(/^#/, '') || '');
       const queryParams = new URLSearchParams(window.location.search || '');
-
-      const accessToken = hashParams.get('access_token') || queryParams.get('access_token') || undefined;
-      const state = hashParams.get('state') || queryParams.get('state') || undefined;
-      const error = hashParams.get('error') || queryParams.get('error') || undefined;
-      const errorDescription =
-        hashParams.get('error_description') || queryParams.get('error_description') || undefined;
-
-      // Validate state to prevent CSRF
-      const storedState = sessionStorage.getItem('oauth_state');
-      if (state && storedState && state !== storedState) {
-        setStatus('error');
-        setMessage('Invalid state parameter. Please try again.');
-        return;
-      }
+      const error = queryParams.get('error');
 
       if (error) {
         setStatus('error');
-        setMessage(errorDescription || error);
-        // Redirect back to login with error
+        setMessage(error);
         setTimeout(() => {
-          window.location.replace(`/auth/login?error=${encodeURIComponent(errorDescription || error)}`);
+          window.location.replace(`/auth/login?error=${encodeURIComponent(error)}`);
         }, 2000);
         return;
       }
 
-      if (!accessToken) {
-        setStatus('error');
-        setMessage('No access token received');
-        console.error('❌ No access token in URL');
-        console.log('Hash params:', Object.fromEntries(hashParams.entries()));
-        console.log('Query params:', Object.fromEntries(queryParams.entries()));
-        setTimeout(() => {
-          window.location.replace('/auth/login?error=no_token');
-        }, 2000);
-        return;
-      }
-
-      console.log('✅ Access token received:', accessToken.substring(0, 20) + '...');
-      console.log('Token length:', accessToken.length);
-
-      // Store the token and redirect to home
+      // Check auth status via backend (reads HTTP-only cookie)
       try {
-        // Import and use the auth service
+        console.log('🔄 Checking auth status via backend...');
         const { oauthService } = await import('../../services/oauth');
+        const result = await oauthService.checkAuthStatus();
 
-        const result = await oauthService.handleCallback(accessToken);
-
-        if (!result.success) {
-          throw new Error(typeof result.error === 'string' ? result.error : result.error?.message || 'Authentication failed');
+        if (result.success && result.user) {
+          console.log('✅ Authentication verified:', result.user.email);
+          setStatus('success');
+          setMessage('Sign-in successful! Redirecting...');
+          setTimeout(() => {
+            window.location.replace('/');
+          }, 500);
+        } else {
+          throw new Error('Not authenticated');
         }
-
-        setStatus('success');
-        setMessage('Sign-in successful! Redirecting...');
-        setTimeout(() => {
-          window.location.replace('/');
-        }, 500);
       } catch (err) {
         console.error('Auth error:', err);
         setStatus('error');
