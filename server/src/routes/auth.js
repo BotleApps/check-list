@@ -36,9 +36,9 @@ router.get('/google/callback',
             // Set token in HTTP-only cookie
             setTokenCookie(res, token);
 
-            // Redirect to frontend
+            // Redirect to callback page so it can verify auth and redirect
             const redirectUrl = process.env.CLIENT_URL || 'http://localhost:8081';
-            res.redirect(redirectUrl);
+            res.redirect(`${redirectUrl}/auth/callback?auth=success`);
         } catch (error) {
             console.error('OAuth callback error:', error);
             res.redirect(`${process.env.CLIENT_URL}/login?error=token_generation_failed`);
