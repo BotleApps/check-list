@@ -25,14 +25,20 @@ export const useAuthStateListener = () => {
       try {
         // First, check if we have a valid session via the backend (HTTP-only cookie)
         // This is important after OAuth redirect when cookie is set but AsyncStorage is empty
-        const result = await oauthService.checkAuthStatus();
-        
-        if (result.success && result.user && mounted) {
-          console.log('✅ Auth status verified via backend:', { userId: result.user.user_id, email: result.user.email });
-          // Store user locally for offline access
-          await auth.setUser(result.user);
-          dispatch(setUser(result.user));
-          return;
+        try {
+          const result = await oauthService.checkAuthStatus();
+          
+          if (result.success && result.user && mounted) {
+            console.log('✅ Auth status verified via backend:', { userId: result.user.user_id, email: result.user.email });
+            // Store user locally for offline access
+            await auth.setUser(result.user);
+            dispatch(setUser(result.user));
+            return;
+          }
+        } catch (backendError) {
+          // Backend check failed - this is normal if server is unavailable
+          // Fall back to local storage check
+          console.log('ℹ️ Backend auth check unavailable, checking local storage');
         }
 
         // Fallback: check locally stored auth

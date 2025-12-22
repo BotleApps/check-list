@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { oauthService } from '../../services/oauth';
 
 export default function AuthCallbackScreen() {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
@@ -26,7 +27,6 @@ export default function AuthCallbackScreen() {
       // Check auth status via backend (reads HTTP-only cookie)
       try {
         console.log('🔄 Checking auth status via backend...');
-        const { oauthService } = await import('../../services/oauth');
         const result = await oauthService.checkAuthStatus();
 
         if (result.success && result.user) {
@@ -37,7 +37,7 @@ export default function AuthCallbackScreen() {
             window.location.replace('/');
           }, 500);
         } else {
-          throw new Error('Not authenticated');
+          throw new Error('Authentication verification failed. Please try signing in again.');
         }
       } catch (err) {
         console.error('Auth error:', err);
